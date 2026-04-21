@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-slate-950 text-white;
+    overscroll-behavior: none;
+  }
+
+  /* Safe area padding for iOS notch / home bar */
+  .pb-safe {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+}
+
+/* Syntax highlighting theme (dark) */
+.hljs {
+  background: transparent !important;
+}
