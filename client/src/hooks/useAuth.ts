@@ -15,9 +15,8 @@ export function useAuth() {
   });
 
   useEffect(() => {
-    if (meQuery.data) setUser(meQuery.data);
-    else if (meQuery.isError) setUser(null);
-  }, [meQuery.data, meQuery.isError, setUser]);
+    if (meQuery.status === 'success') setUser(meQuery.data ?? null);
+  }, [meQuery.status, meQuery.data, setUser]);
 
   const loginMutation = useMutation({
     mutationFn: ({ username, password }: { username: string; password: string }) =>
