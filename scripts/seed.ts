@@ -1,12 +1,7 @@
-import 'dotenv/config';
 import path from 'path';
 import readline from 'readline';
 import bcrypt from 'bcrypt';
 import { writeUser, readUser } from '../server/src/storage';
-
-// Resolve DATA_DIR before the module loads
-process.env.DATA_DIR =
-  process.env.DATA_DIR ?? path.join(__dirname, '../data');
 
 async function main() {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
