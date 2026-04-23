@@ -21,12 +21,12 @@ export function useConversations() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteConversation,
+    mutationFn: (id: string) => deleteConversation(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['conversations'] }),
   });
 
   const renameMutation = useMutation({
-    mutationFn: ({ id, title }: { id: number; title: string }) =>
+    mutationFn: ({ id, title }: { id: string; title: string }) =>
       updateConversationTitle(id, title),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['conversations'] }),
   });
@@ -35,8 +35,8 @@ export function useConversations() {
     conversations: query.data ?? [],
     isLoading: query.isLoading,
     create: createMutation.mutateAsync,
-    remove: deleteMutation.mutate,
-    rename: renameMutation.mutate,
+    remove: (id: string) => deleteMutation.mutate(id),
+    rename: (id: string, title: string) => renameMutation.mutate({ id, title }),
     refresh: () => queryClient.invalidateQueries({ queryKey: ['conversations'] }),
   };
 }

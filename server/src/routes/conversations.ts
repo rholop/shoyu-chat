@@ -1,46 +1,54 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import {
-  getConversations,
-  getConversationById,
+  listConversations,
+  getConversationMeta,
   getMessages,
   createConversation,
   updateConversationTitle,
   deleteConversation,
-} from '../db';
+} from '../storage';
 
 const router = Router();
 
-router.get('/', (req, res) => {
-  const conversations = getConversations(req.user!.userId);
-  res.json(conversations);
+router.get('/', (_req, res) => {
+  res.json(listConversations());
 });
 
-router.post('/', (req, res) => {
-  const id = createConversation(req.user!.userId);
+router.post('/', (_req, res) => {
+  const id = createConversation();
   res.status(201).json({ id });
 });
 
 router.get('/:id', (req, res) => {
-  const id = Number(req.params.id);
-  const conversation = getConversationById(id, req.user!.userId);
-  if (!conversation) {
+  const { id } = req.params;
+  const meta = getConversationMeta(id);
+  if (!meta) {
     res.status(404).json({ error: 'Not found' });
     return;
   }
-  const messages = getMessages(id);
-  res.json({ ...conversation, messages });
+  const rawMessages = getMessages(id);
+  // Map to the shape the frontend expects
+  const messages = rawMessages.map((m, i) => ({
+    id: i,
+    conversation_id: id,
+    role: m.role,
+    content: m.content,
+    model_used: m.model ?? null,
+    created_at: m.created_at,
+  }));
+  res.json({ ...meta, updated_at: new Date().toISOString(), messages });
 });
 
 router.patch('/:id', (req, res) => {
-  const id = Number(req.params.id);
+  const { id } = req.params;
   const parsed = z.object({ title: z.string().min(1).max(200) }).safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Invalid title' });
     return;
   }
-  const result = updateConversationTitle(id, req.user!.userId, parsed.data.title);
-  if (result.changes === 0) {
+  const ok = updateConversationTitle(id, parsed.data.title);
+  if (!ok) {
     res.status(404).json({ error: 'Not found' });
     return;
   }
@@ -48,9 +56,8 @@ router.patch('/:id', (req, res) => {
 });
 
 router.delete('/:id', (req, res) => {
-  const id = Number(req.params.id);
-  const result = deleteConversation(id, req.user!.userId);
-  if (result.changes === 0) {
+  const ok = deleteConversation(req.params.id);
+  if (!ok) {
     res.status(404).json({ error: 'Not found' });
     return;
   }

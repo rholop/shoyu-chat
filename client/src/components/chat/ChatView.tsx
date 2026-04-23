@@ -7,7 +7,7 @@ import MessageInput from './MessageInput';
 import ModelBadge from './ModelBadge';
 
 interface Props {
-  conversationId: number;
+  conversationId: string;
 }
 
 export default function ChatView({ conversationId }: Props) {

@@ -4,9 +4,9 @@ import ModelBadge from '../chat/ModelBadge';
 
 interface Props {
   conversations: Conversation[];
-  activeId: number | null;
-  onSelect: (id: number) => void;
-  onDelete: (id: number) => void;
+  activeId: string | null;
+  onSelect: (id: string) => void;
+  onDelete: (id: string) => void;
   onNewChat: () => void;
 }
 

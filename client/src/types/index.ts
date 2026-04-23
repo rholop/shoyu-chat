@@ -1,11 +1,12 @@
 export interface User {
   userId: number;
   username: string;
+  email?: string;
 }
 
 export interface Message {
   id: number;
-  conversation_id: number;
+  conversation_id: string;
   role: 'user' | 'assistant';
   content: string;
   model_used: string | null;
@@ -13,8 +14,7 @@ export interface Message {
 }
 
 export interface Conversation {
-  id: number;
-  user_id: number;
+  id: string;
   title: string;
   created_at: string;
   updated_at: string;
@@ -27,5 +27,5 @@ export interface ConversationWithMessages extends Conversation {
 
 export type SSEEvent =
   | { type: 'token'; content: string }
-  | { type: 'done'; model: string; messageId: number; conversationId: number }
+  | { type: 'done'; model: string; conversationId: string }
   | { type: 'error'; message: string };

@@ -1,7 +1,7 @@
 import { SSEEvent } from '../types';
 
 export async function* sendMessage(
-  conversationId: number,
+  conversationId: string,
   content: string
 ): AsyncGenerator<SSEEvent> {
   const res = await fetch('/api/chat/send', {
@@ -26,7 +26,6 @@ export async function* sendMessage(
 
     buffer += decoder.decode(value, { stream: true });
 
-    // SSE events are delimited by \n\n
     const parts = buffer.split('\n\n');
     buffer = parts.pop() ?? '';
 
@@ -36,7 +35,7 @@ export async function* sendMessage(
       try {
         yield JSON.parse(line) as SSEEvent;
       } catch {
-        // Malformed chunk — skip
+        // malformed chunk
       }
     }
   }

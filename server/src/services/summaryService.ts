@@ -1,8 +1,8 @@
 import {
-  getConversationByIdInternal,
+  getConversationMeta,
   getMessages,
   getRecentlyActiveConversations,
-} from '../db';
+} from '../storage';
 import { summarize } from './aiRouter';
 import {
   writeChatFile,
@@ -14,9 +14,9 @@ import { getISOWeekKey, getMonthKey } from '../utils/dateHelpers';
 import { logger } from '../utils/logger';
 
 const INACTIVITY_MS = 4 * 60 * 60 * 1000; // 4 hours
-const pendingTimers = new Map<number, NodeJS.Timeout>();
+const pendingTimers = new Map<string, NodeJS.Timeout>();
 
-export function schedule(conversationId: number) {
+export function schedule(conversationId: string) {
   if (pendingTimers.has(conversationId)) {
     clearTimeout(pendingTimers.get(conversationId)!);
   }
@@ -35,7 +35,7 @@ export function recoverSummaryTimers() {
   const recent = getRecentlyActiveConversations(INACTIVITY_MS);
   if (recent.length > 0) {
     logger.info(`Recovering summary timers for ${recent.length} conversation(s)`);
-    for (const { id } of recent) {
+    for (const id of recent) {
       schedule(id);
     }
   }
@@ -54,9 +54,9 @@ export async function flushAllPending() {
   }
 }
 
-export async function runSummary(conversationId: number) {
-  const conversation = getConversationByIdInternal(conversationId) ??
-    (() => { throw new Error(`Conversation ${conversationId} not found`); })();
+export async function runSummary(conversationId: string) {
+  const meta = getConversationMeta(conversationId);
+  if (!meta) throw new Error(`Conversation ${conversationId} not found`);
 
   const messages = getMessages(conversationId);
   if (messages.length === 0) return;
@@ -65,8 +65,8 @@ export async function runSummary(conversationId: number) {
     .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
     .join('\n\n');
 
-  const models = [...new Set(messages.map((m) => m.model_used).filter(Boolean))] as string[];
-  const dateStr = conversation.created_at.slice(0, 10);
+  const models = [...new Set(messages.map((m) => m.model).filter(Boolean))] as string[];
+  const dateStr = meta.created_at.slice(0, 10);
 
   // 1. Full summary
   const summaryPrompt = `Summarize this conversation in 2-4 sentences covering:
@@ -91,7 +91,7 @@ ${transcript}`;
   // 3. Write chat file
   writeChatFile({
     id: conversationId,
-    title: conversation.title,
+    title: meta.title,
     date: dateStr,
     models,
     summary,
@@ -109,11 +109,7 @@ ${transcript}`;
 
   const oneLiner = await summarize(oneLinerPrompt);
 
-  upsertWeeklyEntry({
-    date: dateStr,
-    title: conversation.title,
-    oneLiner,
-  });
+  upsertWeeklyEntry({ date: dateStr, title: meta.title, oneLiner });
 
   // 5. Regenerate monthly summary
   await regenerateMonthlySummary(dateStr.slice(0, 7));
@@ -122,7 +118,6 @@ ${transcript}`;
 }
 
 async function regenerateMonthlySummary(monthKey: string) {
-  // Collect all weekly summaries for this month
   const weeklySummaries: string[] = [];
   for (let w = 1; w <= 53; w++) {
     const key = `${monthKey.slice(0, 4)}-W${String(w).padStart(2, '0')}`;
@@ -143,7 +138,6 @@ ${weeklySummaries.join('\n\n')}`;
 
   const overview = await summarize(monthlyPrompt);
 
-  // Build conversations list from weekly entries (simple parse)
   const conversations: Array<{ title: string; oneLiner: string }> = [];
   for (const weekly of weeklySummaries) {
     const rows = weekly.split('\n').filter((l) => l.startsWith('|') && !l.includes('---'));

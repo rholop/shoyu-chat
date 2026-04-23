@@ -2,13 +2,13 @@ import { create } from 'zustand';
 import { Message, SSEEvent } from '../types';
 
 interface ChatState {
-  activeConversationId: number | null;
+  activeConversationId: string | null;
   messages: Message[];
   streamingContent: string;
   isStreaming: boolean;
   streamError: string | null;
 
-  setActiveConversation: (id: number | null) => void;
+  setActiveConversation: (id: string | null) => void;
   setMessages: (messages: Message[]) => void;
   appendToken: (token: string) => void;
   finalizeStream: (event: Extract<SSEEvent, { type: 'done' }>, model: string) => void;
@@ -23,7 +23,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isStreaming: false,
   streamError: null,
 
-  setActiveConversation: (id) => set({ activeConversationId: id, messages: [], streamingContent: '', isStreaming: false, streamError: null }),
+  setActiveConversation: (id) =>
+    set({ activeConversationId: id, messages: [], streamingContent: '', isStreaming: false, streamError: null }),
 
   setMessages: (messages) => set({ messages }),
 
@@ -32,7 +33,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   finalizeStream: (event, model) => {
     const { streamingContent, messages } = get();
     const newMessage: Message = {
-      id: event.messageId,
+      id: Date.now(),
       conversation_id: event.conversationId,
       role: 'assistant',
       content: streamingContent,

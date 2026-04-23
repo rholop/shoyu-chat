@@ -1,4 +1,4 @@
-import { getUsageCount, incrementUsage } from '../db';
+import { getUsageCount, incrementUsage } from '../storage';
 import { getToday } from '../utils/dateHelpers';
 import { logger } from '../utils/logger';
 import { streamChatGroq, summarizeGroq } from './groqService';
@@ -57,7 +57,6 @@ export async function* streamChat(
     } catch (err) {
       logger.warn(`Provider ${provider.name} failed: ${err}`);
       if (!isRateLimitError(err)) throw err;
-      // Rate limited — fall through to next provider
     }
   }
 

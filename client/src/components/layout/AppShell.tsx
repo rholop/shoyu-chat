@@ -20,12 +20,12 @@ export default function AppShell() {
     refresh();
   };
 
-  const handleSelect = (id: number) => {
+  const handleSelect = (id: string) => {
     setActiveConversation(id);
     setSidebarOpen(false);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = (id: string) => {
     remove(id);
     if (activeConversationId === id) setActiveConversation(null);
   };
@@ -39,7 +39,6 @@ export default function AppShell() {
 
   return (
     <div className="flex h-screen bg-slate-950 overflow-hidden">
-      {/* Sidebar overlay on mobile */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-20 md:hidden"
@@ -47,7 +46,6 @@ export default function AppShell() {
         />
       )}
 
-      {/* Sidebar */}
       <div
         className={`fixed inset-y-0 left-0 z-30 md:relative md:block transition-transform duration-200 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
@@ -62,7 +60,6 @@ export default function AppShell() {
         />
       </div>
 
-      {/* Main area */}
       <div className="flex-1 flex flex-col min-w-0">
         <TopBar
           title={title}

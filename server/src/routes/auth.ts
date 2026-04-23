@@ -2,7 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
-import { getUserByUsername } from '../db';
+import { readUser } from '../storage';
 import { requireAuth } from '../middleware/authMiddleware';
 
 const router = Router();
@@ -20,9 +20,9 @@ router.post('/login', async (req, res) => {
   }
 
   const { username, password } = parsed.data;
-  const user = getUserByUsername(username);
+  const user = readUser();
 
-  if (!user) {
+  if (!user || user.username !== username) {
     res.status(401).json({ error: 'Invalid credentials' });
     return;
   }
@@ -34,7 +34,7 @@ router.post('/login', async (req, res) => {
   }
 
   const token = jwt.sign(
-    { userId: user.id, username: user.username },
+    { userId: 1, username: user.username },
     process.env.JWT_SECRET!,
     { expiresIn: '7d' }
   );
@@ -46,7 +46,7 @@ router.post('/login', async (req, res) => {
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
-  res.json({ username: user.username });
+  res.json({ username: user.username, email: user.email });
 });
 
 router.post('/logout', (_req, res) => {
@@ -55,7 +55,12 @@ router.post('/logout', (_req, res) => {
 });
 
 router.get('/me', requireAuth, (req, res) => {
-  res.json({ userId: req.user!.userId, username: req.user!.username });
+  const user = readUser();
+  res.json({
+    userId: req.user!.userId,
+    username: req.user!.username,
+    email: user?.email ?? '',
+  });
 });
 
 export default router;

@@ -11,7 +11,7 @@ import chatRouter from './routes/chat';
 import { requireAuth } from './middleware/authMiddleware';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
-import { scheduleWeeklyDigest } from './jobs/weeklyDigest';
+import { scheduleWeeklyDigest, sendWeeklyDigest } from './jobs/weeklyDigest';
 import { recoverSummaryTimers } from './services/summaryService';
 
 const app = express();
@@ -28,7 +28,6 @@ app.use('/api/conversations', requireAuth, conversationsRouter);
 app.use('/api/chat', requireAuth, chatRouter);
 
 app.post('/api/admin/digest/trigger', requireAuth, async (_req, res) => {
-  const { sendWeeklyDigest } = await import('./jobs/weeklyDigest');
   await sendWeeklyDigest();
   res.json({ ok: true });
 });

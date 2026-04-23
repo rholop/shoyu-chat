@@ -5,7 +5,7 @@ import { sendMessage } from '../api/chat';
 import { useChatStore } from '../store/chatStore';
 import { Message } from '../types';
 
-export function useChat(conversationId: number | null) {
+export function useChat(conversationId: string | null) {
   const queryClient = useQueryClient();
   const { appendToken, finalizeStream, setStreamError, resetStream, setMessages } = useChatStore();
 
@@ -16,14 +16,12 @@ export function useChat(conversationId: number | null) {
     staleTime: 10 * 1000,
   });
 
-  // Sync messages from query into the store whenever they change
   const messages = query.data?.messages ?? [];
 
   const send = useCallback(
     async (content: string, optimisticUserMessage: Message) => {
       if (!conversationId) return;
 
-      // Optimistically show user message
       setMessages([...messages, optimisticUserMessage]);
       resetStream();
 
@@ -33,7 +31,6 @@ export function useChat(conversationId: number | null) {
             appendToken(event.content);
           } else if (event.type === 'done') {
             finalizeStream(event, event.model);
-            // Refresh conversation list for updated title / timestamp
             queryClient.invalidateQueries({ queryKey: ['conversations'] });
             queryClient.invalidateQueries({ queryKey: ['conversation', conversationId] });
           } else if (event.type === 'error') {

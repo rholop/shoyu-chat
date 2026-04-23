@@ -1,12 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import {
-  getConversationById,
+  getConversationMeta,
   getMessages,
-  insertMessage,
-  touchConversation,
+  appendMessage,
   updateConversationTitle,
-} from '../db';
+} from '../storage';
 import { streamChat } from '../services/aiRouter';
 import { schedule as scheduleSummary } from '../services/summaryService';
 import { logger } from '../utils/logger';
@@ -14,7 +13,7 @@ import { logger } from '../utils/logger';
 const router = Router();
 
 const sendSchema = z.object({
-  conversationId: z.number().int().positive(),
+  conversationId: z.string().uuid(),
   content: z.string().min(1).max(32000),
 });
 
@@ -26,8 +25,8 @@ router.post('/send', async (req, res) => {
   }
 
   const { conversationId, content } = parsed.data;
-  const conversation = getConversationById(conversationId, req.user!.userId);
-  if (!conversation) {
+  const meta = getConversationMeta(conversationId);
+  if (!meta) {
     res.status(404).json({ error: 'Conversation not found' });
     return;
   }
@@ -41,16 +40,15 @@ router.post('/send', async (req, res) => {
 
   const send = (payload: object) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
-  // Save user message immediately
-  insertMessage(conversationId, 'user', content);
+  const now = new Date().toISOString();
 
-  const history = getMessages(conversationId).map((m) => ({
-    role: m.role as 'user' | 'assistant',
-    content: m.content,
-  }));
+  // Load history for AI context (last 20 messages)
+  const history = getMessages(conversationId)
+    .slice(-20)
+    .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
-  // Keep last 20 messages for context to stay within token limits
-  const context = history.slice(-20);
+  // Add current user message to context
+  const context = [...history, { role: 'user' as const, content }];
 
   let fullContent = '';
   let modelUsed = '';
@@ -67,18 +65,24 @@ router.post('/send', async (req, res) => {
     }
 
     if (!aborted && fullContent) {
-      const msgId = insertMessage(conversationId, 'assistant', fullContent, modelUsed);
-      touchConversation(conversationId);
+      // Persist both messages
+      appendMessage(conversationId, { role: 'user', content, created_at: now });
+      appendMessage(conversationId, {
+        role: 'assistant',
+        content: fullContent,
+        model: modelUsed,
+        created_at: new Date().toISOString(),
+      });
 
-      // Auto-title the conversation from the first user message
-      if (conversation.title === 'New Conversation') {
+      // Auto-title from first user message
+      if (meta.title === 'New Conversation') {
         const title = content.slice(0, 60).replace(/\n/g, ' ').trim();
-        updateConversationTitle(conversationId, req.user!.userId, title);
+        updateConversationTitle(conversationId, title);
       }
 
       scheduleSummary(conversationId);
 
-      send({ type: 'done', model: modelUsed, messageId: msgId, conversationId });
+      send({ type: 'done', model: modelUsed, conversationId });
     }
   } catch (err) {
     logger.error('Chat stream error:', err);

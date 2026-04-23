@@ -26,7 +26,7 @@ function atomicWrite(filePath: string, content: string) {
 // ── Chat file ─────────────────────────────────────────────────────────────────
 
 export interface ChatFileData {
-  id: number;
+  id: string;
   title: string;
   date: string;
   models: string[];
