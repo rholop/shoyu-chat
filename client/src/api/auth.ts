@@ -21,6 +21,12 @@ export async function logout(): Promise<void> {
   await apiFetch('/api/auth/logout', { method: 'POST' });
 }
 
-export async function getMe(): Promise<User> {
-  return apiFetch('/api/auth/me');
+export async function getMe(): Promise<User | null> {
+  const res = await fetch('/api/auth/me', { credentials: 'include' });
+  if (res.status === 401) return null;
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as { error?: string }).error ?? res.statusText);
+  }
+  return res.json();
 }
