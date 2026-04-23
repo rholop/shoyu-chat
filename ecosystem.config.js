@@ -3,7 +3,7 @@ module.exports = {
     {
       name: 'shoyu-chat',
       script: 'server/dist/index.js',
-      cwd: '/home/user/shoyu-chat',
+      cwd: __dirname,
       env_production: {
         NODE_ENV: 'production',
         PORT: 3001,
