@@ -3,10 +3,12 @@ import path from 'path';
 import os from 'os';
 import { v4 as uuidv4 } from 'uuid';
 
-const DATA_DIR = process.env.DATA_DIR ?? path.join(__dirname, '../../../../data');
+function dataDir(): string {
+  return process.env.DATA_DIR ?? path.join(__dirname, '../../../data');
+}
 
 function conversationsDir() {
-  const d = path.join(DATA_DIR, 'conversations');
+  const d = path.join(dataDir(), 'conversations');
   fs.mkdirSync(d, { recursive: true });
   return d;
 }
@@ -27,7 +29,7 @@ export interface UserRecord {
 }
 
 export function readUser(): UserRecord | null {
-  const p = path.join(DATA_DIR, 'user.json');
+  const p = path.join(dataDir(), 'user.json');
   if (!fs.existsSync(p)) return null;
   try {
     return JSON.parse(fs.readFileSync(p, 'utf8')) as UserRecord;
@@ -37,8 +39,8 @@ export function readUser(): UserRecord | null {
 }
 
 export function writeUser(user: UserRecord) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  atomicWrite(path.join(DATA_DIR, 'user.json'), JSON.stringify(user, null, 2));
+  fs.mkdirSync(dataDir(), { recursive: true });
+  atomicWrite(path.join(dataDir(), 'user.json'), JSON.stringify(user, null, 2));
 }
 
 // ── API Usage ─────────────────────────────────────────────────────────────────
@@ -46,7 +48,7 @@ export function writeUser(user: UserRecord) {
 type UsageData = Record<string, Record<string, number>>;
 
 function readUsageRaw(): UsageData {
-  const p = path.join(DATA_DIR, 'usage.json');
+  const p = path.join(dataDir(), 'usage.json');
   if (!fs.existsSync(p)) return {};
   try {
     return JSON.parse(fs.readFileSync(p, 'utf8')) as UsageData;
@@ -63,8 +65,8 @@ export function incrementUsage(provider: string, date: string) {
   const usage = readUsageRaw();
   if (!usage[provider]) usage[provider] = {};
   usage[provider][date] = (usage[provider][date] ?? 0) + 1;
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  atomicWrite(path.join(DATA_DIR, 'usage.json'), JSON.stringify(usage, null, 2));
+  fs.mkdirSync(dataDir(), { recursive: true });
+  atomicWrite(path.join(dataDir(), 'usage.json'), JSON.stringify(usage, null, 2));
 }
 
 // ── Conversation metadata ─────────────────────────────────────────────────────
