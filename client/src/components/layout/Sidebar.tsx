@@ -1,4 +1,4 @@
-import { Trash2, MessageSquare } from 'lucide-react';
+import { Trash2, MessageSquare, PanelLeftClose } from 'lucide-react';
 import { Conversation } from '../../types';
 import ModelBadge from '../chat/ModelBadge';
 
@@ -8,6 +8,7 @@ interface Props {
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
   onNewChat: () => void;
+  onClose?: () => void;
 }
 
 function formatDate(iso: string) {
@@ -20,17 +21,26 @@ function formatDate(iso: string) {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-export default function Sidebar({ conversations, activeId, onSelect, onDelete, onNewChat }: Props) {
+export default function Sidebar({ conversations, activeId, onSelect, onDelete, onNewChat, onClose }: Props) {
   return (
     <aside className="flex flex-col h-full w-72 bg-slate-900 border-r border-slate-800">
-      <div className="p-3 border-b border-slate-800">
+      <div className="p-3 border-b border-slate-800 flex gap-2">
         <button
           onClick={onNewChat}
-          className="w-full flex items-center gap-2 px-3 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors"
+          className="flex-1 flex items-center gap-2 px-3 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors"
         >
           <MessageSquare size={16} />
           New Chat
         </button>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="hidden md:flex p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors items-center justify-center"
+            aria-label="Close sidebar"
+          >
+            <PanelLeftClose size={18} />
+          </button>
+        )}
       </div>
 
       <nav className="flex-1 overflow-y-auto py-2">
