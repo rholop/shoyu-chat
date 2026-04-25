@@ -150,7 +150,7 @@ describe('POST /send', () => {
 //   });
 
   it('aborts stream when client disconnects', async () => {
-    vi.mocked(getConversationMeta).mockReturnValue({ id: '1', title: 'Test', user_id: 1, created_at: '', updated_at: '' });
+    vi.mocked(getConversationMeta).mockReturnValue({ id: '1', title: 'Test', created_at: '' });
     vi.mocked(getMessages).mockReturnValue([]);
 
     // Create a generator that tracks if it was aborted
