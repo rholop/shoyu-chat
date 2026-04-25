@@ -54,12 +54,12 @@ export async function* streamChat(
   for (const provider of providers) {
     const usage = getUsageCount(provider.key, today);
     if (usage >= provider.limit) {
-      logger.info(`Provider ${provider.name} daily limit reached (${usage}/${provider.limit})`);
+      logger.error(`Provider ${provider.name} daily limit reached (${usage}/${provider.limit})`);
       continue;
     }
 
     if (!isProviderAvailable(provider.name)) {
-      logger.warn(`Provider ${provider.name} is not available (no API key)`);
+      logger.error(`Provider ${provider.name} is not available (no API key)`);
       continue;
     }
 
@@ -76,10 +76,11 @@ export async function* streamChat(
       }
 
       if (hasOutput) return;
-      logger.warn(`Provider ${provider.name} returned no tokens`);
+      logger.error(`Provider ${provider.name} returned no tokens`);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       logger.warn(`Provider ${provider.name} failed: ${errMsg}`);
+      logger.error(`Provider ${provider.name} failed:`, err);
       // Always try the next provider regardless of error type
     }
   }
