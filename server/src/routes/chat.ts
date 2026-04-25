@@ -18,6 +18,19 @@ const sendSchema = z.object({
 });
 
 router.post('/send', async (req, res) => {
+  // LOUD LOGGING
+  console.log('--- NEW CHAT REQUEST ---');
+  console.log('Body:', JSON.stringify(req.body));
+
+  const parsed = sendSchema.safeParse(req.body);
+  if (!parsed.success) {
+    console.log('Zod Validation Failed:', parsed.error.format()); // LOG THIS
+    res.status(400).json({ error: 'Invalid request', details: parsed.error.format() });
+    return;
+  }
+});
+
+router.post('/send', async (req, res) => {
   const parsed = sendSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Invalid request' });
@@ -37,6 +50,8 @@ router.post('/send', async (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
+
+  res.write(': warmup\n\n');
 
   const send = (payload: object) => {
     try {
