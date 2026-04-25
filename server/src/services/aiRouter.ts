@@ -64,11 +64,14 @@ export async function* streamChat(
     }
 
     try {
-      incrementUsage(provider.key, today);
       let hasOutput = false;
 
       for await (const token of provider.stream(messages)) {
-        hasOutput = true;
+        // MOVE IT HERE:
+        if (!hasOutput) {
+          incrementUsage(provider.key, today);
+          hasOutput = true;
+        }
         yield { token, model: provider.name };
       }
 
