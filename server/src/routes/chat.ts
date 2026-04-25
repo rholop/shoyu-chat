@@ -104,6 +104,7 @@ router.post('/send', async (req, res) => {
           model: modelUsed,
           created_at: new Date().toISOString(),
         });
+        res.end();
       } catch (err) {
         logger.error('Failed to persist messages:', err);
         send({ type: 'error', message: 'Failed to save messages.' });
