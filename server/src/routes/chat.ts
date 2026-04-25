@@ -21,28 +21,8 @@ const sendSchema = z.object({
 });
 
 router.post('/send', async (req, res) => {
-  // LOUD LOGGING
   console.log('--- NEW CHAT REQUEST ---');
   console.log('Body:', JSON.stringify(req.body));
-  console.log('DEBUG KEYS:', {
-  groq: !!process.env.GROQ_API_KEY,
-  gemini: !!process.env.GEMINI_API_KEY,
-  openrouter: !!process.env.OPENROUTER_API_KEY
-});
-  console.log('GROQ_LIMIT:', process.env.GROQ_CHAT_DAILY_LIMIT);
-  console.log('Is Groq Available?', isGroqAvailable());
-  console.log('Is Gemini Available?', isGeminiAvailable());
-  console.log('Is OpenRouter Available?', isOpenRouterAvailable());
-
-  const parsed = sendSchema.safeParse(req.body);
-  if (!parsed.success) {
-    console.log('Zod Validation Failed:', parsed.error.format()); // LOG THIS
-    res.status(400).json({ error: 'Invalid request', details: parsed.error.format() });
-    return;
-  }
-});
-
-router.post('/send', async (req, res) => {
   const parsed = sendSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Invalid request' });
