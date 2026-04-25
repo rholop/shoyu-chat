@@ -36,6 +36,7 @@ export default function MessageInput({ onSend, disabled }: Props) {
 
   return (
     <div className="border-t border-slate-800 bg-slate-950 p-3 pb-safe">
+      <div className="max-w-3xl mx-auto">
       <div className="flex items-end gap-2 bg-slate-800 rounded-2xl px-4 py-2">
         <textarea
           ref={textareaRef}
@@ -58,6 +59,7 @@ export default function MessageInput({ onSend, disabled }: Props) {
       <p className="text-xs text-slate-600 text-center mt-1.5">
         Enter to send · Shift+Enter for newline
       </p>
+      </div>
     </div>
   );
 }
