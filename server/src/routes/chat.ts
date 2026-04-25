@@ -9,6 +9,9 @@ import {
 import { streamChat } from '../services/aiRouter';
 import { schedule as scheduleSummary } from '../services/summaryService';
 import { logger } from '../utils/logger';
+import { isGroqAvailable } from '../services/groqService';
+import { isGeminiAvailable } from '../services/geminiService';
+import { isOpenRouterAvailable } from '../services/openrouterService';
 
 const router = Router();
 
@@ -21,6 +24,15 @@ router.post('/send', async (req, res) => {
   // LOUD LOGGING
   console.log('--- NEW CHAT REQUEST ---');
   console.log('Body:', JSON.stringify(req.body));
+  console.log('DEBUG KEYS:', {
+  groq: !!process.env.GROQ_API_KEY,
+  gemini: !!process.env.GEMINI_API_KEY,
+  openrouter: !!process.env.OPENROUTER_API_KEY
+});
+  console.log('GROQ_LIMIT:', process.env.GROQ_CHAT_DAILY_LIMIT);
+  console.log('Is Groq Available?', isGroqAvailable());
+  console.log('Is Gemini Available?', isGeminiAvailable());
+  console.log('Is OpenRouter Available?', isOpenRouterAvailable());
 
   const parsed = sendSchema.safeParse(req.body);
   if (!parsed.success) {
