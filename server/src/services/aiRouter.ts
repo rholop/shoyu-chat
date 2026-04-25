@@ -1,15 +1,29 @@
 import { getUsageCount, incrementUsage } from '../storage';
 import { getToday } from '../utils/dateHelpers';
 import { logger } from '../utils/logger';
-import { streamChatGroq, summarizeGroq } from './groqService';
-import { streamChatGemini, summarizeGemini } from './geminiService';
-import { streamChatOpenRouter, summarizeOpenRouter } from './openrouterService';
+import { streamChatGroq, summarizeGroq, isGroqAvailable } from './groqService';
+import { streamChatGemini, summarizeGemini, isGeminiAvailable } from './geminiService';
+import { streamChatOpenRouter, summarizeOpenRouter, isOpenRouterAvailable } from './openrouterService';
 import { ChatMessage } from './groqService';
 
 const GROQ_CHAT_LIMIT = Number(process.env.GROQ_CHAT_DAILY_LIMIT ?? 14400);
 const GROQ_SUMMARY_LIMIT = Number(process.env.GROQ_SUMMARY_DAILY_LIMIT ?? 1000);
 const GEMINI_LIMIT = Number(process.env.GEMINI_DAILY_LIMIT ?? 1500);
 const OPENROUTER_LIMIT = Number(process.env.OPENROUTER_DAILY_LIMIT ?? 200);
+
+function isProviderAvailable(name: string): boolean {
+  switch (name) {
+    case 'groq-chat':
+    case 'groq-summary':
+      return isGroqAvailable();
+    case 'gemini':
+      return isGeminiAvailable();
+    case 'openrouter':
+      return isOpenRouterAvailable();
+    default:
+      return false;
+  }
+}
 
 function isRateLimitError(err: unknown): boolean {
   const msg = String(err instanceof Error ? err.message : err).toLowerCase();
@@ -44,6 +58,11 @@ export async function* streamChat(
       continue;
     }
 
+    if (!isProviderAvailable(provider.name)) {
+      logger.warn(`Provider ${provider.name} is not available (no API key)`);
+      continue;
+    }
+
     try {
       incrementUsage(provider.key, today);
       let hasOutput = false;
@@ -54,8 +73,10 @@ export async function* streamChat(
       }
 
       if (hasOutput) return;
+      logger.warn(`Provider ${provider.name} returned no tokens`);
     } catch (err) {
-      logger.warn(`Provider ${provider.name} failed: ${err}`);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      logger.warn(`Provider ${provider.name} failed: ${errMsg}`);
       // Always try the next provider regardless of error type
     }
   }

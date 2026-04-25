@@ -38,14 +38,34 @@ router.post('/send', async (req, res) => {
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
 
-  const send = (payload: object) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
+  const send = (payload: object) => {
+    try {
+      const data = `data: ${JSON.stringify(payload)}\n\n`;
+      const canContinue = res.write(data);
+      if (!canContinue) {
+        logger.warn('SSE buffer full, client may have disconnected');
+      }
+      return canContinue;
+    } catch (err) {
+      logger.error('Failed to send SSE message:', err);
+      return false;
+    }
+  };
 
   const now = new Date().toISOString();
 
   // Load history for AI context (last 20 messages)
-  const history = getMessages(conversationId)
-    .slice(-20)
-    .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+  let history: { role: 'user' | 'assistant'; content: string }[] = [];
+  try {
+    history = getMessages(conversationId)
+      .slice(-20)
+      .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+  } catch (err) {
+    logger.error('Failed to load message history:', err);
+    send({ type: 'error', message: 'Failed to load conversation history.' });
+    res.end();
+    return;
+  }
 
   // Add current user message to context
   const context = [...history, { role: 'user' as const, content }];
@@ -61,36 +81,67 @@ router.post('/send', async (req, res) => {
       if (aborted) break;
       fullContent += token;
       modelUsed = model;
-      send({ type: 'token', content: token });
+      if (!send({ type: 'token', content: token })) {
+        aborted = true;
+        break;
+      }
     }
 
     if (!aborted && fullContent) {
       // Persist both messages
-      appendMessage(conversationId, { role: 'user', content, created_at: now });
-      appendMessage(conversationId, {
-        role: 'assistant',
-        content: fullContent,
-        model: modelUsed,
-        created_at: new Date().toISOString(),
-      });
+      try {
+        appendMessage(conversationId, { role: 'user', content, created_at: now });
+        appendMessage(conversationId, {
+          role: 'assistant',
+          content: fullContent,
+          model: modelUsed,
+          created_at: new Date().toISOString(),
+        });
+      } catch (err) {
+        logger.error('Failed to persist messages:', err);
+        send({ type: 'error', message: 'Failed to save messages.' });
+        res.end();
+        return;
+      }
 
       // Auto-title from first user message
       if (meta.title === 'New Conversation') {
-        const title = content.slice(0, 60).replace(/\n/g, ' ').trim();
-        updateConversationTitle(conversationId, title);
+        try {
+          const title = content.slice(0, 60).replace(/\n/g, ' ').trim();
+          updateConversationTitle(conversationId, title);
+        } catch (err) {
+          logger.error('Failed to update conversation title:', err);
+          // Non-critical, continue anyway
+        }
       }
 
-      scheduleSummary(conversationId);
+      try {
+        scheduleSummary(conversationId);
+      } catch (err) {
+        logger.error('Failed to schedule summary:', err);
+        // Non-critical, continue anyway
+      }
 
       send({ type: 'done', model: modelUsed, conversationId });
+    } else if (!aborted && !fullContent) {
+      send({ type: 'error', message: 'No response generated. Please try again.' });
     }
   } catch (err) {
     logger.error('Chat stream error:', err);
     const message =
       err instanceof Error && err.message === 'QUOTA_EXCEEDED'
         ? 'All AI providers have reached their daily quota. Try again tomorrow.'
+        : err instanceof Error && err.message.includes('rate limit')
+        ? 'Rate limit exceeded. Please wait a moment and try again.'
+        : err instanceof Error && err.message.includes('timeout')
+        ? 'Request timed out. Please try again.'
         : 'An error occurred. Please try again.';
     send({ type: 'error', message });
+  }
+
+  // Ensure we always send a response if nothing was sent
+  if (!aborted && !fullContent) {
+    send({ type: 'error', message: 'No response from AI providers. Please try again.' });
   }
 
   res.end();

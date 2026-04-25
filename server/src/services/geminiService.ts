@@ -3,6 +3,10 @@ import { ChatMessage } from './groqService';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
+export function isGeminiAvailable(): boolean {
+  return Boolean(process.env.GEMINI_API_KEY);
+}
+
 function toGeminiHistory(messages: ChatMessage[]) {
   const history = messages.map((m) => ({
     role: m.role === 'assistant' ? 'model' : 'user',
@@ -37,8 +41,4 @@ export async function summarizeGemini(prompt: string): Promise<string> {
   const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
   const result = await model.generateContent(prompt);
   return result.response.text();
-}
-
-export function isGeminiAvailable(): boolean {
-  return Boolean(process.env.GEMINI_API_KEY);
 }
