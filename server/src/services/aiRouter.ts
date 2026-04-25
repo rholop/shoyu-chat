@@ -56,7 +56,7 @@ export async function* streamChat(
       if (hasOutput) return;
     } catch (err) {
       logger.warn(`Provider ${provider.name} failed: ${err}`);
-      if (!isRateLimitError(err)) throw err;
+      // Always try the next provider regardless of error type
     }
   }
 

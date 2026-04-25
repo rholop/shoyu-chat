@@ -45,5 +45,5 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setStreamError: (msg) => set({ streamError: msg, isStreaming: false, streamingContent: '' }),
 
-  resetStream: () => set({ streamingContent: '', isStreaming: false, streamError: null }),
+  resetStream: () => set({ streamingContent: '', isStreaming: true, streamError: null }),
 }));
