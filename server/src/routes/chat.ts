@@ -78,20 +78,24 @@ router.post('/send', async (req, res) => {
   let modelUsed = '';
   let aborted = false;
 
-  req.on('close', () => { aborted = true; });
+  // Listen on the response close (not request close) so we only abort when the
+  // client actually drops the response connection, not when the request body is
+  // consumed (which supertest/HTTP can signal right after sending the POST body).
+  res.on('close', () => { aborted = true; });
 
   try {
-    for await (const { token, model } of streamChat(context)) {
-      if (aborted) break;
+    // Await the streamChat call so that if it returns a rejected Promise
+    // (e.g. in tests via mockRejectedValue) the rejection is caught here
+    // rather than triggering a TypeError from for-await on a non-iterable.
+    const stream = await Promise.resolve(streamChat(context));
+    for await (const { token, model } of stream as AsyncGenerator<{ token: string; model: string }>) {
       fullContent += token;
       modelUsed = model;
-      if (!send({ type: 'token', content: token })) {
-        aborted = true;
-        break;
-      }
+      send({ type: 'token', content: token });
+      if (aborted) break;
     }
 
-    if (!aborted && fullContent) {
+    if (fullContent && !aborted) {
       // Persist both messages
       try {
         appendMessage(conversationId, { role: 'user', content, created_at: now });
@@ -101,8 +105,6 @@ router.post('/send', async (req, res) => {
           model: modelUsed,
           created_at: new Date().toISOString(),
         });
-        // FIX: Removed res.end() from here because it was closing the connection 
-        // before the metadata logic and the 'done' message were finished.
       } catch (err) {
         logger.error('Failed to persist messages:', err);
         send({ type: 'error', message: 'Failed to save messages.' });
@@ -126,35 +128,24 @@ router.post('/send', async (req, res) => {
         logger.error('Failed to schedule summary:', err);
       }
 
-      // FINAL SIGNAL: Send 'done' and then close the connection
       send({ type: 'done', model: modelUsed, conversationId });
-      res.end();
-      return; 
-    } else if (!aborted && !fullContent) {
+    } else if (!fullContent) {
       send({ type: 'error', message: 'No response generated. Please try again.' });
-      res.end();
-      return;
     }
   } catch (err) {
     logger.error('Chat stream error:', err);
     const message =
       err instanceof Error && err.message === 'QUOTA_EXCEEDED'
         ? 'All AI providers have reached their daily quota. Try again tomorrow.'
-        : err instanceof Error && err.message.includes('rate limit')
+        : err instanceof Error && err.message.toLowerCase().includes('rate limit')
         ? 'Rate limit exceeded. Please wait a moment and try again.'
-        : err instanceof Error && err.message.includes('timeout')
+        : err instanceof Error && err.message.toLowerCase().includes('timeout')
         ? 'Request timed out. Please try again.'
         : 'An error occurred. Please try again.';
     send({ type: 'error', message });
-    res.end();
-    return;
   }
 
-  // Safety fallback: if we got here without sending a 'done' or 'error', close it out
   if (!res.writableEnded) {
-    if (!aborted && !fullContent) {
-      send({ type: 'error', message: 'No response from AI providers. Please try again.' });
-    }
     res.end();
   }
 });
