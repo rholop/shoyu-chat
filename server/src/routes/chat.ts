@@ -9,9 +9,6 @@ import {
 import { streamChat } from '../services/aiRouter';
 import { schedule as scheduleSummary } from '../services/summaryService';
 import { logger } from '../utils/logger';
-import { isGroqAvailable } from '../services/groqService';
-import { isGeminiAvailable } from '../services/geminiService';
-import { isOpenRouterAvailable } from '../services/openrouterService';
 
 const router = Router();
 
@@ -104,7 +101,8 @@ router.post('/send', async (req, res) => {
           model: modelUsed,
           created_at: new Date().toISOString(),
         });
-        res.end();
+        // FIX: Removed res.end() from here because it was closing the connection 
+        // before the metadata logic and the 'done' message were finished.
       } catch (err) {
         logger.error('Failed to persist messages:', err);
         send({ type: 'error', message: 'Failed to save messages.' });
@@ -119,7 +117,6 @@ router.post('/send', async (req, res) => {
           updateConversationTitle(conversationId, title);
         } catch (err) {
           logger.error('Failed to update conversation title:', err);
-          // Non-critical, continue anyway
         }
       }
 
@@ -127,12 +124,16 @@ router.post('/send', async (req, res) => {
         scheduleSummary(conversationId);
       } catch (err) {
         logger.error('Failed to schedule summary:', err);
-        // Non-critical, continue anyway
       }
 
+      // FINAL SIGNAL: Send 'done' and then close the connection
       send({ type: 'done', model: modelUsed, conversationId });
+      res.end();
+      return; 
     } else if (!aborted && !fullContent) {
       send({ type: 'error', message: 'No response generated. Please try again.' });
+      res.end();
+      return;
     }
   } catch (err) {
     logger.error('Chat stream error:', err);
@@ -145,14 +146,17 @@ router.post('/send', async (req, res) => {
         ? 'Request timed out. Please try again.'
         : 'An error occurred. Please try again.';
     send({ type: 'error', message });
+    res.end();
+    return;
   }
 
-  // Ensure we always send a response if nothing was sent
-  if (!aborted && !fullContent) {
-    send({ type: 'error', message: 'No response from AI providers. Please try again.' });
+  // Safety fallback: if we got here without sending a 'done' or 'error', close it out
+  if (!res.writableEnded) {
+    if (!aborted && !fullContent) {
+      send({ type: 'error', message: 'No response from AI providers. Please try again.' });
+    }
+    res.end();
   }
-
-  res.end();
 });
 
 export default router;
