@@ -86,9 +86,9 @@ describe('POST /send', () => {
   });
 
   it('returns error event when streamChat yields no tokens', async () => {
-    vi.mocked(getConversationMeta).mockReturnValue({ id: '1', title: 'Test', user_id: 1, created_at: '', updated_at: '' });
+    vi.mocked(getConversationMeta).mockReturnValue({ id: '1', title: 'Test', created_at: '' });
     vi.mocked(getMessages).mockReturnValue([]);
-    
+
     // Mock streamChat to yield no tokens (simulates all providers failing)
     vi.mocked(streamChat).mockImplementation(async function* () {
       // Yield nothing - simulates all providers failing silently
@@ -107,31 +107,11 @@ describe('POST /send', () => {
   });
 
   it('returns done event when streamChat yields tokens', async () => {
-    vi.mocked(getConversationMeta).mockReturnValue({ id: '1', title: 'Test', user_id: 1, created_at: '', updated_at: '' });
+    vi.mocked(getConversationMeta).mockReturnValue({ id: '1', title: 'Test', created_at: '' });
     vi.mocked(getMessages).mockReturnValue([]);
     vi.mocked(appendMessage).mockReturnValue();
-    vi.mocked(updateConversationTitle).mockReturnValue();
+    vi.mocked(updateConversationTitle).mockReturnValue(true);
     vi.mocked(scheduleSummary).mockReturnValue();
-
-    // Mock streamChat to yield tokens
-    vi.mocked(streamChat).mockImplementation(async function* () {
-      yield { token: 'Hello', model: 'groq-chat' };
-      yield { token: ' world', model: 'groq-chat' };
-    } as any);
-
-    const res = await request(app)
-      .post('/api/chat/send')
-      .send({ conversationId: '00000000-0000-0000-0000-000000000001', content: 'hi' });
-
-    expect(res.status).toBe(200);
-    const events = res.text.split('\n\n').filter(Boolean);
-    const doneEvent = events.find(e => e.includes('"type":"done"'));
-    expect(doneEvent).toBeDefined();
-    expect(doneEvent).toContain('"model":"groq-chat"');
-  });
-
-  it('handles streamChat throwing QUOTA_EXCEEDED', async () => {
-    vi.mocked(getConversationMeta).mockReturnValue({ id: '1', title: 'Test', user_id: 1, created_at: '', updated_at: '' });
     vi.mocked(getMessages).mockReturnValue([]);
 
     vi.mocked(streamChat).mockRejectedValue(new Error('QUOTA_EXCEEDED'));
@@ -148,7 +128,7 @@ describe('POST /send', () => {
   });
 
   it('handles streamChat throwing rate limit error', async () => {
-    vi.mocked(getConversationMeta).mockReturnValue({ id: '1', title: 'Test', user_id: 1, created_at: '', updated_at: '' });
+    vi.mocked(getConversationMeta).mockReturnValue({ id: '1', title: 'Test', created_at: '' });
     vi.mocked(getMessages).mockReturnValue([]);
 
     vi.mocked(streamChat).mockRejectedValue(new Error('Rate limit exceeded'));

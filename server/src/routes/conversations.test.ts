@@ -38,8 +38,8 @@ describe('Conversations routes', () => {
   describe('GET /', () => {
     it('returns list of conversations', async () => {
       const convos = [
-        { id: 'abc', title: 'First', created_at: '2026-01-01' },
-        { id: 'def', title: 'Second', created_at: '2026-01-02' },
+        { id: 'abc', title: 'First', created_at: '2026-01-01', updated_at : '2026-01-02', model_last_used: 'groq-chat' },
+        { id: 'def', title: 'Second', created_at: '2026-01-02', updated_at: '2026-01-03', model_last_used: 'gemini-pro' },
       ];
       vi.mocked(listConversations).mockReturnValue(convos);
 
