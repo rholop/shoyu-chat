@@ -144,7 +144,7 @@ describe('Auth routes', () => {
       expect(res.status).toBe(200);
       expect(res.body.ok).toBe(true);
       // Cookie should be cleared (set with empty value or expires in the past)
-      const cookies = res.headers['set-cookie'] as string[] | undefined;
+      const cookies = res.headers['set-cookie'] as string | undefined;
       if (cookies) {
         expect(cookies[0]).toContain('token=');
       }
