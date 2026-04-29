@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  base: '/chat',
   plugins: [
     react(),
     tailwindcss(),
@@ -16,14 +17,14 @@ export default defineConfig({
         theme_color: '#0f172a',
         background_color: '#0f172a',
         display: 'standalone',
-        start_url: '/',
+        start_url: '/chat',
         icons: [
-          { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
+          { src: '/chat/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
         ],
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        navigateFallback: '/index.html',
+        navigateFallback: '/chat/index.html',
         runtimeCaching: [
           {
             urlPattern: /^https?:\/\/[^/]+\/api\//,
@@ -33,6 +34,9 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    outDir: 'dist/chat',
+  },
   server: {
     proxy: {
       '/api': 'http://localhost:3001',
