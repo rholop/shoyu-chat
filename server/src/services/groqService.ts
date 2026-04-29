@@ -6,45 +6,70 @@ const client = new OpenAI({
   baseURL: 'https://api.groq.com/openai/v1',
 });
 
+const PRIMARY_MODEL = 'llama-3.3-70b-versatile';
+const FALLBACK_MODEL = 'llama-3.1-8b-instant';
+
+function isRateLimitError(error: unknown): boolean {
+  return (error as { status?: number })?.status === 429;
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
 }
 
 export async function* streamChatGroq(messages: ChatMessage[]): AsyncGenerator<string> {
-  console.log("DEBUG: Sending to Groq:", JSON.stringify(messages)); // See exactly what is sent
+  console.log("DEBUG: Sending to Groq:", JSON.stringify(messages));
 
-  try {
-    const stream = await client.chat.completions.create({
-      model: 'llama-3.1-8b-instant',
-      // CLEAN THE MESSAGES HERE:
-      messages: messages.map(m => ({
-        role: m.role,
-        content: m.content
-      })),
-      stream: true,
-    });
+  const cleanedMessages = messages.map(m => ({ role: m.role, content: m.content }));
 
-    for await (const chunk of stream) {
-      const text = chunk.choices[0]?.delta?.content;
-      if (text) {
-        console.log("DEBUG: Token received:", text); // Check if tokens come back
-        yield text;
+  for (const model of [PRIMARY_MODEL, FALLBACK_MODEL]) {
+    try {
+      const stream = await client.chat.completions.create({
+        model,
+        messages: cleanedMessages,
+        stream: true,
+      });
+
+      for await (const chunk of stream) {
+        const text = chunk.choices[0]?.delta?.content;
+        if (text) {
+          console.log("DEBUG: Token received:", text);
+          yield text;
+        }
       }
+      return;
+    } catch (error) {
+      if (model === PRIMARY_MODEL && isRateLimitError(error)) {
+        logger.warn(`Groq rate limit hit on ${PRIMARY_MODEL}, falling back to ${FALLBACK_MODEL}`);
+        continue;
+      }
+      console.error("GROQ SDK ERROR:", error);
+      throw error;
     }
-  } catch (error) {
-    console.error("GROQ SDK ERROR:", error); // This is where the real truth lies
-    throw error;
   }
 }
 
 export async function summarizeGroq(prompt: string): Promise<string> {
-  const response = await client.chat.completions.create({
-    model: 'llama-3.1-8b-instant',
-    messages: [{ role: 'user', content: prompt }],
-    stream: false,
-  });
-  return response.choices[0]?.message?.content ?? '';
+  const messages = [{ role: 'user' as const, content: prompt }];
+
+  for (const model of [PRIMARY_MODEL, FALLBACK_MODEL]) {
+    try {
+      const response = await client.chat.completions.create({
+        model,
+        messages,
+        stream: false,
+      });
+      return response.choices[0]?.message?.content ?? '';
+    } catch (error) {
+      if (model === PRIMARY_MODEL && isRateLimitError(error)) {
+        logger.warn(`Groq rate limit hit on ${PRIMARY_MODEL}, falling back to ${FALLBACK_MODEL}`);
+        continue;
+      }
+      throw error;
+    }
+  }
+  return '';
 }
 
 export function isGroqAvailable(): boolean {
