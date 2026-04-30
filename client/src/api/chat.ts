@@ -1,14 +1,15 @@
-import { SSEEvent } from '../types';
+import { Attachment, SSEEvent } from '../types';
 
 export async function* sendMessage(
   conversationId: string,
-  content: string
+  content: string,
+  attachments: Attachment[] = [],
 ): AsyncGenerator<SSEEvent> {
   const res = await fetch('/api/chat/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ conversationId, content }),
+    body: JSON.stringify({ conversationId, content, attachments }),
   });
 
   if (!res.ok) {

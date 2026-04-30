@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { useChatStore } from '../../store/chatStore';
 import { useChat } from '../../hooks/useChat';
-import { Message } from '../../types';
+import { useFileUpload } from '../../hooks/useFileUpload';
+import { Attachment, Message } from '../../types';
 import MessageBubble from './MessageBubble';
 import MessageInput from './MessageInput';
-import ModelBadge from './ModelBadge';
 
 interface Props {
   conversationId: string;
@@ -13,25 +13,27 @@ interface Props {
 export default function ChatView({ conversationId }: Props) {
   const { messages: storedMessages, send, isLoading } = useChat(conversationId);
   const { messages: storeMessages, streamingContent, isStreaming, streamError } = useChatStore();
+  const { attachments, uploading, uploadError, upload, remove, clear } = useFileUpload(conversationId);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Use store messages if we have them (includes optimistic), else query messages
   const displayMessages = storeMessages.length > 0 ? storeMessages : storedMessages;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [displayMessages.length, streamingContent]);
 
-  const handleSend = (content: string) => {
+  const handleSend = (content: string, currentAttachments: Attachment[]) => {
     const optimistic: Message = {
       id: Date.now(),
       conversation_id: conversationId,
       role: 'user',
       content,
       model_used: null,
+      attachments: currentAttachments.length > 0 ? currentAttachments : undefined,
       created_at: new Date().toISOString(),
     };
-    send(content, optimistic);
+    send(content, optimistic, currentAttachments);
+    clear();
   };
 
   if (isLoading) {
@@ -44,7 +46,6 @@ export default function ChatView({ conversationId }: Props) {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      {/* Message list */}
       <div className="flex-1 overflow-y-auto py-4">
         <div className="max-w-3xl mx-auto px-4 space-y-4">
           {displayMessages.length === 0 && !isStreaming && (
@@ -54,10 +55,9 @@ export default function ChatView({ conversationId }: Props) {
           )}
 
           {displayMessages.map((msg) => (
-            <MessageBubble key={msg.id} message={msg} />
+            <MessageBubble key={msg.id} message={msg} conversationId={conversationId} />
           ))}
 
-          {/* Streaming assistant message */}
           {isStreaming && streamingContent && (
             <MessageBubble
               message={{
@@ -68,10 +68,10 @@ export default function ChatView({ conversationId }: Props) {
                 model_used: null,
                 created_at: new Date().toISOString(),
               }}
+              conversationId={conversationId}
             />
           )}
 
-          {/* Loading indicator before first token */}
           {isStreaming && !streamingContent && (
             <div className="flex gap-3 justify-start">
               <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold shrink-0 mt-1">
@@ -87,9 +87,9 @@ export default function ChatView({ conversationId }: Props) {
             </div>
           )}
 
-          {streamError && (
+          {(streamError || uploadError) && (
             <div className="bg-red-950/50 border border-red-800 rounded-xl p-4 text-red-300 text-sm">
-              {streamError}
+              {streamError ?? uploadError}
             </div>
           )}
 
@@ -97,7 +97,15 @@ export default function ChatView({ conversationId }: Props) {
         </div>
       </div>
 
-      <MessageInput onSend={handleSend} disabled={isStreaming} />
+      <MessageInput
+        onSend={handleSend}
+        onFilesDrop={upload}
+        onFilesSelect={upload}
+        attachments={attachments}
+        onRemoveAttachment={remove}
+        uploading={uploading}
+        disabled={isStreaming}
+      />
     </div>
   );
 }

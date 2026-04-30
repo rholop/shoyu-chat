@@ -5,50 +5,61 @@ import {
   getMessages,
   appendMessage,
   updateConversationTitle,
+  conversationFilesDir,
+  MessageAttachment,
 } from '../storage';
 import { streamChat } from '../services/aiRouter';
+import { extractContext, formatContextBlock, findConversationFile } from '../services/fileService';
 import { schedule as scheduleSummary } from '../services/summaryService';
+import { ChatMessage, ImageAttachment } from '../services/groqService';
 import { logger } from '../utils/logger';
 
 const router = Router();
 
+const attachmentSchema = z.object({
+  fileId: z.string().uuid(),
+  filename: z.string().min(1),
+  mimeType: z.string().min(1),
+  size: z.number().optional(),
+});
+
 const sendSchema = z.object({
   conversationId: z.string().uuid(),
-  content: z.string().min(1).max(32000),
+  content: z.string().max(32000),
+  attachments: z.array(attachmentSchema).optional(),
 });
 
 router.post('/send', async (req, res) => {
-  console.log('--- NEW CHAT REQUEST ---');
-  console.log('Body:', JSON.stringify(req.body));
   const parsed = sendSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Invalid request' });
     return;
   }
 
-  const { conversationId, content } = parsed.data;
+  const { conversationId, content, attachments = [] } = parsed.data;
+
+  if (!content.trim() && attachments.length === 0) {
+    res.status(400).json({ error: 'Message must have content or attachments' });
+    return;
+  }
+
   const meta = getConversationMeta(conversationId);
   if (!meta) {
     res.status(404).json({ error: 'Conversation not found' });
     return;
   }
 
-  // Set SSE headers before any async work
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
-
   res.write(': warmup\n\n');
 
   const send = (payload: object) => {
     try {
-      const data = `data: ${JSON.stringify(payload)}\n\n`;
-      const canContinue = res.write(data);
-      if (!canContinue) {
-        logger.warn('SSE buffer full, client may have disconnected');
-      }
+      const canContinue = res.write(`data: ${JSON.stringify(payload)}\n\n`);
+      if (!canContinue) logger.warn('SSE buffer full, client may have disconnected');
       return canContinue;
     } catch (err) {
       logger.error('Failed to send SSE message:', err);
@@ -57,9 +68,11 @@ router.post('/send', async (req, res) => {
   };
 
   const now = new Date().toISOString();
+  let aborted = false;
+  res.on('close', () => { aborted = true; });
 
-  // Load history for AI context (last 20 messages)
-  let history: { role: 'user' | 'assistant'; content: string }[] = [];
+  // Load history (last 20 messages)
+  let history: ChatMessage[] = [];
   try {
     history = getMessages(conversationId)
       .slice(-20)
@@ -71,24 +84,53 @@ router.post('/send', async (req, res) => {
     return;
   }
 
-  // Add current user message to context
-  const context = [...history, { role: 'user' as const, content }];
+  // Process attachments: extract file contexts
+  let userContent = content;
+  const imageAttachments: ImageAttachment[] = [];
+
+  if (attachments.length > 0) {
+    const filesDir = conversationFilesDir(conversationId);
+    const contextBlocks: string[] = [];
+
+    for (const att of attachments) {
+      const found = findConversationFile(filesDir, att.fileId);
+      if (!found) {
+        logger.warn(`File ${att.fileId} not found for conversation ${conversationId}`);
+        continue;
+      }
+
+      try {
+        const ctx = await extractContext(found.filePath, att.mimeType, att.filename);
+        if (ctx.isImage && ctx.base64) {
+          imageAttachments.push({ mimeType: ctx.mimeType, base64: ctx.base64, filename: ctx.filename });
+        } else {
+          const block = formatContextBlock(ctx);
+          if (block) contextBlocks.push(block);
+        }
+      } catch (err) {
+        logger.error(`Failed to extract context for file ${att.fileId}:`, err);
+      }
+    }
+
+    if (contextBlocks.length > 0) {
+      userContent = contextBlocks.join('\n\n') + (content.trim() ? `\n\n${content}` : '');
+    }
+  }
+
+  const hasImages = imageAttachments.length > 0;
+  const userMessage: ChatMessage = {
+    role: 'user',
+    content: userContent,
+    ...(hasImages ? { images: imageAttachments } : {}),
+  };
+  const context: ChatMessage[] = [...history, userMessage];
 
   let fullContent = '';
   let modelUsed = '';
-  let aborted = false;
-
-  // Listen on the response close (not request close) so we only abort when the
-  // client actually drops the response connection, not when the request body is
-  // consumed (which supertest/HTTP can signal right after sending the POST body).
-  res.on('close', () => { aborted = true; });
 
   try {
-    // Await the streamChat call so that if it returns a rejected Promise
-    // (e.g. in tests via mockRejectedValue) the rejection is caught here
-    // rather than triggering a TypeError from for-await on a non-iterable.
-    const stream = await Promise.resolve(streamChat(context));
-    for await (const { token, model } of stream as AsyncGenerator<{ token: string; model: string }>) {
+    const stream = await Promise.resolve(streamChat(context, hasImages));
+    for await (const { token, model } of stream) {
       fullContent += token;
       modelUsed = model;
       send({ type: 'token', content: token });
@@ -96,9 +138,20 @@ router.post('/send', async (req, res) => {
     }
 
     if (fullContent && !aborted) {
-      // Persist both messages
+      const storedAttachments: MessageAttachment[] = attachments.map((a) => ({
+        fileId: a.fileId,
+        filename: a.filename,
+        mimeType: a.mimeType,
+        size: a.size,
+      }));
+
       try {
-        appendMessage(conversationId, { role: 'user', content, created_at: now });
+        appendMessage(conversationId, {
+          role: 'user',
+          content,
+          ...(storedAttachments.length > 0 ? { attachments: storedAttachments } : {}),
+          created_at: now,
+        });
         appendMessage(conversationId, {
           role: 'assistant',
           content: fullContent,
@@ -112,10 +165,9 @@ router.post('/send', async (req, res) => {
         return;
       }
 
-      // Auto-title from first user message
       if (meta.title === 'New Conversation') {
         try {
-          const title = content.slice(0, 60).replace(/\n/g, ' ').trim();
+          const title = content.slice(0, 60).replace(/\n/g, ' ').trim() || attachments[0]?.filename || 'Untitled';
           updateConversationTitle(conversationId, title);
         } catch (err) {
           logger.error('Failed to update conversation title:', err);
@@ -145,9 +197,7 @@ router.post('/send', async (req, res) => {
     send({ type: 'error', message });
   }
 
-  if (!res.writableEnded) {
-    res.end();
-  }
+  if (!res.writableEnded) res.end();
 });
 
 export default router;

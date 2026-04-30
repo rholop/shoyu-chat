@@ -9,6 +9,7 @@ vi.mock('../storage', () => ({
   getMessages: vi.fn(),
   appendMessage: vi.fn(),
   updateConversationTitle: vi.fn(),
+  conversationFilesDir: vi.fn().mockReturnValue('/tmp/test-conv'),
 }));
 
 vi.mock('../services/aiRouter', () => ({
@@ -41,6 +42,12 @@ vi.mock('../utils/logger', () => ({
 
 vi.mock('../middleware/authMiddleware', () => ({
   requireAuth: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
+}));
+
+vi.mock('../services/fileService', () => ({
+  extractContext: vi.fn(),
+  formatContextBlock: vi.fn().mockReturnValue(''),
+  findConversationFile: vi.fn().mockReturnValue(null),
 }));
 
 import { getConversationMeta, getMessages, appendMessage, updateConversationTitle } from '../storage';

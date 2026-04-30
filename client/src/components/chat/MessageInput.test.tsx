@@ -7,7 +7,12 @@ describe('MessageInput', () => {
   it('renders the textarea and send button', () => {
     render(<MessageInput onSend={vi.fn()} />);
     expect(screen.getByRole('textbox')).toBeInTheDocument();
-    expect(screen.getByRole('button')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /send message/i })).toBeInTheDocument();
+  });
+
+  it('renders the attach button', () => {
+    render(<MessageInput onSend={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /attach file/i })).toBeInTheDocument();
   });
 
   it('shows placeholder text', () => {
@@ -15,12 +20,12 @@ describe('MessageInput', () => {
     expect(screen.getByPlaceholderText('Message…')).toBeInTheDocument();
   });
 
-  it('calls onSend with trimmed content when Enter is pressed', async () => {
+  it('calls onSend with trimmed content and empty attachments when Enter is pressed', async () => {
     const onSend = vi.fn();
     render(<MessageInput onSend={onSend} />);
     const textarea = screen.getByRole('textbox');
     await userEvent.type(textarea, '  hello world  {Enter}');
-    expect(onSend).toHaveBeenCalledWith('hello world');
+    expect(onSend).toHaveBeenCalledWith('hello world', []);
   });
 
   it('calls onSend when send button is clicked', async () => {
@@ -28,8 +33,8 @@ describe('MessageInput', () => {
     render(<MessageInput onSend={onSend} />);
     const textarea = screen.getByRole('textbox');
     await userEvent.type(textarea, 'hello');
-    await userEvent.click(screen.getByRole('button'));
-    expect(onSend).toHaveBeenCalledWith('hello');
+    await userEvent.click(screen.getByRole('button', { name: /send message/i }));
+    expect(onSend).toHaveBeenCalledWith('hello', []);
   });
 
   it('clears the input after sending', async () => {
@@ -39,7 +44,7 @@ describe('MessageInput', () => {
     expect(textarea).toHaveValue('');
   });
 
-  it('does not call onSend for empty or whitespace-only input', async () => {
+  it('does not call onSend for empty or whitespace-only input with no attachments', async () => {
     const onSend = vi.fn();
     render(<MessageInput onSend={onSend} />);
     const textarea = screen.getByRole('textbox');
@@ -58,19 +63,19 @@ describe('MessageInput', () => {
 
   it('send button is disabled when input is empty', () => {
     render(<MessageInput onSend={vi.fn()} />);
-    expect(screen.getByRole('button')).toBeDisabled();
+    expect(screen.getByRole('button', { name: /send message/i })).toBeDisabled();
   });
 
   it('send button becomes enabled when input has text', async () => {
     render(<MessageInput onSend={vi.fn()} />);
     await userEvent.type(screen.getByRole('textbox'), 'hello');
-    expect(screen.getByRole('button')).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /send message/i })).not.toBeDisabled();
   });
 
-  it('disables textarea and button when disabled prop is true', () => {
+  it('disables textarea and attach button when disabled prop is true', () => {
     render(<MessageInput onSend={vi.fn()} disabled />);
     expect(screen.getByRole('textbox')).toBeDisabled();
-    expect(screen.getByRole('button')).toBeDisabled();
+    expect(screen.getByRole('button', { name: /attach file/i })).toBeDisabled();
   });
 
   it('does not call onSend when disabled even if Enter is pressed', async () => {
@@ -86,5 +91,11 @@ describe('MessageInput', () => {
   it('shows the help text', () => {
     render(<MessageInput onSend={vi.fn()} />);
     expect(screen.getByText(/Enter to send/)).toBeInTheDocument();
+  });
+
+  it('shows attachment chips when attachments are passed', () => {
+    const attachments = [{ fileId: 'f1', filename: 'photo.png', mimeType: 'image/png', size: 1024 }];
+    render(<MessageInput onSend={vi.fn()} attachments={attachments} />);
+    expect(screen.getByText('photo.png')).toBeInTheDocument();
   });
 });

@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getConversation } from '../api/conversations';
 import { sendMessage } from '../api/chat';
 import { useChatStore } from '../store/chatStore';
-import { Message } from '../types';
+import { Attachment, Message } from '../types';
 
 export function useChat(conversationId: string | null) {
   const queryClient = useQueryClient();
@@ -19,14 +19,14 @@ export function useChat(conversationId: string | null) {
   const messages = query.data?.messages ?? [];
 
   const send = useCallback(
-    async (content: string, optimisticUserMessage: Message) => {
+    async (content: string, optimisticUserMessage: Message, attachments: Attachment[] = []) => {
       if (!conversationId) return;
 
       setMessages([...messages, optimisticUserMessage]);
       resetStream();
 
       try {
-        for await (const event of sendMessage(conversationId, content)) {
+        for await (const event of sendMessage(conversationId, content, attachments)) {
           if (event.type === 'token') {
             appendToken(event.content);
           } else if (event.type === 'done') {
@@ -41,7 +41,7 @@ export function useChat(conversationId: string | null) {
         setStreamError(err instanceof Error ? err.message : 'Unknown error');
       }
     },
-    [conversationId, messages, appendToken, finalizeStream, setStreamError, resetStream, setMessages, queryClient]
+    [conversationId, messages, appendToken, finalizeStream, setStreamError, resetStream, setMessages, queryClient],
   );
 
   return {

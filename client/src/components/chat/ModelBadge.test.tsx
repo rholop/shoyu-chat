@@ -13,9 +13,9 @@ describe('ModelBadge', () => {
     expect(screen.getByText('Groq')).toBeInTheDocument();
   });
 
-  it('renders "Groq" for groq-summary', () => {
-    render(<ModelBadge model="groq-summary" />);
-    expect(screen.getByText('Groq')).toBeInTheDocument();
+  it('renders "Groq⚡" for groq-compound', () => {
+    render(<ModelBadge model="groq-compound" />);
+    expect(screen.getByText('Groq⚡')).toBeInTheDocument();
   });
 
   it('renders "Gemini" for gemini', () => {

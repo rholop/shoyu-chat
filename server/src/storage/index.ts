@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 import { v4 as uuidv4 } from 'uuid';
 
 function dataDir(): string {
@@ -80,6 +79,7 @@ export interface ConversationMeta {
 export interface ConversationSummary extends ConversationMeta {
   updated_at: string;
   model_last_used: string | null;
+  has_files: boolean;
 }
 
 function metaPath(id: string) {
@@ -90,13 +90,17 @@ function ndjsonPath(id: string) {
   return path.join(conversationsDir(), `${id}.ndjson`);
 }
 
+export function conversationFilesDir(id: string) {
+  return path.join(conversationsDir(), id);
+}
+
 export function listConversations(): ConversationSummary[] {
   const dir = conversationsDir();
   const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json'));
 
   const results: ConversationSummary[] = [];
   for (const file of files) {
-    const id = file.slice(0, -5); // strip .json
+    const id = file.slice(0, -5);
     const meta = getConversationMeta(id);
     if (!meta) continue;
 
@@ -121,7 +125,12 @@ export function listConversations(): ConversationSummary[] {
       }
     }
 
-    results.push({ ...meta, updated_at, model_last_used });
+    const filesDir = conversationFilesDir(id);
+    const has_files =
+      fs.existsSync(filesDir) &&
+      fs.readdirSync(filesDir).some((f) => !f.endsWith('.ndjson') && !f.endsWith('.json'));
+
+    results.push({ ...meta, updated_at, model_last_used, has_files });
   }
 
   return results.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
@@ -143,6 +152,8 @@ export function createConversation(): string {
   const meta: ConversationMeta = { id, title: 'New Conversation', created_at: now };
   atomicWrite(metaPath(id), JSON.stringify(meta, null, 2));
   fs.writeFileSync(ndjsonPath(id), '', 'utf8');
+  // Create the files directory upfront so uploads work immediately
+  fs.mkdirSync(conversationFilesDir(id), { recursive: true });
   return id;
 }
 
@@ -159,15 +170,28 @@ export function deleteConversation(id: string): boolean {
   if (!fs.existsSync(mp)) return false;
   fs.rmSync(mp, { force: true });
   fs.rmSync(ndjsonPath(id), { force: true });
+  // Remove the files directory and all uploaded files
+  const filesDir = conversationFilesDir(id);
+  if (fs.existsSync(filesDir)) {
+    fs.rmSync(filesDir, { recursive: true, force: true });
+  }
   return true;
 }
 
 // ── Messages ──────────────────────────────────────────────────────────────────
 
+export interface MessageAttachment {
+  fileId: string;
+  filename: string;
+  mimeType: string;
+  size?: number;
+}
+
 export interface StoredMessage {
   role: 'user' | 'assistant';
   content: string;
   model?: string;
+  attachments?: MessageAttachment[];
   created_at: string;
 }
 
@@ -204,5 +228,5 @@ export function getRecentlyActiveConversations(withinMs: number): string[] {
       const stat = fs.statSync(path.join(dir, f));
       return stat.mtimeMs > cutoff && stat.size > 0;
     })
-    .map((f) => f.slice(0, -7)); // strip .ndjson
+    .map((f) => f.slice(0, -7));
 }
