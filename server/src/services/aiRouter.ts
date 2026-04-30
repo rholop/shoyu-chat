@@ -1,33 +1,26 @@
 import { getUsageCount, incrementUsage } from '../storage';
 import { getToday } from '../utils/dateHelpers';
 import { logger } from '../utils/logger';
-import { streamChatGroq, summarizeGroq, isGroqAvailable } from './groqService';
+import {
+  streamChatGroqCompound,
+  streamChatGroqChat,
+  summarizeGroq,
+  isGroqAvailable,
+  ChatMessage,
+} from './groqService';
 import { streamChatGemini, summarizeGemini, isGeminiAvailable } from './geminiService';
 import { streamChatOpenRouter, summarizeOpenRouter, isOpenRouterAvailable } from './openrouterService';
-import { ChatMessage } from './groqService';
 
-const GROQ_CHAT_LIMIT = Number(process.env.GROQ_CHAT_DAILY_LIMIT ?? 14400);
-const GROQ_SUMMARY_LIMIT = Number(process.env.GROQ_SUMMARY_DAILY_LIMIT ?? 1000);
+const GROQ_COMPOUND_LIMIT = Number(process.env.GROQ_COMPOUND_DAILY_LIMIT ?? 250);
+const GROQ_CHAT_LIMIT = Number(process.env.GROQ_CHAT_DAILY_LIMIT ?? 1000);
 const GEMINI_LIMIT = Number(process.env.GEMINI_DAILY_LIMIT ?? 1500);
 const OPENROUTER_LIMIT = Number(process.env.OPENROUTER_DAILY_LIMIT ?? 200);
 
-function isProviderAvailable(name: string): boolean {
-  switch (name) {
-    case 'groq-chat':
-    case 'groq-summary':
-      return isGroqAvailable();
-    case 'gemini':
-      return isGeminiAvailable();
-    case 'openrouter':
-      return isOpenRouterAvailable();
-    default:
-      return false;
-  }
-}
-
-function isRateLimitError(err: unknown): boolean {
-  const msg = String(err instanceof Error ? err.message : err).toLowerCase();
-  return msg.includes('429') || msg.includes('rate limit') || msg.includes('quota');
+function isProviderKeyAvailable(key: string): boolean {
+  if (key === 'groq-compound' || key === 'groq-chat') return isGroqAvailable();
+  if (key === 'gemini') return isGeminiAvailable();
+  if (key === 'openrouter') return isOpenRouterAvailable();
+  return false;
 }
 
 export interface StreamResult {
@@ -36,30 +29,34 @@ export interface StreamResult {
 }
 
 export async function* streamChat(
-  messages: ChatMessage[]
+  messages: ChatMessage[],
+  hasImages = false,
 ): AsyncGenerator<StreamResult> {
   const today = getToday();
 
   const providers: Array<{
-    name: string;
     key: string;
     limit: number;
+    vision: boolean;
     stream: (msgs: ChatMessage[]) => AsyncGenerator<string>;
   }> = [
-    { name: 'groq-chat', key: 'groq-chat', limit: GROQ_CHAT_LIMIT, stream: streamChatGroq },
-    { name: 'gemini', key: 'gemini', limit: GEMINI_LIMIT, stream: streamChatGemini },
-    { name: 'openrouter', key: 'openrouter', limit: OPENROUTER_LIMIT, stream: streamChatOpenRouter },
+    { key: 'groq-compound', limit: GROQ_COMPOUND_LIMIT, vision: false, stream: streamChatGroqCompound },
+    { key: 'groq-chat',     limit: GROQ_CHAT_LIMIT,     vision: false, stream: streamChatGroqChat },
+    { key: 'gemini',        limit: GEMINI_LIMIT,         vision: true,  stream: streamChatGemini },
+    { key: 'openrouter',    limit: OPENROUTER_LIMIT,     vision: false, stream: streamChatOpenRouter },
   ];
 
   for (const provider of providers) {
+    if (hasImages && !provider.vision) continue;
+
     const usage = getUsageCount(provider.key, today);
     if (usage >= provider.limit) {
-      logger.error(`Provider ${provider.name} daily limit reached (${usage}/${provider.limit})`);
+      logger.warn(`Provider ${provider.key} daily limit reached (${usage}/${provider.limit})`);
       continue;
     }
 
-    if (!isProviderAvailable(provider.name)) {
-      logger.error(`Provider ${provider.name} is not available (no API key)`);
+    if (!isProviderKeyAvailable(provider.key)) {
+      logger.warn(`Provider ${provider.key} not available (no API key)`);
       continue;
     }
 
@@ -67,21 +64,17 @@ export async function* streamChat(
       let hasOutput = false;
 
       for await (const token of provider.stream(messages)) {
-        // MOVE IT HERE:
         if (!hasOutput) {
           incrementUsage(provider.key, today);
           hasOutput = true;
         }
-        yield { token, model: provider.name };
+        yield { token, model: provider.key };
       }
 
       if (hasOutput) return;
-      logger.error(`Provider ${provider.name} returned no tokens`);
+      logger.warn(`Provider ${provider.key} returned no tokens`);
     } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      logger.warn(`Provider ${provider.name} failed: ${errMsg}`);
-      logger.error(`Provider ${provider.name} failed:`, err);
-      // Always try the next provider regardless of error type
+      logger.warn(`Provider ${provider.key} failed: ${err instanceof Error ? err.message : err}`);
     }
   }
 
@@ -91,27 +84,29 @@ export async function* streamChat(
 export async function summarize(prompt: string): Promise<string> {
   const today = getToday();
 
+  // groq-compound is skipped for summarization to preserve its chat budget
   const providers: Array<{
     key: string;
     limit: number;
     fn: (p: string) => Promise<string>;
   }> = [
-    { key: 'groq-summary', limit: GROQ_SUMMARY_LIMIT, fn: summarizeGroq },
-    { key: 'gemini', limit: GEMINI_LIMIT, fn: summarizeGemini },
-    { key: 'openrouter', limit: OPENROUTER_LIMIT, fn: summarizeOpenRouter },
+    { key: 'groq-chat',   limit: GROQ_CHAT_LIMIT,   fn: summarizeGroq },
+    { key: 'gemini',      limit: GEMINI_LIMIT,       fn: summarizeGemini },
+    { key: 'openrouter',  limit: OPENROUTER_LIMIT,   fn: summarizeOpenRouter },
   ];
 
   for (const provider of providers) {
     const usage = getUsageCount(provider.key, today);
     if (usage >= provider.limit) continue;
 
+    if (!isProviderKeyAvailable(provider.key)) continue;
+
     try {
       incrementUsage(provider.key, today);
       const result = await provider.fn(prompt);
       if (result) return result;
     } catch (err) {
-      logger.warn(`Summarize provider ${provider.key} failed: ${err}`);
-      if (!isRateLimitError(err)) throw err;
+      logger.warn(`Summarize provider ${provider.key} failed: ${err instanceof Error ? err.message : err}`);
     }
   }
 

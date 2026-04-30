@@ -1,11 +1,12 @@
 const MODEL_LABELS: Record<string, string> = {
+  'groq-compound': 'Groq⚡',
   'groq-chat': 'Groq',
-  'groq-summary': 'Groq',
   gemini: 'Gemini',
   openrouter: 'OpenRouter',
 };
 
 const MODEL_COLORS: Record<string, string> = {
+  'groq-compound': 'bg-orange-500/20 text-orange-300',
   'groq-chat': 'bg-orange-500/20 text-orange-300',
   gemini: 'bg-blue-500/20 text-blue-300',
   openrouter: 'bg-purple-500/20 text-purple-300',
