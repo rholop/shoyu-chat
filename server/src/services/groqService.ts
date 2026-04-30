@@ -6,8 +6,8 @@ const client = new OpenAI({
   baseURL: 'https://api.groq.com/openai/v1',
 });
 
-const PRIMARY_MODEL = 'llama-3.3-70b-versatile';
-const FALLBACK_MODEL = 'llama-3.1-8b-instant';
+const PRIMARY_MODEL = 'groq/compound';
+const FALLBACK_MODEL = 'llama-3.3-70b-versatile';
 
 function isRateLimitError(error: unknown): boolean {
   return (error as { status?: number })?.status === 429;
