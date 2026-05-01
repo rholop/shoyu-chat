@@ -1,4 +1,4 @@
-import { Trash2, MessageSquare, PanelLeftClose } from 'lucide-react';
+import { Trash2, MessageSquare, PanelLeftClose, Plus } from 'lucide-react';
 import { Conversation, Project } from '../../types';
 import ModelBadge from '../chat/ModelBadge';
 import ProjectList from '../projects/ProjectList';
@@ -63,6 +63,17 @@ export default function Sidebar({
       </div>
 
       <nav className="flex-1 overflow-y-auto py-2">
+        <div className="flex items-center justify-between px-3 py-1.5">
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Projects</span>
+          <button
+            onClick={onCreateProject}
+            className="p-0.5 rounded hover:bg-slate-800 text-slate-500 hover:text-slate-300 transition-colors"
+            aria-label="New project"
+          >
+            <Plus size={13} />
+          </button>
+        </div>
+
         {projects.length > 0 && (
           <ProjectList
             projects={projects}
