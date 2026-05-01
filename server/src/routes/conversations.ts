@@ -7,6 +7,7 @@ import {
   createConversation,
   updateConversationTitle,
   deleteConversation,
+  assignConversationProject,
 } from '../storage';
 
 const router = Router();
@@ -15,8 +16,10 @@ router.get('/', (_req, res) => {
   res.json(listConversations());
 });
 
-router.post('/', (_req, res) => {
-  const id = createConversation();
+router.post('/', (req, res) => {
+  const parsed = z.object({ projectId: z.string().uuid().nullable().optional() }).safeParse(req.body);
+  const projectId = parsed.success ? (parsed.data.projectId ?? null) : null;
+  const id = createConversation(projectId);
   res.status(201).json({ id });
 });
 
@@ -57,6 +60,22 @@ router.patch('/:id', (req, res) => {
 
 router.delete('/:id', (req, res) => {
   const ok = deleteConversation(req.params.id);
+  if (!ok) {
+    res.status(404).json({ error: 'Not found' });
+    return;
+  }
+  res.json({ ok: true });
+});
+
+router.post('/:id/assign', (req, res) => {
+  const parsed = z
+    .object({ projectId: z.string().uuid().nullable() })
+    .safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+  const ok = assignConversationProject(req.params.id, parsed.data.projectId);
   if (!ok) {
     res.status(404).json({ error: 'Not found' });
     return;

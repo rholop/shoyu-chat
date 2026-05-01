@@ -16,7 +16,7 @@ export function useConversations() {
   });
 
   const createMutation = useMutation({
-    mutationFn: createConversation,
+    mutationFn: (options?: { projectId?: string }) => createConversation(options),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['conversations'] }),
   });
 
@@ -34,7 +34,7 @@ export function useConversations() {
   return {
     conversations: query.data ?? [],
     isLoading: query.isLoading,
-    create: createMutation.mutateAsync,
+    create: (options?: { projectId?: string }) => createMutation.mutateAsync(options),
     remove: (id: string) => deleteMutation.mutate(id),
     rename: (id: string, title: string) => renameMutation.mutate({ id, title }),
     refresh: () => queryClient.invalidateQueries({ queryKey: ['conversations'] }),

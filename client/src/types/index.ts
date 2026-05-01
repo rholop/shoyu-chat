@@ -24,10 +24,25 @@ export interface Message {
 export interface Conversation {
   id: string;
   title: string;
+  projectId?: string | null;
   created_at: string;
   updated_at: string;
   model_last_used: string | null;
   has_files?: boolean;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  created_at: string;
+  conversationCount: number;
+}
+
+export interface ProjectDetail extends Omit<Project, 'conversationCount'> {
+  contextDoc: string;
+  summary: string;
+  conversations: Conversation[];
 }
 
 export interface ConversationWithMessages extends Conversation {
