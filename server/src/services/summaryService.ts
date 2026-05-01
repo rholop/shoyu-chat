@@ -4,6 +4,7 @@ import {
   getRecentlyActiveConversations,
 } from '../storage';
 import { summarize } from './aiRouter';
+import { regenerateProjectSummary } from './projectService';
 import {
   writeChatFile,
   upsertWeeklyEntry,
@@ -113,6 +114,15 @@ ${transcript}`;
 
   // 5. Regenerate monthly summary
   await regenerateMonthlySummary(dateStr.slice(0, 7));
+
+  // 6. If conversation belongs to a project, regenerate its summary
+  if (meta.projectId) {
+    try {
+      await regenerateProjectSummary(meta.projectId);
+    } catch (err) {
+      logger.error(`Project summary failed for project ${meta.projectId}:`, err);
+    }
+  }
 
   logger.info(`Summary complete for conversation ${conversationId}`);
 }

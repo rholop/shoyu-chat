@@ -17,8 +17,12 @@ export async function getConversation(id: string): Promise<ConversationWithMessa
   return apiFetch(`/api/conversations/${id}`);
 }
 
-export async function createConversation(): Promise<{ id: string }> {
-  return apiFetch('/api/conversations', { method: 'POST' });
+export async function createConversation(options?: { projectId?: string }): Promise<{ id: string }> {
+  return apiFetch('/api/conversations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(options ?? {}),
+  });
 }
 
 export async function updateConversationTitle(id: string, title: string): Promise<void> {

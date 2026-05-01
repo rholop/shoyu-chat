@@ -7,6 +7,24 @@ vi.mock('../../hooks/useConversations', () => ({
   useConversations: vi.fn(),
 }));
 
+vi.mock('../../hooks/useProjects', () => ({
+  useProjects: vi.fn(() => ({
+    projects: [],
+    isLoading: false,
+    create: vi.fn().mockResolvedValue({ id: 'new-proj' }),
+    update: vi.fn(),
+    remove: vi.fn(),
+    refresh: vi.fn(),
+  })),
+  useProject: vi.fn(() => ({
+    project: null,
+    isLoading: false,
+    updateContext: vi.fn(),
+    assign: vi.fn(),
+    refresh: vi.fn(),
+  })),
+}));
+
 vi.mock('../../store/chatStore', () => ({
   useChatStore: vi.fn(),
 }));

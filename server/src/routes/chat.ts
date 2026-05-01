@@ -11,6 +11,7 @@ import {
 import { streamChat } from '../services/aiRouter';
 import { extractContext, formatContextBlock, findConversationFile } from '../services/fileService';
 import { schedule as scheduleSummary } from '../services/summaryService';
+import { getContext as getProjectContext } from '../services/projectService';
 import { ChatMessage, ImageAttachment } from '../services/groqService';
 import { logger } from '../utils/logger';
 
@@ -74,9 +75,18 @@ router.post('/send', async (req, res) => {
   // Load history (last 20 messages)
   let history: ChatMessage[] = [];
   try {
-    history = getMessages(conversationId)
+    // Inject project context as system prompt if conversation belongs to a project
+    if (meta.projectId) {
+      const projectContext = getProjectContext(meta.projectId);
+      if (projectContext.trim()) {
+        history.push({ role: 'system' as const, content: `# Project Context\n\n${projectContext}` } as unknown as ChatMessage);
+      }
+    }
+
+    const conversationHistory = getMessages(conversationId)
       .slice(-20)
       .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+    history.push(...conversationHistory);
   } catch (err) {
     logger.error('Failed to load message history:', err);
     send({ type: 'error', message: 'Failed to load conversation history.' });

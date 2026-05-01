@@ -27,10 +27,14 @@ const conv2: Conversation = {
 describe('Sidebar', () => {
   const defaultProps = {
     conversations: [],
+    projects: [],
     activeId: null,
     onSelect: vi.fn(),
     onDelete: vi.fn(),
     onNewChat: vi.fn(),
+    onSelectProject: vi.fn(),
+    onNewChatInProject: vi.fn(),
+    onCreateProject: vi.fn(),
   };
 
   it('renders New Chat button', () => {
