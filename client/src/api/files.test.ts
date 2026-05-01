@@ -28,6 +28,21 @@ describe('uploadFile', () => {
     await expect(uploadFile('conv-1', file)).rejects.toThrow('File too large');
   });
 
+  it('sends conversationId before file in FormData to ensure server can read it', async () => {
+    const attachment = { fileId: 'uuid-1', filename: 'test.txt', mimeType: 'text/plain', size: 42 };
+    let capturedFormData: FormData | undefined;
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((_url: string, opts: RequestInit) => {
+      capturedFormData = opts.body as FormData;
+      return Promise.resolve({ ok: true, json: vi.fn().mockResolvedValue(attachment) });
+    }));
+
+    const file = new File(['hello'], 'test.txt', { type: 'text/plain' });
+    await uploadFile('conv-1', file);
+
+    const keys = [...capturedFormData!.keys()];
+    expect(keys.indexOf('conversationId')).toBeLessThan(keys.indexOf('file'));
+  });
+
   it('throws Upload failed when error body has no error field', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: false,
