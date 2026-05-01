@@ -7,8 +7,8 @@ const client = new OpenAI({
   baseURL: 'https://integrate.api.nvidia.com/v1',
 });
 
-const CHAT_MODEL = 'openai/gpt-oss-120b';
-const CHAT_FALLBACK_MODEL = 'meta/llama-3.1-8b-instruct';
+const CHAT_MODEL = 'qwen/qwen3.5-397b-a17b';
+const CHAT_FALLBACK_MODEL = 'nvidia/nemotron-3-super-120b-a12b';
 
 function isRateLimitError(error: unknown): boolean {
   return (error as { status?: number })?.status === 429;
