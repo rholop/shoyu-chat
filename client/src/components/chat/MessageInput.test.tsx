@@ -1,9 +1,15 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { Intent } from '../../types';
+import { useChatStore } from '../../store/chatStore';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import MessageInput from './MessageInput';
 
 describe('MessageInput', () => {
+  beforeEach(() => {
+    useChatStore.setState({ selectedIntent: Intent.CODING });
+  });
+
   it('renders the textarea and send button', () => {
     render(<MessageInput onSend={vi.fn()} />);
     expect(screen.getByRole('textbox')).toBeInTheDocument();
@@ -15,9 +21,10 @@ describe('MessageInput', () => {
     expect(screen.getByRole('button', { name: /attach file/i })).toBeInTheDocument();
   });
 
-  it('shows placeholder text', () => {
+  it('shows an intent-based placeholder text', () => {
     render(<MessageInput onSend={vi.fn()} />);
-    expect(screen.getByPlaceholderText('Message…')).toBeInTheDocument();
+    // Default intent is CODING; placeholder includes the intent description
+    expect(screen.getByRole('textbox').getAttribute('placeholder')).toMatch(/code|refactor|drafting|search|debug|translat|summar|image/i);
   });
 
   it('calls onSend with trimmed content and empty attachments when Enter is pressed', async () => {
@@ -91,6 +98,25 @@ describe('MessageInput', () => {
   it('shows the help text', () => {
     render(<MessageInput onSend={vi.fn()} />);
     expect(screen.getByText(/Enter to send/)).toBeInTheDocument();
+  });
+
+  it('renders intent task bar buttons for all intents', () => {
+    render(<MessageInput onSend={vi.fn()} />);
+    // All 7 intents should have buttons in the task bar
+    expect(screen.getByRole('button', { name: /web search/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /coding/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /debugging/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /translating/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /drafting/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /summarizing/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /image analysis/i })).toBeInTheDocument();
+  });
+
+  it('marks the active intent button as pressed', () => {
+    useChatStore.setState({ selectedIntent: Intent.WEB_SEARCH });
+    render(<MessageInput onSend={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /web search/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /coding/i })).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('shows attachment chips when attachments are passed', () => {

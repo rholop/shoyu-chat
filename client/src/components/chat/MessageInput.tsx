@@ -1,10 +1,10 @@
 import { useState, useRef, KeyboardEvent, DragEvent } from 'react';
 import { Send, Paperclip } from 'lucide-react';
-import { Attachment, Provider, PROVIDER_LABELS } from '../../types';
+import { Attachment, Intent, INTENT_CONFIG } from '../../types';
 import { useChatStore } from '../../store/chatStore';
 import AttachmentChip from './AttachmentChip';
 
-const PROVIDERS: Provider[] = ['auto', 'nvidia', 'groq', 'gemini', 'openrouter'];
+const INTENTS = Object.values(Intent);
 
 interface Props {
   onSend: (content: string, attachments: Attachment[]) => void;
@@ -29,7 +29,7 @@ export default function MessageInput({
   const [isDragOver, setIsDragOver] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { selectedProvider, setProvider } = useChatStore();
+  const { selectedIntent, setIntent } = useChatStore();
 
   const submit = () => {
     const trimmed = value.trim();
@@ -74,7 +74,6 @@ export default function MessageInput({
     if (e.target.files && e.target.files.length > 0 && onFilesSelect) {
       onFilesSelect(e.target.files);
     }
-    // Reset so the same file can be re-selected
     e.target.value = '';
   };
 
@@ -88,6 +87,33 @@ export default function MessageInput({
       onDrop={handleDrop}
     >
       <div className="max-w-3xl mx-auto">
+        {/* Intent task bar */}
+        <div className="flex gap-1 mb-2 overflow-x-auto pb-0.5 scrollbar-none">
+          {INTENTS.map((intent) => {
+            const { icon, label } = INTENT_CONFIG[intent];
+            const isActive = selectedIntent === intent;
+            return (
+              <button
+                key={intent}
+                type="button"
+                onClick={() => setIntent(intent)}
+                disabled={disabled}
+                title={label}
+                aria-label={label}
+                aria-pressed={isActive}
+                className={`shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-default
+                  ${isActive
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
+                  }`}
+              >
+                <span className="text-sm leading-none">{icon}</span>
+                <span className="hidden sm:inline">{label}</span>
+              </button>
+            );
+          })}
+        </div>
+
         {/* Attachment chips */}
         {attachments.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-2">
@@ -144,21 +170,9 @@ export default function MessageInput({
             onKeyDown={handleKeyDown}
             disabled={disabled}
             rows={1}
-            placeholder={uploading ? 'Uploading…' : 'Message…'}
+            placeholder={uploading ? 'Uploading…' : `${INTENT_CONFIG[selectedIntent].icon} ${INTENT_CONFIG[selectedIntent].description}…`}
             className="flex-1 bg-transparent text-white placeholder-slate-500 text-sm resize-none focus:outline-none py-1.5 max-h-[200px]"
           />
-
-          <select
-            value={selectedProvider}
-            onChange={(e) => setProvider(e.target.value as Provider)}
-            disabled={disabled}
-            aria-label="Select AI provider"
-            className="shrink-0 bg-slate-700 text-slate-300 text-xs rounded-lg px-2 py-1 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-40 disabled:cursor-default mb-0.5"
-          >
-            {PROVIDERS.map((p) => (
-              <option key={p} value={p}>{PROVIDER_LABELS[p]}</option>
-            ))}
-          </select>
 
           <button
             onClick={submit}

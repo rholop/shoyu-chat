@@ -1,16 +1,16 @@
-import { Attachment, Provider, SSEEvent } from '../types';
+import { Attachment, Intent, SSEEvent } from '../types';
 
 export async function* sendMessage(
   conversationId: string,
   content: string,
   attachments: Attachment[] = [],
-  provider: Provider = 'auto',
+  intent: Intent = Intent.CODING,
 ): AsyncGenerator<SSEEvent> {
   const res = await fetch('/api/chat/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ conversationId, content, attachments, provider }),
+    body: JSON.stringify({ conversationId, content, attachments, intent }),
   });
 
   if (!res.ok) {
