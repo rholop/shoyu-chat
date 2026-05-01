@@ -7,7 +7,7 @@ const client = new OpenAI({
   baseURL: 'https://integrate.api.nvidia.com/v1',
 });
 
-const CHAT_MODEL = 'meta/llama-3.3-70b-instruct';
+const CHAT_MODEL = 'openai/gpt-oss-120b';
 const CHAT_FALLBACK_MODEL = 'meta/llama-3.1-8b-instruct';
 
 function isRateLimitError(error: unknown): boolean {
