@@ -9,6 +9,7 @@ const client = new OpenAI({
 
 const CHAT_MODEL = 'qwen/qwen3.5-397b-a17b';
 const CHAT_FALLBACK_MODEL = 'nvidia/nemotron-3-super-120b-a12b';
+const CODING_MODEL = 'meta/llama-3.1-405b-instruct';
 
 function isRateLimitError(error: unknown): boolean {
   return (error as { status?: number })?.status === 429;
@@ -33,6 +34,32 @@ export async function* streamChatNvidia(messages: ChatMessage[]): AsyncGenerator
     } catch (error) {
       if (model === CHAT_MODEL && isRateLimitError(error)) {
         logger.warn(`NVIDIA rate limit on ${CHAT_MODEL}, falling back to ${CHAT_FALLBACK_MODEL}`);
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
+export async function* streamChatNvidiaCoding(messages: ChatMessage[]): AsyncGenerator<string> {
+  const cleanedMessages = messages.map((m) => ({ role: m.role, content: m.content }));
+
+  for (const model of [CODING_MODEL, CHAT_MODEL, CHAT_FALLBACK_MODEL]) {
+    try {
+      const stream = await client.chat.completions.create({
+        model,
+        messages: cleanedMessages,
+        stream: true,
+      });
+
+      for await (const chunk of stream) {
+        const text = chunk.choices[0]?.delta?.content;
+        if (text) yield text;
+      }
+      return;
+    } catch (error) {
+      if (isRateLimitError(error)) {
+        logger.warn(`NVIDIA rate limit on ${model}, trying next model`);
         continue;
       }
       throw error;
