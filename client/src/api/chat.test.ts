@@ -43,7 +43,7 @@ describe('sendMessage (SSE parser)', () => {
     for await (const _ of gen) { /* drain */ }
     expect(fetch).toHaveBeenCalledWith('/api/chat/send', expect.objectContaining({
       method: 'POST',
-      body: JSON.stringify({ conversationId: 'conv-1', content: 'hello', attachments: [] }),
+      body: JSON.stringify({ conversationId: 'conv-1', content: 'hello', attachments: [], provider: 'auto' }),
       credentials: 'include',
     }));
   });

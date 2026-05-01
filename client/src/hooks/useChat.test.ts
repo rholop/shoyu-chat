@@ -39,7 +39,7 @@ describe('useChat', () => {
     vi.clearAllMocks();
     useChatStore.setState({
       activeConversationId: null, messages: [], streamingContent: '',
-      isStreaming: false, streamError: null,
+      isStreaming: false, streamError: null, selectedProvider: 'auto',
     });
   });
 
@@ -69,7 +69,7 @@ describe('useChat', () => {
       await result.current.send('hey', optimistic);
     });
 
-    expect(sendMessage).toHaveBeenCalledWith('conv-1', 'hey', []);
+    expect(sendMessage).toHaveBeenCalledWith('conv-1', 'hey', [], 'auto');
     expect(useChatStore.getState().isStreaming).toBe(false);
   });
 
