@@ -147,7 +147,7 @@ export default function AppShell() {
   }, [conversations, activeConversationId, setActiveConversation]);
 
   return (
-    <div className="flex h-screen bg-slate-950 overflow-hidden">
+    <div className="flex h-[100dvh] bg-slate-950 overflow-hidden">
       {showNewProjectModal && (
         <NewProjectModal
           onCreate={handleCreateProject}
@@ -200,7 +200,12 @@ export default function AppShell() {
             onNewChat={(projectId) => handleNewChat(projectId)}
           />
         ) : activeConversationId ? (
-          <ChatView conversationId={activeConversationId} />
+          <ChatView
+            conversationId={activeConversationId}
+            title={title}
+            onMenuToggle={() => setMobileSidebarOpen((v) => !v)}
+            onNewChat={() => handleNewChat()}
+          />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
             <p className="text-slate-400 text-lg mb-2">Welcome to Shoyu Chat</p>
