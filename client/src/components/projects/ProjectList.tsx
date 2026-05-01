@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FolderOpen, ChevronDown, ChevronRight, MessageSquare, Trash2, Plus } from 'lucide-react';
+import { FolderOpen, ChevronDown, ChevronRight, MessageSquare, Trash2 } from 'lucide-react';
 import { Project, Conversation } from '../../types';
 
 interface Props {
@@ -32,17 +32,6 @@ export default function ProjectList({
 
   return (
     <div className="mb-1">
-      <div className="flex items-center justify-between px-3 py-1.5">
-        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Projects</span>
-        <button
-          onClick={onCreateProject}
-          className="p-0.5 rounded hover:bg-slate-800 text-slate-500 hover:text-slate-300 transition-colors"
-          aria-label="New project"
-        >
-          <Plus size={13} />
-        </button>
-      </div>
-
       {projects.map((project) => {
         const projectConversations = conversations.filter((c) => c.projectId === project.id);
         const isCollapsed = collapsed[project.id];

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { Menu, Plus } from 'lucide-react';
 import { useChatStore } from '../../store/chatStore';
 import { useChat } from '../../hooks/useChat';
 import { useFileUpload } from '../../hooks/useFileUpload';
@@ -8,9 +9,12 @@ import MessageInput from './MessageInput';
 
 interface Props {
   conversationId: string;
+  title?: string;
+  onMenuToggle?: () => void;
+  onNewChat?: () => void;
 }
 
-export default function ChatView({ conversationId }: Props) {
+export default function ChatView({ conversationId, title, onMenuToggle, onNewChat }: Props) {
   const { messages: storedMessages, send, isLoading } = useChat(conversationId);
   const { messages: storeMessages, streamingContent, isStreaming, streamError } = useChatStore();
   const { attachments, uploading, uploadError, upload, remove, clear } = useFileUpload(conversationId);
@@ -46,8 +50,33 @@ export default function ChatView({ conversationId }: Props) {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className="flex-1 overflow-y-auto py-4">
-        <div className="max-w-3xl mx-auto px-4 space-y-4">
+      <div className="flex-1 overflow-y-auto">
+        {/* Mobile sticky mini-bar — stays visible as messages scroll */}
+        {(onMenuToggle || onNewChat) && (
+          <div className="md:hidden sticky top-0 z-10 flex items-center gap-2 px-3 py-2 bg-slate-950/90 backdrop-blur border-b border-slate-800/60">
+            {onMenuToggle && (
+              <button
+                onClick={onMenuToggle}
+                className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                aria-label="Toggle sidebar"
+              >
+                <Menu size={16} />
+              </button>
+            )}
+            <span className="flex-1 text-xs font-medium text-slate-400 truncate">{title}</span>
+            {onNewChat && (
+              <button
+                onClick={onNewChat}
+                className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                aria-label="New chat"
+              >
+                <Plus size={16} />
+              </button>
+            )}
+          </div>
+        )}
+
+        <div className="max-w-3xl mx-auto px-4 py-4 space-y-4">
           {displayMessages.length === 0 && !isStreaming && (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <p className="text-slate-500 text-sm">Start a conversation</p>
