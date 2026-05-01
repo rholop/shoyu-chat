@@ -23,10 +23,13 @@ const attachmentSchema = z.object({
   size: z.number().optional(),
 });
 
+const providerSchema = z.enum(['auto', 'groq', 'gemini', 'openrouter']).default('auto');
+
 const sendSchema = z.object({
   conversationId: z.string().uuid(),
   content: z.string().max(32000),
   attachments: z.array(attachmentSchema).optional(),
+  provider: providerSchema.optional(),
 });
 
 router.post('/send', async (req, res) => {
@@ -36,7 +39,7 @@ router.post('/send', async (req, res) => {
     return;
   }
 
-  const { conversationId, content, attachments = [] } = parsed.data;
+  const { conversationId, content, attachments = [], provider = 'auto' } = parsed.data;
 
   if (!content.trim() && attachments.length === 0) {
     res.status(400).json({ error: 'Message must have content or attachments' });
@@ -129,7 +132,7 @@ router.post('/send', async (req, res) => {
   let modelUsed = '';
 
   try {
-    const stream = await Promise.resolve(streamChat(context, hasImages));
+    const stream = await Promise.resolve(streamChat(context, hasImages, provider));
     for await (const { token, model } of stream) {
       fullContent += token;
       modelUsed = model;

@@ -28,13 +28,16 @@ export interface StreamResult {
   model: string;
 }
 
+type ProviderSelection = 'auto' | 'groq' | 'gemini' | 'openrouter';
+
 export async function* streamChat(
   messages: ChatMessage[],
   hasImages = false,
+  providerSelection: ProviderSelection = 'auto',
 ): AsyncGenerator<StreamResult> {
   const today = getToday();
 
-  const providers: Array<{
+  const allProviders: Array<{
     key: string;
     limit: number;
     vision: boolean;
@@ -45,6 +48,13 @@ export async function* streamChat(
     { key: 'gemini',        limit: GEMINI_LIMIT,         vision: true,  stream: streamChatGemini },
     { key: 'openrouter',    limit: OPENROUTER_LIMIT,     vision: false, stream: streamChatOpenRouter },
   ];
+
+  const providers = providerSelection === 'auto'
+    ? allProviders
+    : allProviders.filter((p) => {
+        if (providerSelection === 'groq') return p.key === 'groq-compound' || p.key === 'groq-chat';
+        return p.key === providerSelection;
+      });
 
   for (const provider of providers) {
     if (hasImages && !provider.vision) continue;
