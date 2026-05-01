@@ -8,12 +8,13 @@ import {
   conversationFilesDir,
   MessageAttachment,
 } from '../storage';
-import { streamChat } from '../services/aiRouter';
+import { streamChat, InternalNoteResult } from '../services/aiRouter';
 import { extractContext, formatContextBlock, findConversationFile } from '../services/fileService';
 import { schedule as scheduleSummary } from '../services/summaryService';
 import { getContext as getProjectContext } from '../services/projectService';
 import { ChatMessage, ImageAttachment } from '../services/groqService';
 import { logger } from '../utils/logger';
+import { Intent } from '../types';
 
 const router = Router();
 
@@ -24,13 +25,11 @@ const attachmentSchema = z.object({
   size: z.number().optional(),
 });
 
-const providerSchema = z.enum(['auto', 'groq', 'gemini', 'openrouter']).default('auto');
-
 const sendSchema = z.object({
   conversationId: z.string().uuid(),
   content: z.string().max(32000),
   attachments: z.array(attachmentSchema).optional(),
-  provider: providerSchema.optional(),
+  intent: z.nativeEnum(Intent).default(Intent.CODING),
 });
 
 router.post('/send', async (req, res) => {
@@ -40,7 +39,7 @@ router.post('/send', async (req, res) => {
     return;
   }
 
-  const { conversationId, content, attachments = [], provider = 'auto' } = parsed.data;
+  const { conversationId, content, attachments = [], intent } = parsed.data;
 
   if (!content.trim() && attachments.length === 0) {
     res.status(400).json({ error: 'Message must have content or attachments' });
@@ -78,16 +77,33 @@ router.post('/send', async (req, res) => {
   // Load history (last 20 messages)
   let history: ChatMessage[] = [];
   try {
-    // Inject project context as system prompt if conversation belongs to a project
+    const rawHistory = getMessages(conversationId).slice(-20);
+
+    // Collect internal relay notes to inject as system context
+    const internalNotes = rawHistory
+      .filter((m) => m.role === 'internal')
+      .map((m) => m.content)
+      .join('\n\n');
+
+    // Build system prompt from project context + internal notes
+    let systemContent = '';
     if (meta.projectId) {
       const projectContext = getProjectContext(meta.projectId);
       if (projectContext.trim()) {
-        history.push({ role: 'system' as const, content: `# Project Context\n\n${projectContext}` } as unknown as ChatMessage);
+        systemContent += `# Project Context\n\n${projectContext}`;
       }
     }
+    if (internalNotes) {
+      if (systemContent) systemContent += '\n\n';
+      systemContent += `# Research Notes (from previous web searches)\n\n${internalNotes}`;
+    }
+    if (systemContent) {
+      history.push({ role: 'system', content: systemContent });
+    }
 
-    const conversationHistory = getMessages(conversationId)
-      .slice(-20)
+    // Only pass user/assistant messages as conversation history
+    const conversationHistory = rawHistory
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
       .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
     history.push(...conversationHistory);
   } catch (err) {
@@ -142,12 +158,27 @@ router.post('/send', async (req, res) => {
   let modelUsed = '';
 
   try {
-    const stream = await Promise.resolve(streamChat(context, hasImages, provider));
-    for await (const { token, model } of stream) {
-      fullContent += token;
-      modelUsed = model;
-      send({ type: 'token', content: token });
-      if (aborted) break;
+    const stream = streamChat(context, intent, hasImages);
+    for await (const result of stream) {
+      if ('internalNote' in (result as InternalNoteResult)) {
+        const noteResult = result as InternalNoteResult;
+        try {
+          appendMessage(conversationId, {
+            role: 'internal',
+            content: noteResult.internalNote,
+            model: noteResult.model,
+            created_at: new Date().toISOString(),
+          });
+        } catch (err) {
+          logger.error('Failed to persist internal note:', err);
+        }
+      } else {
+        const { token, model } = result as { token: string; model: string };
+        fullContent += token;
+        modelUsed = model;
+        send({ type: 'token', content: token });
+        if (aborted) break;
+      }
     }
 
     if (fullContent && !aborted) {

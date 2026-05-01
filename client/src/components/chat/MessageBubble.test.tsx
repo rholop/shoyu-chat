@@ -53,12 +53,12 @@ describe('MessageBubble', () => {
 
     it('renders model badge when model_used is set', () => {
       render(<MessageBubble message={makeMessage({ role: 'assistant', content: 'Hi', model_used: 'groq-chat' })} />);
-      expect(screen.getByText('Groq')).toBeInTheDocument();
+      expect(screen.getByText('Llama 3.3 70B')).toBeInTheDocument();
     });
 
     it('does not render model badge when model_used is null', () => {
       render(<MessageBubble message={makeMessage({ role: 'assistant', content: 'Hi', model_used: null })} />);
-      expect(screen.queryByText('Groq')).not.toBeInTheDocument();
+      expect(screen.queryByText('Llama 3.3 70B')).not.toBeInTheDocument();
     });
 
     it('renders links with target blank', () => {

@@ -295,7 +295,7 @@ export interface MessageAttachment {
 }
 
 export interface StoredMessage {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'internal';
   content: string;
   model?: string;
   attachments?: MessageAttachment[];

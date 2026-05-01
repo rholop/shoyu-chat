@@ -15,7 +15,7 @@ import { getConversation } from '../api/conversations';
 import { sendMessage } from '../api/chat';
 import { useChat } from './useChat';
 import { useChatStore } from '../store/chatStore';
-import { Message } from '../types';
+import { Message, Intent } from '../types';
 
 function makeWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -39,7 +39,7 @@ describe('useChat', () => {
     vi.clearAllMocks();
     useChatStore.setState({
       activeConversationId: null, messages: [], streamingContent: '',
-      isStreaming: false, streamError: null, selectedProvider: 'auto',
+      isStreaming: false, streamError: null, selectedIntent: Intent.CODING,
     });
   });
 
@@ -69,7 +69,7 @@ describe('useChat', () => {
       await result.current.send('hey', optimistic);
     });
 
-    expect(sendMessage).toHaveBeenCalledWith('conv-1', 'hey', [], 'auto');
+    expect(sendMessage).toHaveBeenCalledWith('conv-1', 'hey', [], Intent.CODING);
     expect(useChatStore.getState().isStreaming).toBe(false);
   });
 

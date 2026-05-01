@@ -20,7 +20,13 @@ export default function ChatView({ conversationId, title, onMenuToggle, onNewCha
   const { attachments, uploading, uploadError, upload, remove, clear } = useFileUpload(conversationId);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const displayMessages = storeMessages.length > 0 ? storeMessages : storedMessages;
+  // Filter out internal relay messages (role:'internal') — they exist in the
+  // ndjson for system context injection but must never render in the UI.
+  const visibleMessages = (msgs: typeof storedMessages) =>
+    msgs.filter((m) => (m as unknown as { role: string }).role !== 'internal');
+
+  const displayMessages =
+    storeMessages.length > 0 ? visibleMessages(storeMessages) : visibleMessages(storedMessages);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
