@@ -1,7 +1,10 @@
 import { useState, useRef, KeyboardEvent, DragEvent } from 'react';
 import { Send, Paperclip } from 'lucide-react';
-import { Attachment } from '../../types';
+import { Attachment, Provider, PROVIDER_LABELS } from '../../types';
+import { useChatStore } from '../../store/chatStore';
 import AttachmentChip from './AttachmentChip';
+
+const PROVIDERS: Provider[] = ['auto', 'groq', 'gemini', 'openrouter'];
 
 interface Props {
   onSend: (content: string, attachments: Attachment[]) => void;
@@ -26,6 +29,7 @@ export default function MessageInput({
   const [isDragOver, setIsDragOver] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { selectedProvider, setProvider } = useChatStore();
 
   const submit = () => {
     const trimmed = value.trim();
@@ -143,6 +147,18 @@ export default function MessageInput({
             placeholder={uploading ? 'Uploading…' : 'Message…'}
             className="flex-1 bg-transparent text-white placeholder-slate-500 text-sm resize-none focus:outline-none py-1.5 max-h-[200px]"
           />
+
+          <select
+            value={selectedProvider}
+            onChange={(e) => setProvider(e.target.value as Provider)}
+            disabled={disabled}
+            aria-label="Select AI provider"
+            className="shrink-0 bg-slate-700 text-slate-300 text-xs rounded-lg px-2 py-1 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-40 disabled:cursor-default mb-0.5"
+          >
+            {PROVIDERS.map((p) => (
+              <option key={p} value={p}>{PROVIDER_LABELS[p]}</option>
+            ))}
+          </select>
 
           <button
             onClick={submit}

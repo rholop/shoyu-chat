@@ -7,7 +7,7 @@ import { Attachment, Message } from '../types';
 
 export function useChat(conversationId: string | null) {
   const queryClient = useQueryClient();
-  const { appendToken, finalizeStream, setStreamError, resetStream, setMessages } = useChatStore();
+  const { appendToken, finalizeStream, setStreamError, resetStream, setMessages, selectedProvider } = useChatStore();
 
   const query = useQuery({
     queryKey: ['conversation', conversationId],
@@ -26,7 +26,7 @@ export function useChat(conversationId: string | null) {
       resetStream();
 
       try {
-        for await (const event of sendMessage(conversationId, content, attachments)) {
+        for await (const event of sendMessage(conversationId, content, attachments, selectedProvider)) {
           if (event.type === 'token') {
             appendToken(event.content);
           } else if (event.type === 'done') {
@@ -41,7 +41,7 @@ export function useChat(conversationId: string | null) {
         setStreamError(err instanceof Error ? err.message : 'Unknown error');
       }
     },
-    [conversationId, messages, appendToken, finalizeStream, setStreamError, resetStream, setMessages, queryClient],
+    [conversationId, messages, appendToken, finalizeStream, setStreamError, resetStream, setMessages, queryClient, selectedProvider],
   );
 
   return {

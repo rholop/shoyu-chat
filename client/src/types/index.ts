@@ -49,6 +49,15 @@ export interface ConversationWithMessages extends Conversation {
   messages: Message[];
 }
 
+export type Provider = 'auto' | 'groq' | 'gemini' | 'openrouter';
+
+export const PROVIDER_LABELS: Record<Provider, string> = {
+  auto: 'Auto',
+  groq: 'Groq',
+  gemini: 'Gemini',
+  openrouter: 'OpenRouter',
+};
+
 export type SSEEvent =
   | { type: 'token'; content: string }
   | { type: 'done'; model: string; conversationId: string }
