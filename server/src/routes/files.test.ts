@@ -4,7 +4,8 @@ import express from 'express';
 
 vi.mock('../middleware/uploadMiddleware', () => ({
   uploadSingle: vi.fn((req: express.Request, _res: express.Response, cb: (err?: Error) => void) => {
-    (req as express.Request & { file?: Record<string, unknown> }).file = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (req as any).file = {
       filename: 'abc123-notes.txt',
       originalname: 'notes.txt',
       mimetype: 'text/plain',
