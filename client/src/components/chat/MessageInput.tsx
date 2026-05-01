@@ -4,7 +4,7 @@ import { Attachment, Provider, PROVIDER_LABELS } from '../../types';
 import { useChatStore } from '../../store/chatStore';
 import AttachmentChip from './AttachmentChip';
 
-const PROVIDERS: Provider[] = ['auto', 'groq', 'gemini', 'openrouter'];
+const PROVIDERS: Provider[] = ['auto', 'nvidia', 'groq', 'gemini', 'openrouter'];
 
 interface Props {
   onSend: (content: string, attachments: Attachment[]) => void;

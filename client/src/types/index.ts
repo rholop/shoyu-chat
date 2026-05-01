@@ -49,10 +49,11 @@ export interface ConversationWithMessages extends Conversation {
   messages: Message[];
 }
 
-export type Provider = 'auto' | 'groq' | 'gemini' | 'openrouter';
+export type Provider = 'auto' | 'nvidia' | 'groq' | 'gemini' | 'openrouter';
 
 export const PROVIDER_LABELS: Record<Provider, string> = {
   auto: 'Auto',
+  nvidia: 'NVIDIA',
   groq: 'Groq',
   gemini: 'Gemini',
   openrouter: 'OpenRouter',
