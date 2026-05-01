@@ -10,16 +10,19 @@ import {
 } from './groqService';
 import { streamChatGemini, summarizeGemini, isGeminiAvailable } from './geminiService';
 import { streamChatOpenRouter, summarizeOpenRouter, isOpenRouterAvailable } from './openrouterService';
+import { streamChatNvidia, summarizeNvidia, isNvidiaAvailable } from './nvidiaService';
 
 const GROQ_COMPOUND_LIMIT = Number(process.env.GROQ_COMPOUND_DAILY_LIMIT ?? 250);
 const GROQ_CHAT_LIMIT = Number(process.env.GROQ_CHAT_DAILY_LIMIT ?? 1000);
 const GEMINI_LIMIT = Number(process.env.GEMINI_DAILY_LIMIT ?? 1500);
 const OPENROUTER_LIMIT = Number(process.env.OPENROUTER_DAILY_LIMIT ?? 200);
+const NVIDIA_LIMIT = Number(process.env.NVIDIA_DAILY_LIMIT ?? 1000);
 
 function isProviderKeyAvailable(key: string): boolean {
   if (key === 'groq-compound' || key === 'groq-chat') return isGroqAvailable();
   if (key === 'gemini') return isGeminiAvailable();
   if (key === 'openrouter') return isOpenRouterAvailable();
+  if (key === 'nvidia') return isNvidiaAvailable();
   return false;
 }
 
@@ -40,9 +43,10 @@ export async function* streamChat(
     vision: boolean;
     stream: (msgs: ChatMessage[]) => AsyncGenerator<string>;
   }> = [
+    { key: 'nvidia',        limit: NVIDIA_LIMIT,         vision: false, stream: streamChatNvidia },
+    { key: 'gemini',        limit: GEMINI_LIMIT,         vision: true,  stream: streamChatGemini },
     { key: 'groq-compound', limit: GROQ_COMPOUND_LIMIT, vision: false, stream: streamChatGroqCompound },
     { key: 'groq-chat',     limit: GROQ_CHAT_LIMIT,     vision: false, stream: streamChatGroqChat },
-    { key: 'gemini',        limit: GEMINI_LIMIT,         vision: true,  stream: streamChatGemini },
     { key: 'openrouter',    limit: OPENROUTER_LIMIT,     vision: false, stream: streamChatOpenRouter },
   ];
 
@@ -90,8 +94,9 @@ export async function summarize(prompt: string): Promise<string> {
     limit: number;
     fn: (p: string) => Promise<string>;
   }> = [
-    { key: 'groq-chat',   limit: GROQ_CHAT_LIMIT,   fn: summarizeGroq },
+    { key: 'nvidia',      limit: NVIDIA_LIMIT,       fn: summarizeNvidia },
     { key: 'gemini',      limit: GEMINI_LIMIT,       fn: summarizeGemini },
+    { key: 'groq-chat',   limit: GROQ_CHAT_LIMIT,   fn: summarizeGroq },
     { key: 'openrouter',  limit: OPENROUTER_LIMIT,   fn: summarizeOpenRouter },
   ];
 
