@@ -297,7 +297,7 @@ describe('E2E: WEB_SEARCH → DRAFTING relay', () => {
     ] as any);
 
     let capturedMessages: unknown[] = [];
-    vi.mocked(streamChat).mockImplementation(async function* (msgs) {
+    vi.mocked(streamChat).mockImplementation(async function* (msgs: unknown[]) {
       capturedMessages = msgs;
       yield { token: 'Blog post content here.', model: 'groq-chat' };
     } as any);
@@ -349,7 +349,7 @@ describe('E2E: WEB_SEARCH → DRAFTING relay', () => {
 
     // Request 2: DRAFTING — should see the internal note in system context
     let draftCaptured: unknown[] = [];
-    vi.mocked(streamChat).mockImplementationOnce(async function* (msgs) {
+    vi.mocked(streamChat).mockImplementationOnce(async function* (msgs: unknown[]) {
       draftCaptured = msgs;
       yield { token: 'Draft using research.', model: 'groq-chat' };
     } as any);

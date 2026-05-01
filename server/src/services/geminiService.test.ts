@@ -218,7 +218,8 @@ describe('streamChatGeminiWithSearch', () => {
 
     // startChat history should only contain the system message (mapped to user)
     // but not include the final user message (sent separately)
-    const chatHistory = mockStartChat.mock.calls[0][0].history as Array<{ role: string }>;
+    expect(mockStartChat).toHaveBeenCalled();
+    const chatHistory = (mockStartChat.mock.calls[0] as any)[0].history as Array<{ role: string }>;
     // System message maps to 'user'; no 'assistant' before it → history is empty after filter
     expect(chatHistory.every((h) => h.role !== 'model')).toBe(true);
   });

@@ -424,7 +424,7 @@ describe('POST /api/chat/send – internal note relay (WEB_SEARCH → DRAFTING)'
     ] as any);
 
     let capturedMessages: unknown[] = [];
-    vi.mocked(streamChat).mockImplementation(async function* (msgs) {
+    vi.mocked(streamChat).mockImplementation(async function* (msgs: unknown[]) {
       capturedMessages = msgs;
       yield { token: 'Draft with search context', model: 'groq-chat' };
     } as any);
@@ -456,7 +456,7 @@ describe('POST /api/chat/send – internal note relay (WEB_SEARCH → DRAFTING)'
     ] as any);
 
     let capturedMessages: unknown[] = [];
-    vi.mocked(streamChat).mockImplementation(async function* (msgs) {
+    vi.mocked(streamChat).mockImplementation(async function* (msgs: unknown[]) {
       capturedMessages = msgs;
       yield { token: 'ok', model: 'groq-chat' };
     } as any);
@@ -500,7 +500,7 @@ describe('POST /api/chat/send – project context injection', () => {
     vi.mocked(getProjectContext).mockReturnValue('Use TypeScript and follow SOLID principles.');
 
     let capturedMsgs: unknown[] = [];
-    vi.mocked(streamChat).mockImplementation(async function* (msgs) {
+    vi.mocked(streamChat).mockImplementation(async function* (msgs: unknown[]) {
       capturedMsgs = msgs;
       yield { token: 'ok', model: 'nvidia' };
     } as any);
@@ -528,7 +528,7 @@ describe('POST /api/chat/send – project context injection', () => {
     vi.mocked(getProjectContext).mockReturnValue('  ');
 
     let capturedMsgs: unknown[] = [];
-    vi.mocked(streamChat).mockImplementation(async function* (msgs) {
+    vi.mocked(streamChat).mockImplementation(async function* (msgs: unknown[]) {
       capturedMsgs = msgs;
       yield { token: 'ok', model: 'nvidia' };
     } as any);
