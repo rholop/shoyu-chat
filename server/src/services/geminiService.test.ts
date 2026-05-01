@@ -72,7 +72,7 @@ describe('streamChatGemini', () => {
       {
         role: 'user',
         content: 'what is this?',
-        images: [{ mimeType: 'image/png', base64: 'abc123' }],
+        images: [{ mimeType: 'image/png', base64: 'abc123', filename: 'test.png' }],
       },
     ];
     await collect(streamChatGemini(messages));
