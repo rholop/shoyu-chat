@@ -656,4 +656,30 @@ describe('POST /api/chat/send – file attachments', () => {
     expect(userCall).toBeDefined();
     expect((userCall![1] as any).attachments).toEqual([FILE_ATT]);
   });
+
+  it.each([
+    { intent: Intent.SUMMARIZING, expected: 500_000 },
+    { intent: Intent.DRAFTING,    expected: 300_000 },
+    { intent: Intent.TRANSLATING, expected: 200_000 },
+    { intent: Intent.CODING,      expected: 100_000 },
+    { intent: Intent.DEBUGGING,   expected: 100_000 },
+    { intent: Intent.WEB_SEARCH,  expected:  50_000 },
+  ])('passes maxChars=$expected to extractContext for intent $intent', async ({ intent, expected }) => {
+    vi.mocked(findConversationFile).mockReturnValue({ filePath: '/tmp/doc.txt', fileId: FILE_ATT.fileId });
+    vi.mocked(extractContext).mockResolvedValue({
+      filename: 'doc.txt', mimeType: 'text/plain', isImage: false, textContent: 'content',
+    });
+    vi.mocked(formatContextBlock).mockReturnValue('--- doc.txt ---\ncontent');
+
+    await request(app)
+      .post('/api/chat/send')
+      .send({ conversationId: CONV_ID, content: 'go', attachments: [FILE_ATT], intent });
+
+    expect(extractContext).toHaveBeenCalledWith(
+      '/tmp/doc.txt',
+      FILE_ATT.mimeType,
+      FILE_ATT.filename,
+      expected,
+    );
+  });
 });

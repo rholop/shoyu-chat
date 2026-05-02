@@ -53,12 +53,28 @@ describe('extractContext', () => {
     expect(ctx.textContent).toBe('{"key": "value"}');
   });
 
-  it('truncates text content over 50000 characters', async () => {
-    const bigText = 'a'.repeat(60000);
+  it('truncates text content at the default 50 000 char limit', async () => {
+    const bigText = 'a'.repeat(60_000);
     const p = writeFile('big.txt', bigText);
     const ctx = await extractContext(p, 'text/plain', 'big.txt');
     expect(ctx.textContent).toContain('[Content truncated');
-    expect(ctx.textContent!.length).toBeLessThan(60000);
+    expect(ctx.textContent!.length).toBeLessThan(60_000);
+  });
+
+  it('respects a custom maxChars limit', async () => {
+    const text = 'x'.repeat(1_000);
+    const p = writeFile('medium.txt', text);
+    const ctx = await extractContext(p, 'text/plain', 'medium.txt', 500);
+    expect(ctx.textContent).toContain('[Content truncated');
+    expect(ctx.textContent!.startsWith('x'.repeat(500))).toBe(true);
+  });
+
+  it('does not truncate when content is within maxChars', async () => {
+    const text = 'hello world';
+    const p = writeFile('small.txt', text);
+    const ctx = await extractContext(p, 'text/plain', 'small.txt', 500_000);
+    expect(ctx.textContent).toBe('hello world');
+    expect(ctx.textContent).not.toContain('[Content truncated');
   });
 
   it('returns error message for binary content that cannot be read as UTF-8', async () => {
