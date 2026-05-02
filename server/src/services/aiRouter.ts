@@ -81,7 +81,7 @@ const FALLBACK_MATRIX: Record<Intent, TierConfig[]> = {
   [Intent.WEB_SEARCH]: [
     { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini: 2.5 Flash', useSearch: true, searchTool: { google_search: {} }, vision: true },
     { provider: 'gemini', model: 'gemini-2.5-pro', label: 'Gemini: 2.5 Pro', useSearch: true, searchTool: { google_search: {} }, vision: true },
-    { provider: 'openrouter', model: 'perplexity/sonar-pro', label: 'OR: Perplexity Sonar Pro' },
+    { provider: 'openrouter', model: 'perplexity/sonar-pro-search', label: 'OR: Perplexity Sonar Pro' },
   ],
   [Intent.CODING]: [
     { provider: 'nvidia', model: 'meta/llama-3.3-70b-instruct', label: 'NVIDIA: Llama 3.3 70B' },
@@ -94,7 +94,7 @@ const FALLBACK_MATRIX: Record<Intent, TierConfig[]> = {
     { provider: 'openrouter', model: 'qwen/qwen-2.5-72b-instruct', label: 'OR: Qwen 2.5 72B' },
   ],
   [Intent.TRANSLATING]: [
-    { provider: 'openrouter', model: 'mistralai/mistral-large', label: 'OR: Mistral Large' },
+    { provider: 'openrouter', model: 'mistralai/mistral-large-2411', label: 'OR: Mistral Large' },
     { provider: 'gemini', model: 'gemini-2.5-pro', label: 'Gemini: 2.5 Pro' },
     { provider: 'groq-chat', model: 'llama-3.3-70b-versatile', label: 'Groq: Llama 3.3 70B' },
   ],
@@ -106,7 +106,7 @@ const FALLBACK_MATRIX: Record<Intent, TierConfig[]> = {
   [Intent.SUMMARIZING]: [
     { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini: 2.5 Flash' },
     { provider: 'groq-chat', model: 'llama-3.3-70b-versatile', label: 'Groq: Llama 3.3 70B' },
-    { provider: 'openrouter', model: 'mistralai/mistral-small', label: 'OR: Mistral Small' },
+    { provider: 'openrouter', model: 'mistralai/mistral-small-2409', label: 'OR: Mistral Small' },
   ],
   [Intent.IMAGE_ANALYSIS]: [
     { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini: 2.5 Flash', vision: true },
@@ -232,7 +232,7 @@ export async function summarize(prompt: string): Promise<string> {
     { provider: 'nvidia', model: 'meta/llama-3.3-70b-instruct' },
     { provider: 'gemini', model: 'gemini-2.5-flash' },
     { provider: 'groq-chat', model: 'llama-3.3-70b-versatile' },
-    { provider: 'openrouter', model: 'mistralai/mistral-small' },
+    { provider: 'openrouter', model: 'mistralai/mistral-small-2409' },
   ];
 
   for (const p of providers) {

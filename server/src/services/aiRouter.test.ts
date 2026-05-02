@@ -154,7 +154,7 @@ describe('aiRouter v4.0', () => {
         const { tokens, model } = await collectRouter(streamChat(messages, Intent.TRANSLATING));
         expect(tokens).toEqual(['Bonjour']);
         expect(model).toBe('OR: Mistral Large');
-        expect(streamChatOpenRouter).toHaveBeenCalledWith(expect.anything(), 'mistralai/mistral-large');
+        expect(streamChatOpenRouter).toHaveBeenCalledWith(expect.anything(), 'mistralai/mistral-large-2411');
     });
 
     it('SUMMARIZING routes to Gemini (Tier 1)', async () => {
@@ -201,7 +201,7 @@ describe('aiRouter v4.0', () => {
 
         expect(streamChatGeminiWithSearch).toHaveBeenNthCalledWith(1, expect.anything(), 'gemini-2.5-flash', { google_search: {} });
         expect(streamChatGeminiWithSearch).toHaveBeenNthCalledWith(2, expect.anything(), 'gemini-2.5-pro', { google_search: {} });
-        expect(streamChatOpenRouter).toHaveBeenCalledWith(expect.anything(), 'perplexity/sonar-pro');
+        expect(streamChatOpenRouter).toHaveBeenCalledWith(expect.anything(), 'perplexity/sonar-pro-search');
     });
 
     it('CODING falls back from NVIDIA to Groq', async () => {
