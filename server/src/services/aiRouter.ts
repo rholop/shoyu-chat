@@ -80,7 +80,7 @@ const FALLBACK_MATRIX: Record<Intent, TierConfig[]> = {
   [Intent.WEB_SEARCH]: [
     { provider: 'gemini', model: 'gemini-2.0-flash', label: 'Gemini: 2.0 Flash', useSearch: true },
     { provider: 'gemini', model: 'gemini-1.5-pro', label: 'Gemini: 1.5 Pro', useSearch: true },
-    { provider: 'openrouter', model: 'meta-llama/llama-3.1-70b-instruct', label: 'OR: Llama 3.1 70B' },
+    { provider: 'openrouter', model: 'perplexity/llama-3.1-sonar-large-128k-online', label: 'OR: Perplexity Sonar Large' },
   ],
   [Intent.CODING]: [
     { provider: 'nvidia', model: 'meta/llama-3.1-405b-instruct', label: 'NVIDIA: Llama 3.1 405B' },
