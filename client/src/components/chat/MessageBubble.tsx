@@ -42,7 +42,7 @@ export default function MessageBubble({ message, conversationId }: Props) {
           className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
             isUser
               ? 'bg-indigo-600 text-white rounded-br-sm'
-              : 'bg-slate-800 text-slate-100 rounded-bl-sm'
+              : 'bg-[#e0d8c4] dark:bg-slate-800 text-[#073642] dark:text-slate-100 rounded-bl-sm'
           }`}
         >
           {isUser ? (
@@ -53,7 +53,7 @@ export default function MessageBubble({ message, conversationId }: Props) {
               rehypePlugins={[rehypeHighlight]}
               components={{
                 pre: ({ children, ...props }) => (
-                  <pre {...props} className="overflow-x-auto rounded-lg bg-slate-900 p-3 my-2 text-xs">
+                  <pre {...props} className="overflow-x-auto rounded-lg bg-[#d1c9b5] dark:bg-slate-900 p-3 my-2 text-xs">
                     {children}
                   </pre>
                 ),
@@ -63,7 +63,7 @@ export default function MessageBubble({ message, conversationId }: Props) {
                   </code>
                 ),
                 a: ({ children, ...props }) => (
-                  <a {...props} className="text-indigo-400 underline" target="_blank" rel="noopener noreferrer">
+                  <a {...props} className="text-indigo-600 dark:text-indigo-400 underline" target="_blank" rel="noopener noreferrer">
                     {children}
                   </a>
                 ),
@@ -74,7 +74,7 @@ export default function MessageBubble({ message, conversationId }: Props) {
           )}
         </div>
         <div className={`flex items-center gap-1.5 mt-1 px-1 ${isUser ? 'justify-end' : 'justify-start'}`}>
-          <span className="text-xs text-slate-500">{formatTime(message.created_at)}</span>
+          <span className="text-xs text-[#93a1a1] dark:text-slate-500">{formatTime(message.created_at)}</span>
           {!isUser && <ModelBadge model={message.model_used} />}
         </div>
       </div>
