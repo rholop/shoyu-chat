@@ -20,7 +20,7 @@ export async function* streamChatNvidia(
   );
 
   for await (const chunk of stream) {
-    const text = chunk.choices[0]?.delta?.content;
+    const text = chunk.choices?.[0]?.delta?.content;
     if (text) yield text;
   }
 }
@@ -37,7 +37,7 @@ export async function summarizeNvidia(
     },
     { timeout: REQUEST_TIMEOUT_MS },
   );
-  return response.choices[0]?.message?.content ?? '';
+  return response.choices?.[0]?.message?.content ?? '';
 }
 
 export function isNvidiaAvailable(): boolean {

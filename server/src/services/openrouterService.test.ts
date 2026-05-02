@@ -67,4 +67,15 @@ describe('openrouterService v4.0', () => {
     delete process.env.OPENROUTER_API_KEY;
     expect(isOpenRouterAvailable()).toBe(false);
   });
+
+  it('handles stream chunks without choices (reproduction of crash)', async () => {
+    const streamWithMetadata = (async function* () {
+      yield { choices: [{ delta: { content: 'hello' } }] };
+      yield { usage: { prompt_tokens: 10, completion_tokens: 5 } }; // No choices!
+    })();
+    mockCreate.mockResolvedValueOnce(streamWithMetadata);
+
+    const tokens = await collect(streamChatOpenRouter([{ role: 'user', content: 'hi' }], 'some-model'));
+    expect(tokens).toEqual(['hello']);
+  });
 });
