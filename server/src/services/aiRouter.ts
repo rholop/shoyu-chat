@@ -79,8 +79,8 @@ interface TierConfig {
 
 const FALLBACK_MATRIX: Record<Intent, TierConfig[]> = {
   [Intent.WEB_SEARCH]: [
-    { provider: 'gemini', model: 'gemini-2.0-flash', label: 'Gemini: 2.0 Flash', useSearch: true, searchTool: { googleSearch: {} } },
-    { provider: 'gemini', model: 'gemini-1.5-pro', label: 'Gemini: 1.5 Pro', useSearch: true, searchTool: { googleSearchRetrieval: {} } },
+    { provider: 'gemini', model: 'gemini-2.0-flash', label: 'Gemini: 2.0 Flash', useSearch: true, searchTool: { google_search: {} }, vision: true },
+    { provider: 'gemini', model: 'gemini-1.5-pro', label: 'Gemini: 1.5 Pro', useSearch: true, searchTool: { google_search: {} }, vision: true },
     { provider: 'openrouter', model: 'perplexity/sonar-pro', label: 'OR: Perplexity Sonar Pro' },
   ],
   [Intent.CODING]: [
@@ -205,13 +205,16 @@ export async function* streamChat(
       logger.warn(`Tier ${i+1} (${tier.label}) returned no tokens`);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      if (i < tiers.length - 1) {
+      const isLastTier = i === tiers.length - 1;
+
+      if (!isLastTier) {
         const logFn = isRetryable(err) ? logger.warn : logger.error;
         logFn(`Tier ${i+1} (${tier.label}) failed, trying next tier: ${errMsg}`);
         continue;
       }
-      logger.error(`All tiers exhausted. Last error from ${tier.label}: ${errMsg}`);
-      break;
+
+      logger.error(`All tiers exhausted for intent ${intent}. Last error from ${tier.label}: ${errMsg}`);
+      throw err; // Re-throw the last error so the route handler can provide details if needed
     }
   }
 

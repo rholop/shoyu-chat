@@ -240,17 +240,22 @@ router.post('/send', async (req, res) => {
     }
   } catch (err) {
     logger.error('Chat stream error:', err);
-    const msg = err instanceof Error ? err.message : '';
-    const message =
-      msg === 'QUOTA_EXCEEDED'
-        ? 'All AI providers have reached their daily quota. Try again tomorrow.'
-        : msg === 'ALL_PROVIDERS_FAILED'
-        ? 'All AI providers returned an error. Please try again in a moment.'
-        : msg.toLowerCase().includes('rate limit')
-        ? 'Rate limit exceeded. Please wait a moment and try again.'
-        : msg.toLowerCase().includes('timeout')
-        ? 'Request timed out. Please try again.'
-        : 'An error occurred. Please try again.';
+    const msg = err instanceof Error ? err.message : String(err);
+    let message = 'An error occurred. Please try again.';
+
+    if (msg === 'QUOTA_EXCEEDED') {
+      message = 'All AI providers have reached their daily quota. Try again tomorrow.';
+    } else if (msg === 'ALL_PROVIDERS_FAILED') {
+      message = 'All AI providers returned an error. Please try again in a moment.';
+    } else if (msg.toLowerCase().includes('rate limit')) {
+      message = 'Rate limit exceeded. Please wait a moment and try again.';
+    } else if (msg.toLowerCase().includes('timeout')) {
+      message = 'Request timed out. Please try again.';
+    } else if (msg.length > 0 && msg.length < 200) {
+      // Pass through specific error messages if they are reasonably short
+      message = `Provider error: ${msg}`;
+    }
+
     send({ type: 'error', message });
   }
 

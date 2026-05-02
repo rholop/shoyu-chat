@@ -118,7 +118,7 @@ describe('aiRouter v4.0', () => {
         const { tokens, model } = await collectRouter(streamChat(messages, Intent.WEB_SEARCH));
         expect(tokens).toEqual(['Search result']);
         expect(model).toBe('Gemini: 2.0 Flash');
-        expect(streamChatGeminiWithSearch).toHaveBeenCalledWith(expect.anything(), 'gemini-2.0-flash', { googleSearch: {} });
+        expect(streamChatGeminiWithSearch).toHaveBeenCalledWith(expect.anything(), 'gemini-2.0-flash', { google_search: {} });
     });
 
     it('CODING routes to NVIDIA 405B (Tier 1)', async () => {
@@ -199,8 +199,8 @@ describe('aiRouter v4.0', () => {
         expect(tokens).toEqual(['Tier 3 response']);
         expect(model).toBe('OR: Perplexity Sonar Pro (Fallback)');
 
-        expect(streamChatGeminiWithSearch).toHaveBeenNthCalledWith(1, expect.anything(), 'gemini-2.0-flash', { googleSearch: {} });
-        expect(streamChatGeminiWithSearch).toHaveBeenNthCalledWith(2, expect.anything(), 'gemini-1.5-pro', { googleSearchRetrieval: {} });
+        expect(streamChatGeminiWithSearch).toHaveBeenNthCalledWith(1, expect.anything(), 'gemini-2.0-flash', { google_search: {} });
+        expect(streamChatGeminiWithSearch).toHaveBeenNthCalledWith(2, expect.anything(), 'gemini-1.5-pro', { google_search: {} });
         expect(streamChatOpenRouter).toHaveBeenCalledWith(expect.anything(), 'perplexity/sonar-pro');
     });
 
@@ -253,18 +253,18 @@ describe('aiRouter v4.0', () => {
         expect(streamChatGroqChat).toHaveBeenCalledTimes(1);
     });
 
-    it('throws ALL_PROVIDERS_FAILED when all tiers fail with non-retryable errors', async () => {
+    it('throws the last error when all tiers fail', async () => {
         vi.mocked(isNvidiaAvailable).mockReturnValue(true);
         vi.mocked(isGroqAvailable).mockReturnValue(true);
         vi.mocked(isGeminiAvailable).mockReturnValue(true);
 
-        vi.mocked(streamChatNvidia).mockImplementationOnce(async function* () { throw Object.assign(new Error('400'), { status: 400 }); });
-        vi.mocked(streamChatGroqChat).mockImplementationOnce(async function* () { throw Object.assign(new Error('400'), { status: 400 }); });
-        vi.mocked(streamChatGemini).mockImplementationOnce(async function* () { throw Object.assign(new Error('400'), { status: 400 }); });
+        vi.mocked(streamChatNvidia).mockImplementationOnce(async function* () { throw Object.assign(new Error('First fail'), { status: 400 }); });
+        vi.mocked(streamChatGroqChat).mockImplementationOnce(async function* () { throw Object.assign(new Error('Second fail'), { status: 400 }); });
+        vi.mocked(streamChatGemini).mockImplementationOnce(async function* () { throw Object.assign(new Error('Final fail'), { status: 400 }); });
 
         await expect(async () => {
           for await (const _ of streamChat(messages, Intent.CODING)) {}
-        }).rejects.toThrow('ALL_PROVIDERS_FAILED');
+        }).rejects.toThrow('Final fail');
     });
   });
 

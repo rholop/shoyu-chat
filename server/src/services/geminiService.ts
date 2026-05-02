@@ -84,17 +84,21 @@ export async function* streamChatGemini(
   const result = await chat.sendMessageStream(lastMsg.parts);
 
   for await (const chunk of result.stream) {
-    const text = chunk.text();
-    if (text) yield text;
+    try {
+      const text = chunk.text();
+      if (text) yield text;
+    } catch {
+      // Some chunks (e.g. metadata) don't have text
+    }
   }
 }
 
 export async function* streamChatGeminiWithSearch(
   messages: ChatMessage[],
   modelName: string = 'gemini-2.0-flash',
-  // Gemini 2.x uses the native googleSearch tool; 1.5 uses googleSearchRetrieval
+  // Gemini 2.x/1.5 use the native google_search tool
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  searchTool: Record<string, unknown> = { googleSearch: {} }
+  searchTool: Record<string, unknown> = { google_search: {} }
 ): AsyncGenerator<string | GroundingChunk> {
   const systemInstruction = extractSystemInstruction(messages);
   const model = genAI.getGenerativeModel(
@@ -114,8 +118,12 @@ export async function* streamChatGeminiWithSearch(
   const streamResult = await model.generateContentStream({ contents } as any);
 
   for await (const chunk of streamResult.stream) {
-    const text = chunk.text();
-    if (text) yield text;
+    try {
+      const text = chunk.text();
+      if (text) yield text;
+    } catch {
+      // Some chunks (e.g. metadata) don't have text
+    }
   }
 
   try {
