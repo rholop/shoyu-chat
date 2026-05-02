@@ -129,13 +129,13 @@ describe('streamChatGeminiWithSearch', () => {
     mockGenerateContentStream.mockResolvedValue(makeStream(['Result']));
     await collect(streamChatGeminiWithSearch(
       [{ role: 'user', content: 'news today' }],
-      'gemini-1.5-pro',
-      { google_search_retrieval: {} },
+      'gemini-2.0-pro',
+      { google_search: {} },
     ));
 
     const callArgs = mockGetGenerativeModel.mock.calls[0] as any;
     const modelConfig = callArgs[0] as { tools: unknown };
-    expect(modelConfig.tools).toEqual([{ google_search_retrieval: {} }]);
+    expect(modelConfig.tools).toEqual([{ google_search: {} }]);
   });
 
   it('passes full conversation history as contents', async () => {

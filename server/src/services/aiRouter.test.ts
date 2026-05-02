@@ -117,8 +117,8 @@ describe('aiRouter v4.0', () => {
 
         const { tokens, model } = await collectRouter(streamChat(messages, Intent.WEB_SEARCH));
         expect(tokens).toEqual(['Search result']);
-        expect(model).toBe('Gemini: 2.0 Flash');
-        expect(streamChatGeminiWithSearch).toHaveBeenCalledWith(expect.anything(), 'gemini-2.0-flash', { google_search: {} });
+        expect(model).toBe('Gemini: 2.5 Flash');
+        expect(streamChatGeminiWithSearch).toHaveBeenCalledWith(expect.anything(), 'gemini-2.5-flash', { google_search: {} });
     });
 
     it('CODING routes to NVIDIA 405B (Tier 1)', async () => {
@@ -165,7 +165,7 @@ describe('aiRouter v4.0', () => {
 
         const { tokens, model } = await collectRouter(streamChat(messages, Intent.SUMMARIZING));
         expect(tokens).toEqual(['Summary']);
-        expect(model).toBe('Gemini: 2.0 Flash');
+        expect(model).toBe('Gemini: 2.5 Flash');
     });
 
     it('IMAGE_ANALYSIS routes to Gemini with vision (Tier 1)', async () => {
@@ -176,7 +176,7 @@ describe('aiRouter v4.0', () => {
 
         const { tokens, model } = await collectRouter(streamChat(messages, Intent.IMAGE_ANALYSIS, true));
         expect(tokens).toEqual(['Image desc']);
-        expect(model).toBe('Gemini: 2.0 Flash');
+        expect(model).toBe('Gemini: 2.5 Flash');
     });
   });
 
@@ -199,8 +199,8 @@ describe('aiRouter v4.0', () => {
         expect(tokens).toEqual(['Tier 3 response']);
         expect(model).toBe('OR: Perplexity Sonar Pro (Fallback)');
 
-        expect(streamChatGeminiWithSearch).toHaveBeenNthCalledWith(1, expect.anything(), 'gemini-2.0-flash', { google_search: {} });
-        expect(streamChatGeminiWithSearch).toHaveBeenNthCalledWith(2, expect.anything(), 'gemini-1.5-pro', { google_search_retrieval: {} });
+        expect(streamChatGeminiWithSearch).toHaveBeenNthCalledWith(1, expect.anything(), 'gemini-2.5-flash', { google_search: {} });
+        expect(streamChatGeminiWithSearch).toHaveBeenNthCalledWith(2, expect.anything(), 'gemini-2.0-pro', { google_search: {} });
         expect(streamChatOpenRouter).toHaveBeenCalledWith(expect.anything(), 'perplexity/sonar-pro');
     });
 
