@@ -32,12 +32,13 @@ describe('openrouterService v4.0', () => {
     await collect(streamChatOpenRouter([{ role: 'user', content: 'hi' }], 'custom-model'));
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({ model: 'custom-model' }),
+      expect.anything(),
     );
   });
 
   it('yields tokens from the stream', async () => {
     mockCreate.mockResolvedValueOnce(makeStream(['Hello', ' OpenRouter']));
-    const tokens = await collect(streamChatOpenRouter([{ role: 'user', content: 'hi' }]));
+    const tokens = await collect(streamChatOpenRouter([{ role: 'user', content: 'hi' }], 'some-model'));
     expect(tokens).toEqual(['Hello', ' OpenRouter']);
   });
 
@@ -47,6 +48,16 @@ describe('openrouterService v4.0', () => {
     expect(result).toBe('summary');
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({ model: 'custom-model' }),
+      expect.anything(),
+    );
+  });
+
+  it('passes 60s timeout to create()', async () => {
+    mockCreate.mockResolvedValueOnce(makeStream(['ok']));
+    await collect(streamChatOpenRouter([{ role: 'user', content: 'hi' }], 'some-model'));
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ timeout: 60_000 }),
     );
   });
 

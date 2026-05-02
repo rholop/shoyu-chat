@@ -8,12 +8,7 @@ vi.mock('openai', () => ({
   })),
 }));
 
-vi.mock('../utils/logger', () => ({
-  logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
-}));
-
 import { streamChatNvidia, summarizeNvidia, isNvidiaAvailable } from './nvidiaService';
-import { logger } from '../utils/logger';
 
 async function collect(gen: AsyncGenerator<string>): Promise<string[]> {
   const results: string[] = [];
@@ -30,7 +25,6 @@ function makeStream(tokens: string[]) {
 describe('nvidiaService v4.0', () => {
   beforeEach(() => {
     mockCreate.mockReset();
-    vi.mocked(logger.warn).mockClear();
   });
 
   it('streamChatNvidia calls specified model', async () => {
@@ -38,12 +32,13 @@ describe('nvidiaService v4.0', () => {
     await collect(streamChatNvidia([{ role: 'user', content: 'hi' }], 'custom-model'));
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({ model: 'custom-model' }),
+      expect.anything(),
     );
   });
 
   it('yields tokens from the stream', async () => {
     mockCreate.mockResolvedValueOnce(makeStream(['Hello', ' world']));
-    const tokens = await collect(streamChatNvidia([{ role: 'user', content: 'hi' }]));
+    const tokens = await collect(streamChatNvidia([{ role: 'user', content: 'hi' }], 'some-model'));
     expect(tokens).toEqual(['Hello', ' world']);
   });
 
@@ -56,7 +51,7 @@ describe('nvidiaService v4.0', () => {
           content: 'Look at this',
           images: [{ mimeType: 'image/png', base64: 'abc', filename: 'img.png' }],
         },
-      ]),
+      ], 'some-model'),
     );
     const calledMessages = mockCreate.mock.calls[0][0].messages;
     expect(calledMessages[0]).toEqual({ role: 'user', content: 'Look at this' });
@@ -68,6 +63,16 @@ describe('nvidiaService v4.0', () => {
     expect(result).toBe('summary');
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({ model: 'custom-model' }),
+      expect.anything(),
+    );
+  });
+
+  it('passes 60s timeout to create()', async () => {
+    mockCreate.mockResolvedValueOnce(makeStream(['ok']));
+    await collect(streamChatNvidia([{ role: 'user', content: 'hi' }], 'model'));
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ timeout: 60_000 }),
     );
   });
 

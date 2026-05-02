@@ -3,6 +3,8 @@ import { ChatMessage } from './groqService';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'dummy');
 
+const REQUEST_TIMEOUT_MS = 60_000;
+
 export function isGeminiAvailable(): boolean {
   return Boolean(process.env.GEMINI_API_KEY);
 }
@@ -59,11 +61,12 @@ function buildGroundingNotes(metadata: Record<string, unknown>): string {
 
 function prepareHistory(messages: ChatMessage[]) {
   const allHistory = toGeminiHistory(messages);
+  const lastMsg = allHistory.at(-1);
+  if (!lastMsg) throw new Error('No user or assistant messages to send to Gemini');
   const history = allHistory.slice(0, -1);
   while (history.length > 0 && history[0].role !== 'user') {
     history.shift();
   }
-  const lastMsg = allHistory.at(-1)!;
   return { history, lastMsg };
 }
 
@@ -72,10 +75,10 @@ export async function* streamChatGemini(
   modelName: string = 'gemini-2.0-flash'
 ): AsyncGenerator<string> {
   const systemInstruction = extractSystemInstruction(messages);
-  const model = genAI.getGenerativeModel({
-    model: modelName,
-    ...(systemInstruction ? { systemInstruction } : {}),
-  });
+  const model = genAI.getGenerativeModel(
+    { model: modelName, ...(systemInstruction ? { systemInstruction } : {}) },
+    { timeout: REQUEST_TIMEOUT_MS },
+  );
   const { history, lastMsg } = prepareHistory(messages);
   const chat = model.startChat({ history });
   const result = await chat.sendMessageStream(lastMsg.parts);
@@ -91,12 +94,15 @@ export async function* streamChatGeminiWithSearch(
   modelName: string = 'gemini-2.0-flash'
 ): AsyncGenerator<string | GroundingChunk> {
   const systemInstruction = extractSystemInstruction(messages);
-  const model = genAI.getGenerativeModel({
-    model: modelName,
-    ...(systemInstruction ? { systemInstruction } : {}),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    tools: [{ googleSearch: {} }] as any,
-  });
+  const model = genAI.getGenerativeModel(
+    {
+      model: modelName,
+      ...(systemInstruction ? { systemInstruction } : {}),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      tools: [{ googleSearch: {} }] as any,
+    },
+    { timeout: REQUEST_TIMEOUT_MS },
+  );
   // googleSearch grounding is incompatible with startChat/sendMessageStream —
   // the API rejects tool-enabled requests in chat sessions. Use
   // generateContentStream with the full contents array instead.
@@ -128,7 +134,10 @@ export async function summarizeGemini(
   prompt: string,
   modelName: string = 'gemini-2.0-flash'
 ): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: modelName });
+  const model = genAI.getGenerativeModel(
+    { model: modelName },
+    { timeout: REQUEST_TIMEOUT_MS },
+  );
   const result = await model.generateContent(prompt);
   return result.response.text();
 }

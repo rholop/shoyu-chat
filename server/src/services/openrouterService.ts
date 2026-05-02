@@ -10,15 +10,20 @@ const client = new OpenAI({
   },
 });
 
+const REQUEST_TIMEOUT_MS = 60_000;
+
 export async function* streamChatOpenRouter(
   messages: ChatMessage[],
-  model: string = 'meta-llama/llama-3.1-8b-instruct:free'
+  model: string,
 ): AsyncGenerator<string> {
-  const stream = await client.chat.completions.create({
-    model,
-    messages: messages.map((m) => ({ role: m.role, content: m.content })),
-    stream: true,
-  });
+  const stream = await client.chat.completions.create(
+    {
+      model,
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      stream: true,
+    },
+    { timeout: REQUEST_TIMEOUT_MS },
+  );
 
   for await (const chunk of stream) {
     const text = chunk.choices[0]?.delta?.content;
@@ -28,13 +33,16 @@ export async function* streamChatOpenRouter(
 
 export async function summarizeOpenRouter(
   prompt: string,
-  model: string = 'meta-llama/llama-3.1-8b-instruct:free'
+  model: string,
 ): Promise<string> {
-  const response = await client.chat.completions.create({
-    model,
-    messages: [{ role: 'user', content: prompt }],
-    stream: false,
-  });
+  const response = await client.chat.completions.create(
+    {
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      stream: false,
+    },
+    { timeout: REQUEST_TIMEOUT_MS },
+  );
   return response.choices[0]?.message?.content ?? '';
 }
 
