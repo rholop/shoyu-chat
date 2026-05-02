@@ -6,13 +6,13 @@ describe('authStore', () => {
     useAuthStore.setState({ user: null });
   });
 
-  it('initializes with null user', () => {
+  it('initial user is null', () => {
     expect(useAuthStore.getState().user).toBeNull();
   });
 
-  it('setUser stores the user', () => {
-    useAuthStore.getState().setUser({ userId: 1, username: 'alice', email: 'alice@example.com' });
-    expect(useAuthStore.getState().user).toEqual({ userId: 1, username: 'alice', email: 'alice@example.com' });
+  it('setUser stores a user object', () => {
+    useAuthStore.getState().setUser({ userId: 1, username: 'alice' });
+    expect(useAuthStore.getState().user).toEqual({ userId: 1, username: 'alice' });
   });
 
   it('setUser with null clears the user', () => {
@@ -21,7 +21,7 @@ describe('authStore', () => {
     expect(useAuthStore.getState().user).toBeNull();
   });
 
-  it('setUser replaces existing user', () => {
+  it('setUser replaces an existing user', () => {
     useAuthStore.setState({ user: { userId: 1, username: 'alice' } });
     useAuthStore.getState().setUser({ userId: 2, username: 'bob' });
     expect(useAuthStore.getState().user?.username).toBe('bob');

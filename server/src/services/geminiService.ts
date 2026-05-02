@@ -7,25 +7,64 @@ export function isGeminiAvailable(): boolean {
   return Boolean(process.env.GEMINI_API_KEY);
 }
 
+export interface GroundingChunk {
+  groundingNotes: string;
+}
+
+type GeminiPart =
+  | { text: string }
+  | { inlineData: { mimeType: string; data: string } };
+
 function extractSystemInstruction(messages: ChatMessage[]): string | undefined {
   const sys = messages.filter((m) => m.role === 'system').map((m) => m.content);
   return sys.length > 0 ? sys.join('\n\n') : undefined;
 }
 
 function toGeminiHistory(messages: ChatMessage[]) {
-  const history = messages
+  return messages
     .filter((m) => m.role !== 'system')
-    .map((m) => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }],
-    }));
+    .map((m) => {
+      const parts: GeminiPart[] = [{ text: m.content }];
+      if (m.images && m.role === 'user') {
+        for (const img of m.images) {
+          parts.push({ inlineData: { mimeType: img.mimeType, data: img.base64 } });
+        }
+      }
+      return {
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts,
+      };
+    });
+}
 
-  // Gemini requires history to start with 'user' role
+function buildGroundingNotes(metadata: Record<string, unknown>): string {
+  const parts: string[] = [];
+
+  const queries = metadata.webSearchQueries as string[] | undefined;
+  if (queries?.length) {
+    parts.push(`Queries: ${queries.join(', ')}`);
+  }
+
+  const chunks = metadata.groundingChunks as Array<{ web?: { uri?: string; title?: string } }> | undefined;
+  if (chunks?.length) {
+    const sources = chunks
+      .filter((c) => c.web?.uri)
+      .map((c) => `- ${c.web!.title ?? 'Source'}: ${c.web!.uri}`)
+      .join('\n');
+    if (sources) parts.push(`Sources:\n${sources}`);
+  }
+
+  return parts.join('\n\n');
+}
+
+function prepareHistory(messages: ChatMessage[]) {
+  const allHistory = toGeminiHistory(messages);
+  const history = allHistory.slice(0, -1);
   while (history.length > 0 && history[0].role !== 'user') {
     history.shift();
   }
-
-  return history;
+  const lastMsg = allHistory.at(-1)!;
+  return { history, lastMsg };
 }
 
 export async function* streamChatGemini(messages: ChatMessage[]): AsyncGenerator<string> {
@@ -34,13 +73,9 @@ export async function* streamChatGemini(messages: ChatMessage[]): AsyncGenerator
     model: 'gemini-2.0-flash',
     ...(systemInstruction ? { systemInstruction } : {}),
   });
-
-  const allHistory = toGeminiHistory(messages);
-  const history = allHistory.slice(0, -1);
-  const lastMessage = allHistory.at(-1)!.parts[0].text;
-
+  const { history, lastMsg } = prepareHistory(messages);
   const chat = model.startChat({ history });
-  const result = await chat.sendMessageStream(lastMessage);
+  const result = await chat.sendMessageStream(lastMsg.parts);
 
   for await (const chunk of result.stream) {
     const text = chunk.text();
@@ -48,62 +83,37 @@ export async function* streamChatGemini(messages: ChatMessage[]): AsyncGenerator
   }
 }
 
-export interface WebSearchStreamResult {
-  token?: string;
-  groundingContent?: string;
-}
-
 export async function* streamChatGeminiWithSearch(
-  messages: ChatMessage[]
-): AsyncGenerator<WebSearchStreamResult> {
+  messages: ChatMessage[],
+): AsyncGenerator<string | GroundingChunk> {
   const systemInstruction = extractSystemInstruction(messages);
   const model = genAI.getGenerativeModel({
     model: 'gemini-2.0-flash',
     ...(systemInstruction ? { systemInstruction } : {}),
-  });
-
-  const contents = toGeminiHistory(messages);
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const result = await (model as any).generateContentStream({
-    contents,
-    tools: [{ googleSearch: {} }],
-  });
-
-  for await (const chunk of result.stream) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const text = (chunk as any).text?.();
-    if (text) yield { token: text };
+    tools: [{ googleSearch: {} }] as any,
+  });
+  const { history, lastMsg } = prepareHistory(messages);
+  const chat = model.startChat({ history });
+  const streamResult = await chat.sendMessageStream(lastMsg.parts);
+
+  for await (const chunk of streamResult.stream) {
+    const text = chunk.text();
+    if (text) yield text;
   }
 
-  // Extract grounding metadata (best-effort)
   try {
+    const finalResponse = await streamResult.response;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const finalResponse = await (result as any).response;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const grounding = (finalResponse?.candidates?.[0] as any)?.groundingMetadata;
-    if (grounding) {
-      const queries: string[] = grounding.webSearchQueries ?? [];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const chunks: any[] = grounding.groundingChunks ?? [];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const sources = chunks.map((c: any) => c.web).filter(Boolean);
-
-      const lines: string[] = [];
-      if (queries.length > 0) {
-        lines.push(`**Search queries:** ${queries.join(', ')}`);
-      }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      sources.forEach((s: any) => {
-        if (s.uri) lines.push(`- [${s.title ?? s.uri}](${s.uri})`);
-      });
-
-      if (lines.length > 0) {
-        yield { groundingContent: `## Web Search Context\n${lines.join('\n')}` };
-      }
+    const groundingMetadata = (finalResponse.candidates?.[0] as any)?.groundingMetadata as
+      | Record<string, unknown>
+      | undefined;
+    if (groundingMetadata) {
+      const notes = buildGroundingNotes(groundingMetadata);
+      if (notes) yield { groundingNotes: notes };
     }
   } catch {
-    // Grounding metadata is best-effort; continue without it
+    // Grounding metadata extraction is best-effort
   }
 }
 

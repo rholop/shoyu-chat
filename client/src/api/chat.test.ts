@@ -37,13 +37,13 @@ describe('sendMessage (SSE parser)', () => {
     vi.restoreAllMocks();
   });
 
-  it('posts to /api/chat/send with conversationId and content', async () => {
+  it('posts to /api/chat/send with conversationId, content, and attachments', async () => {
     vi.stubGlobal('fetch', mockSuccessResponse([]));
     const gen = sendMessage('conv-1', 'hello');
     for await (const _ of gen) { /* drain */ }
     expect(fetch).toHaveBeenCalledWith('/api/chat/send', expect.objectContaining({
       method: 'POST',
-      body: JSON.stringify({ conversationId: 'conv-1', content: 'hello' }),
+      body: JSON.stringify({ conversationId: 'conv-1', content: 'hello', attachments: [], intent: 'CODING' }),
       credentials: 'include',
     }));
   });

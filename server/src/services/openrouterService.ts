@@ -26,6 +26,19 @@ export async function* streamChatOpenRouter(
   }
 }
 
+export async function* streamChatOpenRouterTranslating(messages: ChatMessage[]): AsyncGenerator<string> {
+  const stream = await client.chat.completions.create({
+    model: 'mistralai/mistral-large',
+    messages,
+    stream: true,
+  });
+
+  for await (const chunk of stream) {
+    const text = chunk.choices[0]?.delta?.content;
+    if (text) yield text;
+  }
+}
+
 export async function summarizeOpenRouter(prompt: string): Promise<string> {
   const response = await client.chat.completions.create({
     model: 'meta-llama/llama-3.1-8b-instruct:free',

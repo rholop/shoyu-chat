@@ -8,6 +8,8 @@ import morgan from 'morgan';
 import authRouter from './routes/auth';
 import conversationsRouter from './routes/conversations';
 import chatRouter from './routes/chat';
+import filesRouter from './routes/files';
+import projectsRouter from './routes/projects';
 import { requireAuth } from './middleware/authMiddleware';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
@@ -34,6 +36,8 @@ app.use(cors({ origin: false }));
 app.use('/api/auth', authRouter);
 app.use('/api/conversations', requireAuth, conversationsRouter);
 app.use('/api/chat', requireAuth, chatRouter);
+app.use('/api/files', requireAuth, filesRouter);
+app.use('/api/projects', requireAuth, projectsRouter);
 
 app.post('/api/admin/digest/trigger', requireAuth, async (_req, res) => {
   await sendWeeklyDigest();
