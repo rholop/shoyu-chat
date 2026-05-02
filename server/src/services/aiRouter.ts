@@ -20,8 +20,12 @@ import {
 import {
   streamChatNvidia,
   isNvidiaAvailable,
+  summarizeNvidia,
 } from './nvidiaService';
 import { readMemory } from './memoryService';
+import { summarizeGemini } from './geminiService';
+import { summarizeGroq } from './groqService';
+import { summarizeOpenRouter } from './openrouterService';
 
 const GROQ_CHAT_LIMIT = Number(process.env.GROQ_CHAT_DAILY_LIMIT ?? 1000);
 const GEMINI_LIMIT = Number(process.env.GEMINI_DAILY_LIMIT ?? 1500);
@@ -150,11 +154,7 @@ export async function* streamChat(
     const label = isFallback ? `${tier.label} (Fallback)` : tier.label;
 
     if (hasImages && !tier.vision && intent !== Intent.IMAGE_ANALYSIS) {
-        // If we have images but current tier doesn't support vision, and we're not explicitly in IMAGE_ANALYSIS,
-        // we should probably have switched intent earlier, but as a safeguard we skip non-vision tiers.
-        // Actually, the Design Doc says Intent.VISUALS is Tier 1 Gemini 2.0 Flash.
-        // If the user is in CODING but sends an image, we should skip tiers that don't support vision.
-        continue;
+      continue;
     }
 
     const usage = getUsageCount(tier.provider, today);
@@ -200,13 +200,14 @@ export async function* streamChat(
       if (hasOutput) return;
       logger.warn(`Tier ${i+1} (${tier.label}) returned no tokens`);
     } catch (err) {
-      if (isRetryable(err) && i < tiers.length - 1) {
-        logger.warn(`Tier ${i+1} failed, retrying next tier: ${err instanceof Error ? err.message : err}`);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      if (i < tiers.length - 1) {
+        const logFn = isRetryable(err) ? logger.warn : logger.error;
+        logFn(`Tier ${i+1} (${tier.label}) failed, trying next tier: ${errMsg}`);
         continue;
       }
-      logger.error(`Tier ${i+1} failed permanently: ${err instanceof Error ? err.message : err}`);
-      if (i === tiers.length - 1) break;
-      throw err;
+      logger.error(`All tiers exhausted. Last error from ${tier.label}: ${errMsg}`);
+      break;
     }
   }
 
@@ -233,10 +234,10 @@ export async function summarize(prompt: string): Promise<string> {
     if (!isProviderKeyAvailable(p.provider)) continue;
 
     try {
-      const result = await (p.provider === 'nvidia' ? import('./nvidiaService').then(m => m.summarizeNvidia(prompt, p.model)) :
-                           p.provider === 'gemini' ? import('./geminiService').then(m => m.summarizeGemini(prompt, p.model)) :
-                           p.provider === 'groq-chat' ? import('./groqService').then(m => m.summarizeGroq(prompt, p.model)) :
-                           import('./openrouterService').then(m => m.summarizeOpenRouter(prompt, p.model)));
+      const result = await (p.provider === 'nvidia' ? summarizeNvidia(prompt, p.model) :
+                           p.provider === 'gemini' ? summarizeGemini(prompt, p.model) :
+                           p.provider === 'groq-chat' ? summarizeGroq(prompt, p.model) :
+                           summarizeOpenRouter(prompt, p.model));
 
       if (result) {
         incrementUsage(p.provider, today);

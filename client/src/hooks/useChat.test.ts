@@ -95,4 +95,19 @@ describe('useChat', () => {
     });
     expect(sendMessage).not.toHaveBeenCalled();
   });
+
+  it('sets streamError when sendMessage throws (network failure)', async () => {
+    vi.mocked(getConversation).mockResolvedValue({ ...convData, messages: [] });
+    vi.mocked(sendMessage).mockImplementation(async function* () {
+      throw new Error('Failed to fetch');
+    });
+
+    const { result } = renderHook(() => useChat('conv-1'), { wrapper: makeWrapper() });
+    await act(async () => {
+      await result.current.send('hey', makeMessage());
+    });
+
+    expect(useChatStore.getState().streamError).toBe('Failed to fetch');
+    expect(useChatStore.getState().isStreaming).toBe(false);
+  });
 });
