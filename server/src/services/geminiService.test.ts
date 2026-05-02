@@ -116,14 +116,24 @@ describe('streamChatGeminiWithSearch', () => {
     expect(mockStartChat).not.toHaveBeenCalled();
   });
 
-  it('requests the googleSearch tool when creating the model', async () => {
+  it('passes the default googleSearch tool to getGenerativeModel', async () => {
     mockGenerateContentStream.mockResolvedValue(makeStream(['Result']));
     await collect(streamChatGeminiWithSearch([{ role: 'user', content: 'news today' }]));
 
-    const modelConfig = mockGetGenerativeModel.mock.calls.find(
-      (call) => JSON.stringify(call).includes('googleSearch'),
-    );
-    expect(modelConfig).toBeDefined();
+    const [modelConfig] = mockGetGenerativeModel.mock.calls[0];
+    expect(modelConfig.tools).toEqual([{ googleSearch: {} }]);
+  });
+
+  it('passes a custom searchTool when provided (e.g. googleSearchRetrieval for 1.5)', async () => {
+    mockGenerateContentStream.mockResolvedValue(makeStream(['Result']));
+    await collect(streamChatGeminiWithSearch(
+      [{ role: 'user', content: 'news today' }],
+      'gemini-1.5-pro',
+      { googleSearchRetrieval: {} },
+    ));
+
+    const [modelConfig] = mockGetGenerativeModel.mock.calls[0];
+    expect(modelConfig.tools).toEqual([{ googleSearchRetrieval: {} }]);
   });
 
   it('passes full conversation history as contents', async () => {

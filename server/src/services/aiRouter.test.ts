@@ -118,7 +118,7 @@ describe('aiRouter v4.0', () => {
         const { tokens, model } = await collectRouter(streamChat(messages, Intent.WEB_SEARCH));
         expect(tokens).toEqual(['Search result']);
         expect(model).toBe('Gemini: 2.0 Flash');
-        expect(streamChatGeminiWithSearch).toHaveBeenCalledWith(expect.anything(), 'gemini-2.0-flash');
+        expect(streamChatGeminiWithSearch).toHaveBeenCalledWith(expect.anything(), 'gemini-2.0-flash', { googleSearch: {} });
     });
 
     it('CODING routes to NVIDIA 405B (Tier 1)', async () => {
@@ -197,11 +197,11 @@ describe('aiRouter v4.0', () => {
 
         const { tokens, model } = await collectRouter(streamChat(messages, Intent.WEB_SEARCH));
         expect(tokens).toEqual(['Tier 3 response']);
-        expect(model).toBe('OR: Perplexity Sonar Large (Fallback)');
+        expect(model).toBe('OR: Perplexity Sonar Pro (Fallback)');
 
-        expect(streamChatGeminiWithSearch).toHaveBeenNthCalledWith(1, expect.anything(), 'gemini-2.0-flash');
-        expect(streamChatGeminiWithSearch).toHaveBeenNthCalledWith(2, expect.anything(), 'gemini-1.5-pro');
-        expect(streamChatOpenRouter).toHaveBeenCalledWith(expect.anything(), 'perplexity/llama-3.1-sonar-large-128k-online');
+        expect(streamChatGeminiWithSearch).toHaveBeenNthCalledWith(1, expect.anything(), 'gemini-2.0-flash', { googleSearch: {} });
+        expect(streamChatGeminiWithSearch).toHaveBeenNthCalledWith(2, expect.anything(), 'gemini-1.5-pro', { googleSearchRetrieval: {} });
+        expect(streamChatOpenRouter).toHaveBeenCalledWith(expect.anything(), 'perplexity/sonar-pro');
     });
 
     it('CODING falls back from NVIDIA to Groq', async () => {

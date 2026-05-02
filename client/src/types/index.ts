@@ -114,7 +114,7 @@ export const INTENT_MODEL_LABELS: Record<string, string> = {
   'NVIDIA: Llama 3.1 405B': 'Llama 3.1 405B',
   'NVIDIA: Llama 3.1 70B': 'Llama 3.1 70B',
   'Groq: Llama 3.3 70B': 'Llama 3.3 70B',
-  'OR: Perplexity Sonar Large': 'Perplexity Sonar Large',
+  'OR: Perplexity Sonar Pro': 'Perplexity Sonar Pro',
   'OR: Qwen 2.5 72B': 'Qwen 2.5 72B',
   'OR: Mistral Large': 'Mistral Large',
   'OR: Mistral Small': 'Mistral Small',
