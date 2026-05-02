@@ -72,15 +72,16 @@ interface TierConfig {
   model: string;
   label: string;
   useSearch?: boolean;
+  searchTool?: Record<string, unknown>;
   trimContext?: boolean;
   vision?: boolean;
 }
 
 const FALLBACK_MATRIX: Record<Intent, TierConfig[]> = {
   [Intent.WEB_SEARCH]: [
-    { provider: 'gemini', model: 'gemini-2.0-flash', label: 'Gemini: 2.0 Flash', useSearch: true },
-    { provider: 'gemini', model: 'gemini-1.5-pro', label: 'Gemini: 1.5 Pro', useSearch: true },
-    { provider: 'openrouter', model: 'perplexity/llama-3.1-sonar-large-128k-online', label: 'OR: Perplexity Sonar Large' },
+    { provider: 'gemini', model: 'gemini-2.0-flash', label: 'Gemini: 2.0 Flash', useSearch: true, searchTool: { googleSearch: {} } },
+    { provider: 'gemini', model: 'gemini-1.5-pro', label: 'Gemini: 1.5 Pro', useSearch: true, searchTool: { googleSearchRetrieval: {} } },
+    { provider: 'openrouter', model: 'perplexity/sonar-pro', label: 'OR: Perplexity Sonar Pro' },
   ],
   [Intent.CODING]: [
     { provider: 'nvidia', model: 'meta/llama-3.1-405b-instruct', label: 'NVIDIA: Llama 3.1 405B' },
@@ -148,6 +149,8 @@ export async function* streamChat(
 
   const tiers = FALLBACK_MATRIX[intent] || FALLBACK_MATRIX[Intent.CODING];
 
+  let anyTierAttempted = false;
+
   for (let i = 0; i < tiers.length; i++) {
     const tier = tiers[i];
     const isFallback = i > 0;
@@ -168,6 +171,7 @@ export async function* streamChat(
       continue;
     }
 
+    anyTierAttempted = true;
     const msgs = tier.trimContext ? trimForGroq(contextualMessages) : contextualMessages;
 
     try {
@@ -176,7 +180,7 @@ export async function* streamChat(
 
       if (tier.provider === 'gemini') {
         generator = tier.useSearch
-          ? streamChatGeminiWithSearch(msgs, tier.model)
+          ? streamChatGeminiWithSearch(msgs, tier.model, tier.searchTool)
           : streamChatGemini(msgs, tier.model);
       } else if (tier.provider === 'nvidia') {
         generator = streamChatNvidia(msgs, tier.model);
@@ -211,7 +215,7 @@ export async function* streamChat(
     }
   }
 
-  throw new Error('QUOTA_EXCEEDED');
+  throw new Error(anyTierAttempted ? 'ALL_PROVIDERS_FAILED' : 'QUOTA_EXCEEDED');
 }
 
 export async function summarize(prompt: string): Promise<string> {

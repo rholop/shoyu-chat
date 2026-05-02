@@ -91,7 +91,10 @@ export async function* streamChatGemini(
 
 export async function* streamChatGeminiWithSearch(
   messages: ChatMessage[],
-  modelName: string = 'gemini-2.0-flash'
+  modelName: string = 'gemini-2.0-flash',
+  // Gemini 2.x uses the native googleSearch tool; 1.5 uses googleSearchRetrieval
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  searchTool: Record<string, unknown> = { googleSearch: {} }
 ): AsyncGenerator<string | GroundingChunk> {
   const systemInstruction = extractSystemInstruction(messages);
   const model = genAI.getGenerativeModel(
@@ -99,7 +102,7 @@ export async function* streamChatGeminiWithSearch(
       model: modelName,
       ...(systemInstruction ? { systemInstruction } : {}),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      tools: [{ googleSearch: {} }] as any,
+      tools: [searchTool] as any,
     },
     { timeout: REQUEST_TIMEOUT_MS },
   );
