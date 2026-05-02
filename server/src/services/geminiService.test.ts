@@ -130,12 +130,12 @@ describe('streamChatGeminiWithSearch', () => {
     await collect(streamChatGeminiWithSearch(
       [{ role: 'user', content: 'news today' }],
       'gemini-1.5-pro',
-      { custom_tool: {} },
+      { google_search_retrieval: {} },
     ));
 
     const callArgs = mockGetGenerativeModel.mock.calls[0] as any;
     const modelConfig = callArgs[0] as { tools: unknown };
-    expect(modelConfig.tools).toEqual([{ custom_tool: {} }]);
+    expect(modelConfig.tools).toEqual([{ google_search_retrieval: {} }]);
   });
 
   it('passes full conversation history as contents', async () => {

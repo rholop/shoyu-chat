@@ -80,7 +80,7 @@ interface TierConfig {
 const FALLBACK_MATRIX: Record<Intent, TierConfig[]> = {
   [Intent.WEB_SEARCH]: [
     { provider: 'gemini', model: 'gemini-2.0-flash', label: 'Gemini: 2.0 Flash', useSearch: true, searchTool: { google_search: {} }, vision: true },
-    { provider: 'gemini', model: 'gemini-1.5-pro', label: 'Gemini: 1.5 Pro', useSearch: true, searchTool: { google_search: {} }, vision: true },
+    { provider: 'gemini', model: 'gemini-1.5-pro', label: 'Gemini: 1.5 Pro', useSearch: true, searchTool: { google_search_retrieval: {} }, vision: true },
     { provider: 'openrouter', model: 'perplexity/sonar-pro', label: 'OR: Perplexity Sonar Pro' },
   ],
   [Intent.CODING]: [

@@ -96,7 +96,7 @@ export async function* streamChatGemini(
 export async function* streamChatGeminiWithSearch(
   messages: ChatMessage[],
   modelName: string = 'gemini-2.0-flash',
-  // Gemini 2.x/1.5 use the native google_search tool
+  // Gemini 2.x uses the native google_search tool; 1.5 uses google_search_retrieval
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   searchTool: Record<string, unknown> = { google_search: {} }
 ): AsyncGenerator<string | GroundingChunk> {
