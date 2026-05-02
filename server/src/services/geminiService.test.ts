@@ -1,13 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockSendMessageStream, mockStartChat, mockGetGenerativeModel } = vi.hoisted(() => {
+const { mockSendMessageStream, mockStartChat, mockGenerateContentStream, mockGetGenerativeModel } = vi.hoisted(() => {
   const mockSendMessageStream = vi.fn();
   const mockStartChat = vi.fn(() => ({ sendMessageStream: mockSendMessageStream }));
+  const mockGenerateContentStream = vi.fn();
   const mockGetGenerativeModel = vi.fn(() => ({
     startChat: mockStartChat,
     generateContent: vi.fn().mockResolvedValue({ response: { text: () => 'summary text' } }),
+    generateContentStream: mockGenerateContentStream,
   }));
-  return { mockSendMessageStream, mockStartChat, mockGetGenerativeModel };
+  return { mockSendMessageStream, mockStartChat, mockGenerateContentStream, mockGetGenerativeModel };
 });
 
 vi.mock('@google/generative-ai', () => ({
@@ -106,8 +108,16 @@ describe('streamChatGeminiWithSearch', () => {
     process.env.GEMINI_API_KEY = 'test-key';
   });
 
+  it('uses generateContentStream (not startChat) to satisfy googleSearch grounding requirement', async () => {
+    mockGenerateContentStream.mockResolvedValue(makeStream(['Result']));
+    await collect(streamChatGeminiWithSearch([{ role: 'user', content: 'news today' }]));
+
+    expect(mockGenerateContentStream).toHaveBeenCalledTimes(1);
+    expect(mockStartChat).not.toHaveBeenCalled();
+  });
+
   it('requests the googleSearch tool when creating the model', async () => {
-    mockSendMessageStream.mockResolvedValue(makeStream(['Result']));
+    mockGenerateContentStream.mockResolvedValue(makeStream(['Result']));
     await collect(streamChatGeminiWithSearch([{ role: 'user', content: 'news today' }]));
 
     const modelConfig = mockGetGenerativeModel.mock.calls.find(
@@ -116,12 +126,37 @@ describe('streamChatGeminiWithSearch', () => {
     expect(modelConfig).toBeDefined();
   });
 
+  it('passes full conversation history as contents', async () => {
+    mockGenerateContentStream.mockResolvedValue(makeStream(['ok']));
+    const messages: ChatMessage[] = [
+      { role: 'user', content: 'prior question' },
+      { role: 'assistant', content: 'prior answer' },
+      { role: 'user', content: 'search now' },
+    ];
+    await collect(streamChatGeminiWithSearch(messages));
+
+    const callArg = mockGenerateContentStream.mock.calls[0][0] as { contents: unknown[] };
+    expect(callArg.contents).toHaveLength(3);
+  });
+
+  it('excludes system messages from contents (passed as systemInstruction instead)', async () => {
+    mockGenerateContentStream.mockResolvedValue(makeStream(['ok']));
+    const messages: ChatMessage[] = [
+      { role: 'system', content: 'be helpful' },
+      { role: 'user', content: 'search for AI news' },
+    ];
+    await collect(streamChatGeminiWithSearch(messages));
+
+    const callArg = mockGenerateContentStream.mock.calls[0][0] as { contents: Array<{ role: string }> };
+    expect(callArg.contents.every((c) => c.role !== 'system')).toBe(true);
+    expect(callArg.contents).toHaveLength(1);
+  });
+
   it('yields text chunks from the stream', async () => {
-    mockSendMessageStream.mockResolvedValue(makeStream(['Search', ' result']));
+    mockGenerateContentStream.mockResolvedValue(makeStream(['Search', ' result']));
     const chunks = await collect(
       streamChatGeminiWithSearch([{ role: 'user', content: 'latest AI news' }]),
     );
-    // String tokens only (no grounding chunk since metadata is undefined)
     expect(chunks).toEqual(['Search', ' result']);
   });
 
@@ -132,7 +167,7 @@ describe('streamChatGeminiWithSearch', () => {
         { web: { uri: 'https://example.com/ai', title: 'AI News' } },
       ],
     };
-    mockSendMessageStream.mockResolvedValue(makeStream(['Answer'], metadata));
+    mockGenerateContentStream.mockResolvedValue(makeStream(['Answer'], metadata));
 
     const chunks = await collect(
       streamChatGeminiWithSearch([{ role: 'user', content: 'AI news' }]),
@@ -151,10 +186,7 @@ describe('streamChatGeminiWithSearch', () => {
   });
 
   it('yields GroundingChunk with only queries when no web sources', async () => {
-    const metadata = {
-      webSearchQueries: ['typescript tips'],
-    };
-    mockSendMessageStream.mockResolvedValue(makeStream(['Tips here'], metadata));
+    mockGenerateContentStream.mockResolvedValue(makeStream(['Tips here'], { webSearchQueries: ['typescript tips'] }));
 
     const chunks = await collect(
       streamChatGeminiWithSearch([{ role: 'user', content: 'ts tips' }]),
@@ -162,14 +194,13 @@ describe('streamChatGeminiWithSearch', () => {
 
     const notes = chunks.filter(
       (c) => typeof c === 'object' && c !== null && 'groundingNotes' in (c as object),
-    );
+    ) as Array<{ groundingNotes: string }>;
     expect(notes).toHaveLength(1);
-    const note = notes[0] as { groundingNotes: string };
-    expect(note.groundingNotes).toContain('Queries: typescript tips');
+    expect(notes[0].groundingNotes).toContain('Queries: typescript tips');
   });
 
   it('does not yield GroundingChunk when grounding metadata is absent', async () => {
-    mockSendMessageStream.mockResolvedValue(makeStream(['Plain answer']));
+    mockGenerateContentStream.mockResolvedValue(makeStream(['Plain answer']));
 
     const chunks = await collect(
       streamChatGeminiWithSearch([{ role: 'user', content: 'hello' }]),
@@ -183,8 +214,7 @@ describe('streamChatGeminiWithSearch', () => {
   });
 
   it('does not yield GroundingChunk when metadata has no queries or sources', async () => {
-    const metadata = { someOtherField: true };
-    mockSendMessageStream.mockResolvedValue(makeStream(['ok'], metadata));
+    mockGenerateContentStream.mockResolvedValue(makeStream(['ok'], { someOtherField: true }));
 
     const chunks = await collect(
       streamChatGeminiWithSearch([{ role: 'user', content: 'hi' }]),
@@ -197,7 +227,7 @@ describe('streamChatGeminiWithSearch', () => {
   });
 
   it('handles response.candidates being undefined gracefully', async () => {
-    mockSendMessageStream.mockResolvedValue({
+    mockGenerateContentStream.mockResolvedValue({
       stream: (async function* () { yield { text: () => 'ok' }; })(),
       response: Promise.resolve({ candidates: undefined }),
     });
@@ -206,22 +236,6 @@ describe('streamChatGeminiWithSearch', () => {
       streamChatGeminiWithSearch([{ role: 'user', content: 'test' }]),
     );
     expect(chunks).toEqual(['ok']);
-  });
-
-  it('strips leading non-user messages from history', async () => {
-    mockSendMessageStream.mockResolvedValue(makeStream(['ok']));
-    const messages: ChatMessage[] = [
-      { role: 'system', content: 'System note' },
-      { role: 'user', content: 'Hello' },
-    ];
-    await collect(streamChatGeminiWithSearch(messages));
-
-    // startChat history should only contain the system message (mapped to user)
-    // but not include the final user message (sent separately)
-    expect(mockStartChat).toHaveBeenCalled();
-    const chatHistory = (mockStartChat.mock.calls[0] as any)[0].history as Array<{ role: string }>;
-    // System message maps to 'user'; no 'assistant' before it → history is empty after filter
-    expect(chatHistory.every((h) => h.role !== 'model')).toBe(true);
   });
 });
 
