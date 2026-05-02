@@ -200,7 +200,7 @@ describe('aiRouter v4.0', () => {
         expect(model).toBe('OR: Perplexity Sonar Pro (Fallback)');
 
         expect(streamChatGeminiWithSearch).toHaveBeenNthCalledWith(1, expect.anything(), 'gemini-2.5-flash', { google_search: {} });
-        expect(streamChatGeminiWithSearch).toHaveBeenNthCalledWith(2, expect.anything(), 'gemini-2.0-pro', { google_search: {} });
+        expect(streamChatGeminiWithSearch).toHaveBeenNthCalledWith(2, expect.anything(), 'gemini-2.5-pro', { google_search: {} });
         expect(streamChatOpenRouter).toHaveBeenCalledWith(expect.anything(), 'perplexity/sonar-pro');
     });
 

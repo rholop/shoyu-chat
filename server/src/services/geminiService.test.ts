@@ -129,7 +129,7 @@ describe('streamChatGeminiWithSearch', () => {
     mockGenerateContentStream.mockResolvedValue(makeStream(['Result']));
     await collect(streamChatGeminiWithSearch(
       [{ role: 'user', content: 'news today' }],
-      'gemini-2.0-pro',
+      'gemini-2.5-pro',
       { google_search: {} },
     ));
 

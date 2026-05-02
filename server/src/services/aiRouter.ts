@@ -80,13 +80,13 @@ interface TierConfig {
 const FALLBACK_MATRIX: Record<Intent, TierConfig[]> = {
   [Intent.WEB_SEARCH]: [
     { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini: 2.5 Flash', useSearch: true, searchTool: { google_search: {} }, vision: true },
-    { provider: 'gemini', model: 'gemini-2.0-pro', label: 'Gemini: 2.0 Pro', useSearch: true, searchTool: { google_search: {} }, vision: true },
+    { provider: 'gemini', model: 'gemini-2.5-pro', label: 'Gemini: 2.5 Pro', useSearch: true, searchTool: { google_search: {} }, vision: true },
     { provider: 'openrouter', model: 'perplexity/sonar-pro', label: 'OR: Perplexity Sonar Pro' },
   ],
   [Intent.CODING]: [
     { provider: 'nvidia', model: 'meta/llama-3.1-405b-instruct', label: 'NVIDIA: Llama 3.1 405B' },
     { provider: 'groq-chat', model: 'llama-3.3-70b-versatile', label: 'Groq: Llama 3.3 70B' },
-    { provider: 'gemini', model: 'gemini-2.0-pro', label: 'Gemini: 2.0 Pro' },
+    { provider: 'gemini', model: 'gemini-2.5-pro', label: 'Gemini: 2.5 Pro' },
   ],
   [Intent.DEBUGGING]: [
     { provider: 'groq-chat', model: 'llama-3.3-70b-versatile', label: 'Groq: Llama 3.3 70B', trimContext: true },
@@ -95,7 +95,7 @@ const FALLBACK_MATRIX: Record<Intent, TierConfig[]> = {
   ],
   [Intent.TRANSLATING]: [
     { provider: 'openrouter', model: 'mistralai/mistral-large', label: 'OR: Mistral Large' },
-    { provider: 'gemini', model: 'gemini-2.0-pro', label: 'Gemini: 2.0 Pro' },
+    { provider: 'gemini', model: 'gemini-2.5-pro', label: 'Gemini: 2.5 Pro' },
     { provider: 'groq-chat', model: 'llama-3.3-70b-versatile', label: 'Groq: Llama 3.3 70B' },
   ],
   [Intent.DRAFTING]: [
@@ -110,7 +110,7 @@ const FALLBACK_MATRIX: Record<Intent, TierConfig[]> = {
   ],
   [Intent.IMAGE_ANALYSIS]: [
     { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini: 2.5 Flash', vision: true },
-    { provider: 'gemini', model: 'gemini-2.0-pro', label: 'Gemini: 2.0 Pro', vision: true },
+    { provider: 'gemini', model: 'gemini-2.5-pro', label: 'Gemini: 2.5 Pro', vision: true },
     { provider: 'openrouter', model: 'openai/gpt-4o-mini', label: 'OR: GPT-4o-mini', vision: true },
   ],
 };
