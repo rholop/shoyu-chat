@@ -11,8 +11,8 @@ async function apiFetch(url: string, options?: RequestInit) {
 
 export async function uploadFile(conversationId: string, file: File): Promise<Attachment> {
   const formData = new FormData();
-  formData.append('file', file);
   formData.append('conversationId', conversationId);
+  formData.append('file', file);
 
   const res = await fetch('/api/files/upload', {
     method: 'POST',

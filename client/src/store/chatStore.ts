@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Message, Provider, SSEEvent } from '../types';
+import { Message, Intent, SSEEvent } from '../types';
 
 interface ChatState {
   activeConversationId: string | null;
@@ -7,7 +7,7 @@ interface ChatState {
   streamingContent: string;
   isStreaming: boolean;
   streamError: string | null;
-  selectedProvider: Provider;
+  selectedIntent: Intent;
 
   setActiveConversation: (id: string | null) => void;
   setMessages: (messages: Message[]) => void;
@@ -15,7 +15,7 @@ interface ChatState {
   finalizeStream: (event: Extract<SSEEvent, { type: 'done' }>, model: string) => void;
   setStreamError: (msg: string) => void;
   resetStream: () => void;
-  setProvider: (provider: Provider) => void;
+  setIntent: (intent: Intent) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -24,7 +24,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   streamingContent: '',
   isStreaming: false,
   streamError: null,
-  selectedProvider: 'auto',
+  selectedIntent: Intent.CODING,
 
   setActiveConversation: (id) =>
     set({ activeConversationId: id, messages: [], streamingContent: '', isStreaming: false, streamError: null }),
@@ -50,5 +50,5 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   resetStream: () => set({ streamingContent: '', isStreaming: true, streamError: null }),
 
-  setProvider: (provider) => set({ selectedProvider: provider }),
+  setIntent: (intent) => set({ selectedIntent: intent }),
 }));

@@ -43,6 +43,18 @@ describe('uploadMiddleware', () => {
     expect(res.body.error).toMatch(/conversationId/i);
   });
 
+  it('rejects when file part arrives before conversationId in multipart stream', async () => {
+    const { app } = await makeApp();
+    // .attach() before .field() puts the file first in the stream, so req.body.conversationId
+    // is not yet parsed when multer's destination callback fires.
+    const res = await request(app)
+      .post('/upload')
+      .attach('file', Buffer.from('hello'), { filename: 'test.txt', contentType: 'text/plain' })
+      .field('conversationId', 'test-conv-id');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/conversationId/i);
+  });
+
   it('rejects disallowed MIME types', async () => {
     const { app, tmpDir } = await makeApp();
     const convDir = path.join(tmpDir, 'conversations', 'test-conv-id');

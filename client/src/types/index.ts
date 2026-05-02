@@ -49,13 +49,66 @@ export interface ConversationWithMessages extends Conversation {
   messages: Message[];
 }
 
-export type Provider = 'auto' | 'groq' | 'gemini' | 'openrouter';
+export enum Intent {
+  WEB_SEARCH = 'WEB_SEARCH',
+  CODING = 'CODING',
+  DEBUGGING = 'DEBUGGING',
+  TRANSLATING = 'TRANSLATING',
+  DRAFTING = 'DRAFTING',
+  SUMMARIZING = 'SUMMARIZING',
+  IMAGE_ANALYSIS = 'IMAGE_ANALYSIS',
+}
 
-export const PROVIDER_LABELS: Record<Provider, string> = {
-  auto: 'Auto',
-  groq: 'Groq',
-  gemini: 'Gemini',
-  openrouter: 'OpenRouter',
+export interface IntentConfig {
+  label: string;
+  icon: string;
+  description: string;
+}
+
+export const INTENT_CONFIG: Record<Intent, IntentConfig> = {
+  [Intent.WEB_SEARCH]: {
+    label: 'Web Search',
+    icon: '🌐',
+    description: 'Real-time facts, news & docs',
+  },
+  [Intent.CODING]: {
+    label: 'Coding',
+    icon: '💻',
+    description: 'Write & refactor code',
+  },
+  [Intent.DEBUGGING]: {
+    label: 'Debugging',
+    icon: '🐞',
+    description: 'Fix errors & explain logs',
+  },
+  [Intent.TRANSLATING]: {
+    label: 'Translating',
+    icon: '文',
+    description: 'Nuanced language translation',
+  },
+  [Intent.DRAFTING]: {
+    label: 'Drafting',
+    icon: '✍️',
+    description: 'Articles, emails & Markdown',
+  },
+  [Intent.SUMMARIZING]: {
+    label: 'Summarizing',
+    icon: '📝',
+    description: 'Distil long content to bullets',
+  },
+  [Intent.IMAGE_ANALYSIS]: {
+    label: 'Image Analysis',
+    icon: '👁️',
+    description: 'Explain charts & screenshots',
+  },
+};
+
+export const INTENT_MODEL_LABELS: Record<string, string> = {
+  gemini: 'Gemini 2.0 Flash',
+  nvidia: 'Llama 3.1 405B',
+  'groq-chat': 'Llama 3.3 70B',
+  'groq-compound': 'Groq⚡',
+  openrouter: 'Mistral Large',
 };
 
 export type SSEEvent =
