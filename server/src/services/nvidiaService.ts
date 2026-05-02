@@ -3,7 +3,7 @@ import { ChatMessage } from './groqService';
 
 const client = new OpenAI({
   apiKey: process.env.NVIDIA_API_KEY || 'dummy',
-  baseURL: 'https://build.nvidia.com/v1',
+  baseURL: 'https://integrate.api.nvidia.com/v1',
 });
 
 const REQUEST_TIMEOUT_MS = 60_000;
