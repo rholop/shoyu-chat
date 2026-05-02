@@ -84,7 +84,7 @@ const FALLBACK_MATRIX: Record<Intent, TierConfig[]> = {
     { provider: 'openrouter', model: 'perplexity/sonar-pro', label: 'OR: Perplexity Sonar Pro' },
   ],
   [Intent.CODING]: [
-    { provider: 'nvidia', model: 'meta/llama-3.1-405b-instruct', label: 'NVIDIA: Llama 3.1 405B' },
+    { provider: 'nvidia', model: 'meta/llama-3.3-70b-instruct', label: 'NVIDIA: Llama 3.3 70B' },
     { provider: 'groq-chat', model: 'llama-3.3-70b-versatile', label: 'Groq: Llama 3.3 70B' },
     { provider: 'gemini', model: 'gemini-2.5-pro', label: 'Gemini: 2.5 Pro' },
   ],
@@ -229,7 +229,7 @@ export async function summarize(prompt: string): Promise<string> {
     provider: 'nvidia' | 'gemini' | 'groq-chat' | 'openrouter';
     model: string;
   }> = [
-    { provider: 'nvidia', model: 'meta/llama-3.1-405b-instruct' },
+    { provider: 'nvidia', model: 'meta/llama-3.3-70b-instruct' },
     { provider: 'gemini', model: 'gemini-2.5-flash' },
     { provider: 'groq-chat', model: 'llama-3.3-70b-versatile' },
     { provider: 'openrouter', model: 'mistralai/mistral-small' },
