@@ -15,19 +15,26 @@ type GeminiPart =
   | { text: string }
   | { inlineData: { mimeType: string; data: string } };
 
+function extractSystemInstruction(messages: ChatMessage[]): string | undefined {
+  const sys = messages.filter((m) => m.role === 'system').map((m) => m.content);
+  return sys.length > 0 ? sys.join('\n\n') : undefined;
+}
+
 function toGeminiHistory(messages: ChatMessage[]) {
-  return messages.map((m) => {
-    const parts: GeminiPart[] = [{ text: m.content }];
-    if (m.images && m.role === 'user') {
-      for (const img of m.images) {
-        parts.push({ inlineData: { mimeType: img.mimeType, data: img.base64 } });
+  return messages
+    .filter((m) => m.role !== 'system')
+    .map((m) => {
+      const parts: GeminiPart[] = [{ text: m.content }];
+      if (m.images && m.role === 'user') {
+        for (const img of m.images) {
+          parts.push({ inlineData: { mimeType: img.mimeType, data: img.base64 } });
+        }
       }
-    }
-    return {
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts,
-    };
-  });
+      return {
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts,
+      };
+    });
 }
 
 function buildGroundingNotes(metadata: Record<string, unknown>): string {
@@ -61,7 +68,11 @@ function prepareHistory(messages: ChatMessage[]) {
 }
 
 export async function* streamChatGemini(messages: ChatMessage[]): AsyncGenerator<string> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const systemInstruction = extractSystemInstruction(messages);
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.0-flash',
+    ...(systemInstruction ? { systemInstruction } : {}),
+  });
   const { history, lastMsg } = prepareHistory(messages);
   const chat = model.startChat({ history });
   const result = await chat.sendMessageStream(lastMsg.parts);
@@ -75,8 +86,10 @@ export async function* streamChatGemini(messages: ChatMessage[]): AsyncGenerator
 export async function* streamChatGeminiWithSearch(
   messages: ChatMessage[],
 ): AsyncGenerator<string | GroundingChunk> {
+  const systemInstruction = extractSystemInstruction(messages);
   const model = genAI.getGenerativeModel({
     model: 'gemini-2.0-flash',
+    ...(systemInstruction ? { systemInstruction } : {}),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     tools: [{ googleSearch: {} }] as any,
   });

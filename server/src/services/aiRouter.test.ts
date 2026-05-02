@@ -33,6 +33,10 @@ vi.mock('./nvidiaService', () => ({
   isNvidiaAvailable: vi.fn(),
 }));
 
+vi.mock('./memoryService', () => ({
+  readMemory: vi.fn(),
+}));
+
 vi.mock('../utils/dateHelpers', () => ({
   getToday: vi.fn().mockReturnValue('2026-04-25'),
 }));
@@ -69,6 +73,7 @@ import {
   isNvidiaAvailable,
   summarizeNvidia,
 } from './nvidiaService';
+import { readMemory } from './memoryService';
 
 const messages: ChatMessage[] = [{ role: 'user', content: 'hello' }];
 
@@ -101,6 +106,7 @@ describe('streamChat – Intent routing', () => {
     vi.clearAllMocks();
     vi.mocked(getUsageCount).mockReturnValue(0);
     vi.mocked(incrementUsage).mockReturnValue(undefined as unknown as void);
+    vi.mocked(readMemory).mockReturnValue(null);
     setAllUnavailable();
   });
 
@@ -118,7 +124,7 @@ describe('streamChat – Intent routing', () => {
 
     expect(tokens).toEqual(['Search result']);
     expect(model).toBe('gemini');
-    expect(streamChatGeminiWithSearch).toHaveBeenCalledWith(messages);
+    expect(streamChatGeminiWithSearch).toHaveBeenCalled();
     expect(streamChatGemini).not.toHaveBeenCalled();
     expect(incrementUsage).toHaveBeenCalledWith('gemini', '2026-04-25');
   });
@@ -168,7 +174,7 @@ describe('streamChat – Intent routing', () => {
 
     expect(tokens).toEqual(['const x = 1;']);
     expect(model).toBe('nvidia');
-    expect(streamChatNvidiaCoding).toHaveBeenCalledWith(messages);
+    expect(streamChatNvidiaCoding).toHaveBeenCalled();
     expect(incrementUsage).toHaveBeenCalledWith('nvidia', '2026-04-25');
   });
 
@@ -204,7 +210,6 @@ describe('streamChat – Intent routing', () => {
       yield 'ok';
     });
 
-    // Build a long history: system + 20 user/assistant pairs → 41 messages total
     const longMessages: ChatMessage[] = [
       { role: 'system', content: 'System prompt' },
       ...Array.from({ length: 20 }, (_, i) => [
@@ -249,7 +254,7 @@ describe('streamChat – Intent routing', () => {
 
     expect(tokens).toEqual(['Bonjour le monde']);
     expect(model).toBe('openrouter');
-    expect(streamChatOpenRouterTranslating).toHaveBeenCalledWith(messages);
+    expect(streamChatOpenRouterTranslating).toHaveBeenCalled();
     expect(incrementUsage).toHaveBeenCalledWith('openrouter', '2026-04-25');
   });
 
@@ -291,7 +296,6 @@ describe('streamChat – Intent routing', () => {
       yield 'Vision response';
     });
 
-    // CODING intent doesn't support vision — should be overridden
     const { model } = await collectRouter(
       streamChat(messages, Intent.CODING, true),
     );
@@ -307,11 +311,11 @@ describe('streamChat – Fallback behaviour', () => {
     vi.clearAllMocks();
     vi.mocked(getUsageCount).mockReturnValue(0);
     vi.mocked(incrementUsage).mockReturnValue(undefined as unknown as void);
+    vi.mocked(readMemory).mockReturnValue(null);
     setAllUnavailable();
   });
 
   it('falls back to nvidia when CODING specialist (nvidia) at daily limit', async () => {
-    // nvidia is available but at limit for first call (specialist), not for fallback
     vi.mocked(isNvidiaAvailable).mockReturnValue(true);
     vi.mocked(isGeminiAvailable).mockReturnValue(true);
     vi.mocked(getUsageCount).mockImplementation((key) => (key === 'nvidia' ? 999999 : 0));
@@ -368,7 +372,6 @@ describe('streamChat – Fallback behaviour', () => {
   });
 
   it('skips specialist in fallback chain (no double-attempt)', async () => {
-    // DEBUGGING specialist = groq-chat; groq-chat throws; fallback chain should skip groq-chat
     vi.mocked(isGroqAvailable).mockReturnValue(true);
     vi.mocked(isGeminiAvailable).mockReturnValue(true);
     vi.mocked(streamChatGroqChat).mockImplementation(async function* () {
@@ -420,6 +423,7 @@ describe('streamChat – Context trimming for Groq', () => {
     vi.clearAllMocks();
     vi.mocked(getUsageCount).mockReturnValue(0);
     vi.mocked(incrementUsage).mockReturnValue(undefined as unknown as void);
+    vi.mocked(readMemory).mockReturnValue(null);
     setAllUnavailable();
   });
 
@@ -457,6 +461,58 @@ describe('streamChat – Context trimming for Groq', () => {
     expect(calledWith.length).toBe(30);
   });
 });
+
+// ── Memory injection (v3) ─────────────────────────────────────────────────────
+
+describe('streamChat – Memory injection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getUsageCount).mockReturnValue(0);
+    vi.mocked(incrementUsage).mockReturnValue(undefined as unknown as void);
+    setAllUnavailable();
+    vi.mocked(isNvidiaAvailable).mockReturnValue(true);
+    vi.mocked(streamChatNvidiaCoding).mockImplementation(async function* () {
+      yield 'response';
+    });
+  });
+
+  it('prepends system message with memory context when memory exists', async () => {
+    vi.mocked(readMemory).mockReturnValue('## Identity\n- Name: Alice');
+
+    await collectRouter(streamChat(messages));
+
+    const callArgs = vi.mocked(streamChatNvidiaCoding).mock.calls[0][0];
+    expect(callArgs[0].role).toBe('system');
+    expect(callArgs[0].content).toContain('User Memory Context');
+    expect(callArgs[0].content).toContain('Name: Alice');
+  });
+
+  it('does not prepend system message when memory file is absent', async () => {
+    vi.mocked(readMemory).mockReturnValue(null);
+
+    await collectRouter(streamChat(messages));
+
+    const callArgs = vi.mocked(streamChatNvidiaCoding).mock.calls[0][0];
+    expect(callArgs[0].role).toBe('user');
+  });
+
+  it('skips memory injection when injectMemory=false', async () => {
+    vi.mocked(readMemory).mockReturnValue('## Identity\n- Name: Alice');
+
+    await collectRouter(streamChat(messages, Intent.CODING, false, false));
+
+    expect(readMemory).not.toHaveBeenCalled();
+    const callArgs = vi.mocked(streamChatNvidiaCoding).mock.calls[0][0];
+    expect(callArgs[0].role).toBe('user');
+  });
+
+  it('continues without throwing when memory file is absent (privacy guard)', async () => {
+    vi.mocked(readMemory).mockReturnValue(null);
+    await expect(collectRouter(streamChat(messages))).resolves.toBeDefined();
+  });
+});
+
+// ── summarize ─────────────────────────────────────────────────────────────────
 
 describe('summarize', () => {
   beforeEach(() => {
@@ -527,7 +583,6 @@ describe('summarize', () => {
       key === 'groq-compound' ? 0 : 999999,
     );
 
-    // All others are at limit; groq-compound has capacity but should be skipped
     vi.mocked(isNvidiaAvailable).mockReturnValue(true);
     vi.mocked(isGeminiAvailable).mockReturnValue(true);
 

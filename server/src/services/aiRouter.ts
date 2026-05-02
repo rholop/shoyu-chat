@@ -28,6 +28,7 @@ import {
   summarizeNvidia,
   isNvidiaAvailable,
 } from './nvidiaService';
+import { readMemory } from './memoryService';
 
 const GROQ_COMPOUND_LIMIT = Number(process.env.GROQ_COMPOUND_DAILY_LIMIT ?? 250);
 const GROQ_CHAT_LIMIT = Number(process.env.GROQ_CHAT_DAILY_LIMIT ?? 1000);
@@ -44,6 +45,17 @@ function isProviderKeyAvailable(key: string): boolean {
   if (key === 'openrouter') return isOpenRouterAvailable();
   if (key === 'nvidia') return isNvidiaAvailable();
   return false;
+}
+
+function buildMessagesWithMemory(
+  messages: ChatMessage[],
+  memoryContext: string | null
+): ChatMessage[] {
+  if (!memoryContext) return messages;
+  return [
+    { role: 'system', content: `## User Memory Context\n\n${memoryContext}` },
+    ...messages,
+  ];
 }
 
 export interface StreamResult {
@@ -148,8 +160,12 @@ export async function* streamChat(
   messages: ChatMessage[],
   intent: Intent = Intent.CODING,
   hasImages = false,
+  injectMemory = true,
 ): AsyncGenerator<RouterResult> {
   const today = getToday();
+
+  const memoryContext = injectMemory ? readMemory() : null;
+  const contextualMessages = buildMessagesWithMemory(messages, memoryContext);
 
   // Force IMAGE_ANALYSIS when images are present and specialist doesn't support vision
   const specialist =
@@ -157,7 +173,7 @@ export async function* streamChat(
       ? SPECIALIST_MAP[Intent.IMAGE_ANALYSIS]
       : SPECIALIST_MAP[intent];
 
-  const msgs = specialist.trimContext ? trimForGroq(messages) : messages;
+  const msgs = specialist.trimContext ? trimForGroq(contextualMessages) : contextualMessages;
 
   const specialistUsage = getUsageCount(specialist.providerKey, today);
   const specialistAvailable =
@@ -208,8 +224,8 @@ export async function* streamChat(
 
     const fallbackMsgs =
       provider.key === 'groq-chat' || provider.key === 'groq-compound'
-        ? trimForGroq(messages)
-        : messages;
+        ? trimForGroq(contextualMessages)
+        : contextualMessages;
 
     try {
       let hasOutput = false;

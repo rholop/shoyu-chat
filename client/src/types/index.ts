@@ -14,7 +14,7 @@ export interface Attachment {
 export interface Message {
   id: number;
   conversation_id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'internal';
   content: string;
   model_used: string | null;
   attachments?: Attachment[];
@@ -115,3 +115,4 @@ export type SSEEvent =
   | { type: 'token'; content: string }
   | { type: 'done'; model: string; conversationId: string }
   | { type: 'error'; message: string };
+

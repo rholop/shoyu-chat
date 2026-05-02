@@ -10,10 +10,13 @@ const client = new OpenAI({
   },
 });
 
-export async function* streamChatOpenRouter(messages: ChatMessage[]): AsyncGenerator<string> {
+export async function* streamChatOpenRouter(
+  messages: ChatMessage[],
+  model: string = 'meta-llama/llama-3.1-8b-instruct:free'
+): AsyncGenerator<string> {
   const stream = await client.chat.completions.create({
-    model: 'meta-llama/llama-3.1-8b-instruct:free',
-    messages,
+    model,
+    messages: messages.map((m) => ({ role: m.role, content: m.content })),
     stream: true,
   });
 
