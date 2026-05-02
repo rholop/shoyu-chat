@@ -97,9 +97,12 @@ export async function* streamChatGeminiWithSearch(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     tools: [{ googleSearch: {} }] as any,
   });
-  const { history, lastMsg } = prepareHistory(messages);
-  const chat = model.startChat({ history });
-  const streamResult = await chat.sendMessageStream(lastMsg.parts);
+  // googleSearch grounding is incompatible with startChat/sendMessageStream —
+  // the API rejects tool-enabled requests in chat sessions. Use
+  // generateContentStream with the full contents array instead.
+  const contents = toGeminiHistory(messages);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const streamResult = await model.generateContentStream({ contents } as any);
 
   for await (const chunk of streamResult.stream) {
     const text = chunk.text();
