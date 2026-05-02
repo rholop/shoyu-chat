@@ -129,8 +129,8 @@ describe('aiRouter v4.0', () => {
 
         const { tokens, model } = await collectRouter(streamChat(messages, Intent.CODING));
         expect(tokens).toEqual(['const x = 1;']);
-        expect(model).toBe('NVIDIA: Llama 3.1 405B');
-        expect(streamChatNvidia).toHaveBeenCalledWith(expect.anything(), 'meta/llama-3.1-405b-instruct');
+        expect(model).toBe('NVIDIA: Llama 3.3 70B');
+        expect(streamChatNvidia).toHaveBeenCalledWith(expect.anything(), 'meta/llama-3.3-70b-instruct');
     });
 
     it('DEBUGGING routes to Groq 70B (Tier 1)', async () => {
