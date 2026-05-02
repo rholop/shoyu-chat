@@ -4,10 +4,21 @@ import { getConversation } from '../api/conversations';
 import { sendMessage } from '../api/chat';
 import { useChatStore } from '../store/chatStore';
 import { Attachment, Message } from '../types';
+import { detectIntent } from '../utils/detectIntent';
 
 export function useChat(conversationId: string | null) {
   const queryClient = useQueryClient();
-  const { appendToken, finalizeStream, setStreamError, resetStream, setMessages, selectedIntent } = useChatStore();
+  const {
+    appendToken,
+    finalizeStream,
+    setStreamError,
+    resetStream,
+    setMessages,
+    setIntent,
+    unlockIntent,
+    selectedIntent,
+    intentLocked,
+  } = useChatStore();
 
   const query = useQuery({
     queryKey: ['conversation', conversationId],
@@ -22,11 +33,16 @@ export function useChat(conversationId: string | null) {
     async (content: string, optimisticUserMessage: Message, attachments: Attachment[] = []) => {
       if (!conversationId) return;
 
+      // Auto-detect intent unless the user manually locked one for this send
+      const hasImages = attachments.some((a) => a.mimeType.startsWith('image/'));
+      const intent = intentLocked ? selectedIntent : detectIntent(content, hasImages);
+      if (!intentLocked) setIntent(intent);
+
       setMessages([...messages, optimisticUserMessage]);
       resetStream();
 
       try {
-        for await (const event of sendMessage(conversationId, content, attachments, selectedIntent)) {
+        for await (const event of sendMessage(conversationId, content, attachments, intent)) {
           if (event.type === 'token') {
             appendToken(event.content);
           } else if (event.type === 'done') {
@@ -39,9 +55,25 @@ export function useChat(conversationId: string | null) {
         }
       } catch (err) {
         setStreamError(err instanceof Error ? err.message : 'Unknown error');
+      } finally {
+        // Always unlock after a send so the next message auto-detects
+        unlockIntent();
       }
     },
-    [conversationId, messages, appendToken, finalizeStream, setStreamError, resetStream, setMessages, queryClient, selectedIntent],
+    [
+      conversationId,
+      messages,
+      selectedIntent,
+      intentLocked,
+      appendToken,
+      finalizeStream,
+      setStreamError,
+      resetStream,
+      setMessages,
+      setIntent,
+      unlockIntent,
+      queryClient,
+    ],
   );
 
   return {

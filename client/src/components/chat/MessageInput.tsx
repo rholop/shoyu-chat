@@ -29,7 +29,7 @@ export default function MessageInput({
   const [isDragOver, setIsDragOver] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { selectedIntent, setIntent } = useChatStore();
+  const { selectedIntent, intentLocked, setIntent } = useChatStore();
 
   const submit = () => {
     const trimmed = value.trim();
@@ -88,7 +88,7 @@ export default function MessageInput({
     >
       <div className="max-w-3xl mx-auto">
         {/* Intent task bar */}
-        <div className="flex gap-1 mb-2 overflow-x-auto pb-0.5 scrollbar-none">
+        <div className="flex items-center gap-1 mb-2 overflow-x-auto pb-0.5 scrollbar-none">
           {INTENTS.map((intent) => {
             const { icon, label } = INTENT_CONFIG[intent];
             const isActive = selectedIntent === intent;
@@ -98,7 +98,7 @@ export default function MessageInput({
                 type="button"
                 onClick={() => setIntent(intent)}
                 disabled={disabled}
-                title={label}
+                title={intentLocked && isActive ? `${label} (locked)` : label}
                 aria-label={label}
                 aria-pressed={isActive}
                 className={`shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-default
@@ -112,6 +112,15 @@ export default function MessageInput({
               </button>
             );
           })}
+          {/* Auto-detect indicator */}
+          {!intentLocked && (
+            <span
+              className="shrink-0 ml-auto text-[10px] text-slate-600 font-mono whitespace-nowrap"
+              title="Intent is detected automatically from your message"
+            >
+              auto
+            </span>
+          )}
         </div>
 
         {/* Attachment chips */}
