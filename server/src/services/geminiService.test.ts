@@ -120,7 +120,8 @@ describe('streamChatGeminiWithSearch', () => {
     mockGenerateContentStream.mockResolvedValue(makeStream(['Result']));
     await collect(streamChatGeminiWithSearch([{ role: 'user', content: 'news today' }]));
 
-    const [modelConfig] = mockGetGenerativeModel.mock.calls[0];
+    const callArgs = mockGetGenerativeModel.mock.calls[0] as any;
+    const modelConfig = callArgs[0] as { tools: unknown };
     expect(modelConfig.tools).toEqual([{ googleSearch: {} }]);
   });
 
@@ -132,7 +133,8 @@ describe('streamChatGeminiWithSearch', () => {
       { googleSearchRetrieval: {} },
     ));
 
-    const [modelConfig] = mockGetGenerativeModel.mock.calls[0];
+    const callArgs = mockGetGenerativeModel.mock.calls[0] as any;
+    const modelConfig = callArgs[0] as { tools: unknown };
     expect(modelConfig.tools).toEqual([{ googleSearchRetrieval: {} }]);
   });
 
