@@ -571,7 +571,7 @@ describe('POST /api/chat/send – file attachments', () => {
   });
 
   it('prepends extracted text context to user message', async () => {
-    vi.mocked(findConversationFile).mockReturnValue({ filePath: '/tmp/notes.txt', fileId: FILE_ATT.fileId });
+    vi.mocked(findConversationFile).mockReturnValue({ filePath: '/tmp/notes.txt', filename: FILE_ATT.filename });
     vi.mocked(extractContext).mockResolvedValue({
       filename: 'notes.txt',
       mimeType: 'text/plain',
@@ -602,7 +602,7 @@ describe('POST /api/chat/send – file attachments', () => {
   it('calls streamChat with hasImages=true when an image attachment is found', async () => {
     const imgAtt = { ...FILE_ATT, filename: 'photo.png', mimeType: 'image/png' };
 
-    vi.mocked(findConversationFile).mockReturnValue({ filePath: '/tmp/photo.png', fileId: imgAtt.fileId });
+    vi.mocked(findConversationFile).mockReturnValue({ filePath: '/tmp/photo.png', filename: imgAtt.filename });
     vi.mocked(extractContext).mockResolvedValue({
       filename: 'photo.png',
       mimeType: 'image/png',
@@ -641,7 +641,7 @@ describe('POST /api/chat/send – file attachments', () => {
   });
 
   it('persists attachments on the stored user message', async () => {
-    vi.mocked(findConversationFile).mockReturnValue({ filePath: '/tmp/notes.txt', fileId: FILE_ATT.fileId });
+    vi.mocked(findConversationFile).mockReturnValue({ filePath: '/tmp/notes.txt', filename: FILE_ATT.filename });
     vi.mocked(extractContext).mockResolvedValue({
       filename: 'notes.txt', mimeType: 'text/plain', isImage: false, textContent: 'content',
     });
@@ -665,7 +665,7 @@ describe('POST /api/chat/send – file attachments', () => {
     { intent: Intent.DEBUGGING,   expected: 100_000 },
     { intent: Intent.WEB_SEARCH,  expected:  50_000 },
   ])('passes maxChars=$expected to extractContext for intent $intent', async ({ intent, expected }) => {
-    vi.mocked(findConversationFile).mockReturnValue({ filePath: '/tmp/doc.txt', fileId: FILE_ATT.fileId });
+    vi.mocked(findConversationFile).mockReturnValue({ filePath: '/tmp/doc.txt', filename: FILE_ATT.filename });
     vi.mocked(extractContext).mockResolvedValue({
       filename: 'doc.txt', mimeType: 'text/plain', isImage: false, textContent: 'content',
     });
