@@ -8,12 +8,7 @@ vi.mock('openai', () => ({
   })),
 }));
 
-vi.mock('../utils/logger', () => ({
-  logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
-}));
-
 import { streamChatGroqChat, summarizeGroq, isGroqAvailable } from './groqService';
-import { logger } from '../utils/logger';
 
 async function collect(gen: AsyncGenerator<string>): Promise<string[]> {
   const results: string[] = [];
@@ -30,7 +25,6 @@ function makeStream(tokens: string[]) {
 describe('groqService v4.0', () => {
   beforeEach(() => {
     mockCreate.mockReset();
-    vi.mocked(logger.warn).mockClear();
   });
 
   it('streamChatGroqChat calls specified model', async () => {
@@ -38,6 +32,7 @@ describe('groqService v4.0', () => {
     await collect(streamChatGroqChat([{ role: 'user', content: 'hi' }], 'custom-model'));
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({ model: 'custom-model' }),
+      expect.anything(),
     );
   });
 
@@ -53,6 +48,16 @@ describe('groqService v4.0', () => {
     expect(result).toBe('summary');
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({ model: 'custom-model' }),
+      expect.anything(),
+    );
+  });
+
+  it('passes 60s timeout to create()', async () => {
+    mockCreate.mockResolvedValueOnce(makeStream(['ok']));
+    await collect(streamChatGroqChat([{ role: 'user', content: 'hi' }]));
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ timeout: 60_000 }),
     );
   });
 
