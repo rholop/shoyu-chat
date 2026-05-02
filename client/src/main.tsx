@@ -1,4 +1,4 @@
-import { StrictMode } from 'react';
+import { StrictMode, useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
@@ -14,11 +14,27 @@ const queryClient = new QueryClient({
   },
 });
 
+function ThemedToaster() {
+  const [isDark, setIsDark] = useState(() =>
+    document.documentElement.classList.contains('dark')
+  );
+
+  useEffect(() => {
+    const obs = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    });
+    obs.observe(document.documentElement, { attributeFilter: ['class'] });
+    return () => obs.disconnect();
+  }, []);
+
+  return <Toaster position="top-center" theme={isDark ? 'dark' : 'light'} />;
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <App />
-      <Toaster position="top-center" theme="dark" />
+      <ThemedToaster />
     </QueryClientProvider>
   </StrictMode>
 );

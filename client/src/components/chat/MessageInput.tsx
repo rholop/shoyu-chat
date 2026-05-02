@@ -82,7 +82,7 @@ export default function MessageInput({
 
   return (
     <div
-      className={`border-t border-slate-800 bg-slate-950 p-3 pb-safe transition-colors ${isDragOver ? 'bg-indigo-950/30' : ''}`}
+      className={`border-t border-[#ccc5af] dark:border-slate-800 bg-[#fdf6e3] dark:bg-slate-950 p-3 pb-safe transition-colors ${isDragOver ? 'bg-indigo-50/50 dark:bg-indigo-950/30' : ''}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -102,12 +102,12 @@ export default function MessageInput({
         )}
 
         {isDragOver && (
-          <div className="flex items-center justify-center h-10 mb-2 text-sm text-indigo-400 border border-dashed border-indigo-600 rounded-lg">
+          <div className="flex items-center justify-center h-10 mb-2 text-sm text-indigo-500 dark:text-indigo-400 border border-dashed border-indigo-400 dark:border-indigo-600 rounded-lg">
             Drop files to attach
           </div>
         )}
 
-        <div className="flex items-end gap-2 bg-slate-800 rounded-2xl px-4 py-2">
+        <div className="flex items-end gap-2 bg-[#e0d8c4] dark:bg-slate-800 rounded-2xl px-4 py-2">
           {/* Hidden file input */}
           <input
             ref={fileInputRef}
@@ -127,7 +127,7 @@ export default function MessageInput({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled}
-            className="shrink-0 p-1 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-default transition-colors mb-0.5"
+            className="shrink-0 p-1 rounded-lg text-[#93a1a1] dark:text-slate-500 hover:text-[#586e75] dark:hover:text-slate-300 hover:bg-[#d1c9b5] dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-default transition-colors mb-0.5"
             aria-label="Attach file"
           >
             {uploading ? (
@@ -145,7 +145,7 @@ export default function MessageInput({
             disabled={disabled}
             rows={1}
             placeholder={uploading ? 'Uploading…' : 'Message…'}
-            className="flex-1 bg-transparent text-white placeholder-slate-500 text-sm resize-none focus:outline-none py-1.5 max-h-[200px]"
+            className="flex-1 bg-transparent text-[#073642] dark:text-white placeholder-[#93a1a1] dark:placeholder-slate-500 text-sm resize-none focus:outline-none py-1.5 max-h-[200px]"
           />
 
           <select
@@ -153,7 +153,7 @@ export default function MessageInput({
             onChange={(e) => setProvider(e.target.value as Provider)}
             disabled={disabled}
             aria-label="Select AI provider"
-            className="shrink-0 bg-slate-700 text-slate-300 text-xs rounded-lg px-2 py-1 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-40 disabled:cursor-default mb-0.5"
+            className="shrink-0 bg-[#d1c9b5] dark:bg-slate-700 text-[#586e75] dark:text-slate-300 text-xs rounded-lg px-2 py-1 border border-[#b8b09e] dark:border-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-40 disabled:cursor-default mb-0.5"
           >
             {PROVIDERS.map((p) => (
               <option key={p} value={p}>{PROVIDER_LABELS[p]}</option>
@@ -169,7 +169,7 @@ export default function MessageInput({
             <Send size={14} className="text-white" />
           </button>
         </div>
-        <p className="text-xs text-slate-600 text-center mt-1.5">
+        <p className="text-xs text-[#93a1a1] dark:text-slate-600 text-center mt-1.5">
           Enter to send · Shift+Enter for newline
         </p>
       </div>

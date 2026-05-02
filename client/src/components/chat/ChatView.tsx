@@ -53,21 +53,21 @@ export default function ChatView({ conversationId, title, onMenuToggle, onNewCha
       <div className="flex-1 overflow-y-auto">
         {/* Mobile sticky mini-bar — stays visible as messages scroll */}
         {(onMenuToggle || onNewChat) && (
-          <div className="md:hidden sticky top-0 z-10 flex items-center gap-2 px-3 py-2 bg-slate-950/90 backdrop-blur border-b border-slate-800/60">
+          <div className="md:hidden sticky top-0 z-10 flex items-center gap-2 px-3 py-2 bg-[#fdf6e3]/90 dark:bg-slate-950/90 backdrop-blur border-b border-[#ccc5af]/60 dark:border-slate-800/60">
             {onMenuToggle && (
               <button
                 onClick={onMenuToggle}
-                className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                className="p-1.5 rounded-lg hover:bg-[#e0d8c4] dark:hover:bg-slate-800 text-[#586e75] dark:text-slate-400 hover:text-[#073642] dark:hover:text-white transition-colors"
                 aria-label="Toggle sidebar"
               >
                 <Menu size={16} />
               </button>
             )}
-            <span className="flex-1 text-xs font-medium text-slate-400 truncate">{title}</span>
+            <span className="flex-1 text-xs font-medium text-[#586e75] dark:text-slate-400 truncate">{title}</span>
             {onNewChat && (
               <button
                 onClick={onNewChat}
-                className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                className="p-1.5 rounded-lg hover:bg-[#e0d8c4] dark:hover:bg-slate-800 text-[#586e75] dark:text-slate-400 hover:text-[#073642] dark:hover:text-white transition-colors"
                 aria-label="New chat"
               >
                 <Plus size={16} />
@@ -79,7 +79,7 @@ export default function ChatView({ conversationId, title, onMenuToggle, onNewCha
         <div className="max-w-3xl mx-auto px-4 py-4 space-y-4">
           {displayMessages.length === 0 && !isStreaming && (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <p className="text-slate-500 text-sm">Start a conversation</p>
+              <p className="text-[#93a1a1] dark:text-slate-500 text-sm">Start a conversation</p>
             </div>
           )}
 
@@ -106,18 +106,18 @@ export default function ChatView({ conversationId, title, onMenuToggle, onNewCha
               <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold shrink-0 mt-1">
                 AI
               </div>
-              <div className="bg-slate-800 rounded-2xl rounded-bl-sm px-4 py-3">
+              <div className="bg-[#e0d8c4] dark:bg-slate-800 rounded-2xl rounded-bl-sm px-4 py-3">
                 <div className="flex gap-1 items-center h-5">
-                  <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:0ms]" />
-                  <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:150ms]" />
-                  <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:300ms]" />
+                  <span className="w-1.5 h-1.5 bg-[#93a1a1] dark:bg-slate-400 rounded-full animate-bounce [animation-delay:0ms]" />
+                  <span className="w-1.5 h-1.5 bg-[#93a1a1] dark:bg-slate-400 rounded-full animate-bounce [animation-delay:150ms]" />
+                  <span className="w-1.5 h-1.5 bg-[#93a1a1] dark:bg-slate-400 rounded-full animate-bounce [animation-delay:300ms]" />
                 </div>
               </div>
             </div>
           )}
 
           {(streamError || uploadError) && (
-            <div className="bg-red-950/50 border border-red-800 rounded-xl p-4 text-red-300 text-sm">
+            <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-xl p-4 text-red-700 dark:text-red-300 text-sm">
               {streamError ?? uploadError}
             </div>
           )}

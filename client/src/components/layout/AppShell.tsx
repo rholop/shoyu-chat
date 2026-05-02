@@ -15,31 +15,31 @@ function NewProjectModal({ onCreate, onClose }: { onCreate: (name: string, desc:
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-md p-6 flex flex-col gap-4">
-        <h2 className="text-lg font-semibold text-white">New Project</h2>
+      <div className="bg-[#eee8d5] dark:bg-slate-900 border border-[#b8b09e] dark:border-slate-700 rounded-xl w-full max-w-md p-6 flex flex-col gap-4">
+        <h2 className="text-lg font-semibold text-[#073642] dark:text-white">New Project</h2>
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm text-slate-400">Name</label>
+          <label className="text-sm text-[#586e75] dark:text-slate-400">Name</label>
           <input
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) onCreate(name.trim(), desc); if (e.key === 'Escape') onClose(); }}
             placeholder="Project name"
-            className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+            className="bg-[#e0d8c4] dark:bg-slate-800 border border-[#b8b09e] dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-[#073642] dark:text-white placeholder-[#93a1a1] dark:placeholder-slate-600 focus:outline-none focus:border-indigo-500"
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm text-slate-400">Description (optional)</label>
+          <label className="text-sm text-[#586e75] dark:text-slate-400">Description (optional)</label>
           <textarea
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
             placeholder="What is this project about?"
             rows={2}
-            className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 resize-none"
+            className="bg-[#e0d8c4] dark:bg-slate-800 border border-[#b8b09e] dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-[#073642] dark:text-white placeholder-[#93a1a1] dark:placeholder-slate-600 focus:outline-none focus:border-indigo-500 resize-none"
           />
         </div>
         <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-[#586e75] dark:text-slate-400 hover:text-[#073642] dark:hover:text-white transition-colors">
             Cancel
           </button>
           <button
@@ -147,7 +147,7 @@ export default function AppShell() {
   }, [conversations, activeConversationId, setActiveConversation]);
 
   return (
-    <div className="flex h-[100dvh] bg-slate-950 overflow-hidden">
+    <div className="flex h-[100dvh] bg-[#fdf6e3] dark:bg-slate-950 overflow-hidden">
       {showNewProjectModal && (
         <NewProjectModal
           onCreate={handleCreateProject}
@@ -208,8 +208,8 @@ export default function AppShell() {
           />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-            <p className="text-slate-400 text-lg mb-2">Welcome to Shoyu Chat</p>
-            <p className="text-slate-600 text-sm mb-6">Start a new conversation to begin</p>
+            <p className="text-[#586e75] dark:text-slate-400 text-lg mb-2">Welcome to Shoyu Chat</p>
+            <p className="text-[#93a1a1] dark:text-slate-600 text-sm mb-6">Start a new conversation to begin</p>
             <button
               onClick={() => handleNewChat()}
               className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors"

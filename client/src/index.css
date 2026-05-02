@@ -1,13 +1,17 @@
 @import "tailwindcss";
 
+/* Use .dark class on <html> for dark mode instead of prefers-color-scheme */
+@variant dark (&:where(.dark, .dark *));
+
 @layer base {
   html {
     -webkit-tap-highlight-color: transparent;
   }
 
   body {
-    @apply bg-slate-950 text-white;
+    @apply bg-[#fdf6e3] dark:bg-slate-950 text-[#073642] dark:text-white;
     overscroll-behavior: none;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
   /* Safe area padding for iOS notch / home bar */
@@ -16,7 +20,7 @@
   }
 }
 
-/* Syntax highlighting theme (dark) */
+/* Syntax highlighting theme */
 .hljs {
   background: transparent !important;
 }

@@ -36,19 +36,19 @@ export default function AttachmentChip({ attachment, conversationId, onRemove }:
           className="w-5 h-5 rounded object-cover shrink-0"
         />
       ) : (
-        <span className="shrink-0 text-slate-400">
+        <span className="shrink-0 text-[#586e75] dark:text-slate-400">
           <FileIcon mimeType={attachment.mimeType} />
         </span>
       )}
-      <span className="text-xs text-slate-300 truncate">{attachment.filename}</span>
+      <span className="text-xs text-[#073642] dark:text-slate-300 truncate">{attachment.filename}</span>
       {attachment.size && (
-        <span className="text-xs text-slate-500 shrink-0">{formatSize(attachment.size)}</span>
+        <span className="text-xs text-[#93a1a1] dark:text-slate-500 shrink-0">{formatSize(attachment.size)}</span>
       )}
     </div>
   );
 
   return (
-    <div className="inline-flex items-center gap-1 bg-slate-700 border border-slate-600 rounded-lg px-2 py-1">
+    <div className="inline-flex items-center gap-1 bg-[#d1c9b5] dark:bg-slate-700 border border-[#b8b09e] dark:border-slate-600 rounded-lg px-2 py-1">
       {fileUrl ? (
         <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="hover:opacity-80 transition-opacity">
           {content}
@@ -59,7 +59,7 @@ export default function AttachmentChip({ attachment, conversationId, onRemove }:
       {onRemove && (
         <button
           onClick={onRemove}
-          className="shrink-0 p-0.5 rounded hover:bg-slate-600 text-slate-500 hover:text-slate-300 transition-colors"
+          className="shrink-0 p-0.5 rounded hover:bg-[#bfb8a8] dark:hover:bg-slate-600 text-[#93a1a1] dark:text-slate-500 hover:text-[#073642] dark:hover:text-slate-300 transition-colors"
           aria-label={`Remove ${attachment.filename}`}
         >
           <X size={12} />

@@ -53,8 +53,8 @@ function InlineEdit({
         onClick={() => { setDraft(value); setEditing(true); }}
         className={`group flex items-start gap-1.5 text-left hover:opacity-80 transition-opacity ${className ?? ''}`}
       >
-        <span>{value || <span className="text-slate-600 italic">{placeholder}</span>}</span>
-        <Pencil size={13} className="shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 text-slate-500 transition-opacity" />
+        <span>{value || <span className="text-[#93a1a1] dark:text-slate-600 italic">{placeholder}</span>}</span>
+        <Pencil size={13} className="shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 text-[#93a1a1] dark:text-slate-500 transition-opacity" />
       </button>
     );
   }
@@ -68,7 +68,7 @@ function InlineEdit({
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Escape') setEditing(false); }}
           rows={2}
-          className={`flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-indigo-500 ${className ?? ''}`}
+          className={`flex-1 bg-[#e0d8c4] dark:bg-slate-800 border border-[#b8b09e] dark:border-slate-600 rounded px-2 py-1 text-sm text-[#073642] dark:text-white focus:outline-none focus:border-indigo-500 ${className ?? ''}`}
         />
       ) : (
         <input
@@ -76,13 +76,13 @@ function InlineEdit({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
-          className={`flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-indigo-500 ${className ?? ''}`}
+          className={`flex-1 bg-[#e0d8c4] dark:bg-slate-800 border border-[#b8b09e] dark:border-slate-600 rounded px-2 py-1 text-sm text-[#073642] dark:text-white focus:outline-none focus:border-indigo-500 ${className ?? ''}`}
         />
       )}
-      <button onClick={commit} className="p-1 rounded hover:bg-slate-700 text-indigo-400" aria-label="Save">
+      <button onClick={commit} className="p-1 rounded hover:bg-[#d1c9b5] dark:hover:bg-slate-700 text-indigo-500 dark:text-indigo-400" aria-label="Save">
         <Check size={14} />
       </button>
-      <button onClick={() => setEditing(false)} className="p-1 rounded hover:bg-slate-700 text-slate-500" aria-label="Cancel">
+      <button onClick={() => setEditing(false)} className="p-1 rounded hover:bg-[#d1c9b5] dark:hover:bg-slate-700 text-[#93a1a1] dark:text-slate-500" aria-label="Cancel">
         <X size={14} />
       </button>
     </div>
@@ -104,15 +104,15 @@ export default function ProjectDetail({
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
-      <div className="sticky top-0 bg-slate-950 border-b border-slate-800 px-4 py-3 flex items-center gap-3 z-10">
+      <div className="sticky top-0 bg-[#fdf6e3] dark:bg-slate-950 border-b border-[#ccc5af] dark:border-slate-800 px-4 py-3 flex items-center gap-3 z-10">
         <button
           onClick={onBack}
-          className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+          className="p-1.5 rounded-lg hover:bg-[#e0d8c4] dark:hover:bg-slate-800 text-[#586e75] dark:text-slate-400 hover:text-[#073642] dark:hover:text-white transition-colors"
           aria-label="Back"
         >
           <ArrowLeft size={18} />
         </button>
-        <span className="text-sm text-slate-500 font-medium">Project</span>
+        <span className="text-sm text-[#93a1a1] dark:text-slate-500 font-medium">Project</span>
       </div>
 
       <div className="p-6 flex flex-col gap-6 max-w-2xl mx-auto w-full">
@@ -121,13 +121,13 @@ export default function ProjectDetail({
           <InlineEdit
             value={project.name}
             onSave={onUpdateName}
-            className="text-xl font-semibold text-white"
+            className="text-xl font-semibold text-[#073642] dark:text-white"
             placeholder="Project name"
           />
           <InlineEdit
             value={project.description}
             onSave={onUpdateDescription}
-            className="text-sm text-slate-400"
+            className="text-sm text-[#586e75] dark:text-slate-400"
             placeholder="Add a description..."
             multiline
           />
@@ -135,9 +135,9 @@ export default function ProjectDetail({
 
         {/* AI Summary */}
         {project.summary && (
-          <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">AI Summary</p>
-            <p className="text-sm text-slate-300 leading-relaxed">{project.summary}</p>
+          <div className="bg-[#eee8d5] dark:bg-slate-900 border border-[#ccc5af] dark:border-slate-800 rounded-lg p-4">
+            <p className="text-xs font-medium text-[#93a1a1] dark:text-slate-500 uppercase tracking-wider mb-2">AI Summary</p>
+            <p className="text-sm text-[#073642] dark:text-slate-300 leading-relaxed">{project.summary}</p>
           </div>
         )}
 
@@ -152,7 +152,7 @@ export default function ProjectDetail({
         {/* Conversations */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-medium text-slate-300">
+            <p className="text-sm font-medium text-[#073642] dark:text-slate-300">
               Conversations ({project.conversations.length})
             </p>
             <button
@@ -165,19 +165,19 @@ export default function ProjectDetail({
           </div>
 
           {project.conversations.length === 0 ? (
-            <p className="text-sm text-slate-600 py-4 text-center">No conversations yet</p>
+            <p className="text-sm text-[#93a1a1] dark:text-slate-600 py-4 text-center">No conversations yet</p>
           ) : (
             <div className="flex flex-col gap-1">
               {(project.conversations as Conversation[]).map((conv) => (
                 <button
                   key={conv.id}
                   onClick={() => onSelectConversation(conv.id)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-800 text-left transition-colors"
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[#e0d8c4] dark:hover:bg-slate-800 text-left transition-colors"
                 >
-                  <MessageSquare size={14} className="shrink-0 text-slate-500" />
+                  <MessageSquare size={14} className="shrink-0 text-[#93a1a1] dark:text-slate-500" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-white truncate">{conv.title}</p>
-                    <p className="text-xs text-slate-500">{formatDate(conv.updated_at)}</p>
+                    <p className="text-sm text-[#073642] dark:text-white truncate">{conv.title}</p>
+                    <p className="text-xs text-[#93a1a1] dark:text-slate-500">{formatDate(conv.updated_at)}</p>
                   </div>
                 </button>
               ))}
@@ -186,22 +186,22 @@ export default function ProjectDetail({
         </div>
 
         {/* Danger zone */}
-        <div className="border border-red-900/30 rounded-lg p-4">
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Danger Zone</p>
-          <p className="text-xs text-slate-500 mb-3">
+        <div className="border border-red-200/70 dark:border-red-900/30 rounded-lg p-4">
+          <p className="text-xs font-medium text-[#93a1a1] dark:text-slate-500 uppercase tracking-wider mb-2">Danger Zone</p>
+          <p className="text-xs text-[#93a1a1] dark:text-slate-500 mb-3">
             Deleting this project removes the project and its context, but keeps all conversations (they become ungrouped).
           </p>
           {!confirmDelete ? (
             <button
               onClick={() => setConfirmDelete(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-400 border border-red-900/50 rounded-lg hover:bg-red-900/20 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-500 dark:text-red-400 border border-red-200 dark:border-red-900/50 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
             >
               <Trash2 size={12} />
               Delete project
             </button>
           ) : (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-red-400">Are you sure?</span>
+              <span className="text-xs text-red-500 dark:text-red-400">Are you sure?</span>
               <button
                 onClick={() => { onDelete(); setConfirmDelete(false); }}
                 className="px-3 py-1.5 text-xs bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
@@ -210,7 +210,7 @@ export default function ProjectDetail({
               </button>
               <button
                 onClick={() => setConfirmDelete(false)}
-                className="px-3 py-1.5 text-xs text-slate-400 hover:text-white transition-colors"
+                className="px-3 py-1.5 text-xs text-[#586e75] dark:text-slate-400 hover:text-[#073642] dark:hover:text-white transition-colors"
               >
                 Cancel
               </button>
