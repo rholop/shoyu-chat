@@ -79,38 +79,38 @@ interface TierConfig {
 
 const FALLBACK_MATRIX: Record<Intent, TierConfig[]> = {
   [Intent.WEB_SEARCH]: [
-    { provider: 'gemini', model: 'gemini-2.0-flash', label: 'Gemini: 2.0 Flash', useSearch: true, searchTool: { googleSearch: {} } },
-    { provider: 'gemini', model: 'gemini-1.5-pro', label: 'Gemini: 1.5 Pro', useSearch: true, searchTool: { googleSearchRetrieval: {} } },
+    { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini: 2.5 Flash', useSearch: true, searchTool: { google_search: {} }, vision: true },
+    { provider: 'gemini', model: 'gemini-2.5-pro', label: 'Gemini: 2.5 Pro', useSearch: true, searchTool: { google_search: {} }, vision: true },
     { provider: 'openrouter', model: 'perplexity/sonar-pro', label: 'OR: Perplexity Sonar Pro' },
   ],
   [Intent.CODING]: [
     { provider: 'nvidia', model: 'meta/llama-3.1-405b-instruct', label: 'NVIDIA: Llama 3.1 405B' },
     { provider: 'groq-chat', model: 'llama-3.3-70b-versatile', label: 'Groq: Llama 3.3 70B' },
-    { provider: 'gemini', model: 'gemini-1.5-pro', label: 'Gemini: 1.5 Pro' },
+    { provider: 'gemini', model: 'gemini-2.5-pro', label: 'Gemini: 2.5 Pro' },
   ],
   [Intent.DEBUGGING]: [
     { provider: 'groq-chat', model: 'llama-3.3-70b-versatile', label: 'Groq: Llama 3.3 70B', trimContext: true },
-    { provider: 'gemini', model: 'gemini-2.0-flash', label: 'Gemini: 2.0 Flash' },
+    { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini: 2.5 Flash' },
     { provider: 'openrouter', model: 'qwen/qwen-2.5-72b-instruct', label: 'OR: Qwen 2.5 72B' },
   ],
   [Intent.TRANSLATING]: [
     { provider: 'openrouter', model: 'mistralai/mistral-large', label: 'OR: Mistral Large' },
-    { provider: 'gemini', model: 'gemini-1.5-pro', label: 'Gemini: 1.5 Pro' },
+    { provider: 'gemini', model: 'gemini-2.5-pro', label: 'Gemini: 2.5 Pro' },
     { provider: 'groq-chat', model: 'llama-3.3-70b-versatile', label: 'Groq: Llama 3.3 70B' },
   ],
   [Intent.DRAFTING]: [
     { provider: 'groq-chat', model: 'llama-3.3-70b-versatile', label: 'Groq: Llama 3.3 70B', trimContext: true },
-    { provider: 'gemini', model: 'gemini-2.0-flash', label: 'Gemini: 2.0 Flash' },
+    { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini: 2.5 Flash' },
     { provider: 'nvidia', model: 'meta/llama-3.1-70b-instruct', label: 'NVIDIA: Llama 3.1 70B' },
   ],
   [Intent.SUMMARIZING]: [
-    { provider: 'gemini', model: 'gemini-2.0-flash', label: 'Gemini: 2.0 Flash' },
+    { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini: 2.5 Flash' },
     { provider: 'groq-chat', model: 'llama-3.3-70b-versatile', label: 'Groq: Llama 3.3 70B' },
     { provider: 'openrouter', model: 'mistralai/mistral-small', label: 'OR: Mistral Small' },
   ],
   [Intent.IMAGE_ANALYSIS]: [
-    { provider: 'gemini', model: 'gemini-2.0-flash', label: 'Gemini: 2.0 Flash', vision: true },
-    { provider: 'gemini', model: 'gemini-1.5-pro', label: 'Gemini: 1.5 Pro', vision: true },
+    { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini: 2.5 Flash', vision: true },
+    { provider: 'gemini', model: 'gemini-2.5-pro', label: 'Gemini: 2.5 Pro', vision: true },
     { provider: 'openrouter', model: 'openai/gpt-4o-mini', label: 'OR: GPT-4o-mini', vision: true },
   ],
 };
@@ -205,13 +205,16 @@ export async function* streamChat(
       logger.warn(`Tier ${i+1} (${tier.label}) returned no tokens`);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      if (i < tiers.length - 1) {
+      const isLastTier = i === tiers.length - 1;
+
+      if (!isLastTier) {
         const logFn = isRetryable(err) ? logger.warn : logger.error;
         logFn(`Tier ${i+1} (${tier.label}) failed, trying next tier: ${errMsg}`);
         continue;
       }
-      logger.error(`All tiers exhausted. Last error from ${tier.label}: ${errMsg}`);
-      break;
+
+      logger.error(`All tiers exhausted for intent ${intent}. Last error from ${tier.label}: ${errMsg}`);
+      throw err; // Re-throw the last error so the route handler can provide details if needed
     }
   }
 
@@ -227,7 +230,7 @@ export async function summarize(prompt: string): Promise<string> {
     model: string;
   }> = [
     { provider: 'nvidia', model: 'meta/llama-3.1-405b-instruct' },
-    { provider: 'gemini', model: 'gemini-2.0-flash' },
+    { provider: 'gemini', model: 'gemini-2.5-flash' },
     { provider: 'groq-chat', model: 'llama-3.3-70b-versatile' },
     { provider: 'openrouter', model: 'mistralai/mistral-small' },
   ];
