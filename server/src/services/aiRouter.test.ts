@@ -197,11 +197,11 @@ describe('aiRouter v4.0', () => {
 
         const { tokens, model } = await collectRouter(streamChat(messages, Intent.WEB_SEARCH));
         expect(tokens).toEqual(['Tier 3 response']);
-        expect(model).toBe('OR: Llama 3.1 70B (Fallback)');
+        expect(model).toBe('OR: Perplexity Sonar Large (Fallback)');
 
         expect(streamChatGeminiWithSearch).toHaveBeenNthCalledWith(1, expect.anything(), 'gemini-2.0-flash');
         expect(streamChatGeminiWithSearch).toHaveBeenNthCalledWith(2, expect.anything(), 'gemini-1.5-pro');
-        expect(streamChatOpenRouter).toHaveBeenCalledWith(expect.anything(), 'meta-llama/llama-3.1-70b-instruct');
+        expect(streamChatOpenRouter).toHaveBeenCalledWith(expect.anything(), 'perplexity/llama-3.1-sonar-large-128k-online');
     });
 
     it('CODING falls back from NVIDIA to Groq', async () => {
@@ -233,6 +233,38 @@ describe('aiRouter v4.0', () => {
         expect(tokens).toEqual(['Qwen fixed it']);
         expect(model).toBe('OR: Qwen 2.5 72B (Fallback)');
         expect(streamChatOpenRouter).toHaveBeenCalledWith(expect.anything(), 'qwen/qwen-2.5-72b-instruct');
+    });
+
+    it('falls back past a non-retryable error (e.g. 400) to the next tier', async () => {
+        vi.mocked(isNvidiaAvailable).mockReturnValue(true);
+        vi.mocked(isGroqAvailable).mockReturnValue(true);
+
+        vi.mocked(streamChatNvidia).mockImplementationOnce(async function* () {
+          throw Object.assign(new Error('Bad Request'), { status: 400 });
+        });
+        vi.mocked(streamChatGroqChat).mockImplementationOnce(async function* () {
+          yield 'Groq fallback response';
+        });
+
+        const { tokens, model } = await collectRouter(streamChat(messages, Intent.CODING));
+        expect(tokens).toEqual(['Groq fallback response']);
+        expect(model).toBe('Groq: Llama 3.3 70B (Fallback)');
+        expect(streamChatNvidia).toHaveBeenCalledTimes(1);
+        expect(streamChatGroqChat).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws QUOTA_EXCEEDED when all tiers fail with non-retryable errors', async () => {
+        vi.mocked(isNvidiaAvailable).mockReturnValue(true);
+        vi.mocked(isGroqAvailable).mockReturnValue(true);
+        vi.mocked(isGeminiAvailable).mockReturnValue(true);
+
+        vi.mocked(streamChatNvidia).mockImplementationOnce(async function* () { throw Object.assign(new Error('400'), { status: 400 }); });
+        vi.mocked(streamChatGroqChat).mockImplementationOnce(async function* () { throw Object.assign(new Error('400'), { status: 400 }); });
+        vi.mocked(streamChatGemini).mockImplementationOnce(async function* () { throw Object.assign(new Error('400'), { status: 400 }); });
+
+        await expect(async () => {
+          for await (const _ of streamChat(messages, Intent.CODING)) {}
+        }).rejects.toThrow('QUOTA_EXCEEDED');
     });
   });
 
