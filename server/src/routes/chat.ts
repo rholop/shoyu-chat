@@ -6,27 +6,36 @@ import {
   appendMessage,
   updateConversationTitle,
 } from '../storage';
-import { streamChat } from '../services/aiRouter';
+import { streamChat, Intent } from '../services/aiRouter';
 import { schedule as scheduleSummary } from '../services/summaryService';
 import { logger } from '../utils/logger';
 
 const router = Router();
 
+const intentValues = [
+  'WEB_SEARCH',
+  'CODING',
+  'DEBUGGING',
+  'TRANSLATING',
+  'DRAFTING',
+  'VISUALS',
+  'DEFAULT',
+] as const;
+
 const sendSchema = z.object({
   conversationId: z.string().uuid(),
   content: z.string().min(1).max(32000),
+  intent: z.enum(intentValues).optional(),
 });
 
 router.post('/send', async (req, res) => {
-  console.log('--- NEW CHAT REQUEST ---');
-  console.log('Body:', JSON.stringify(req.body));
   const parsed = sendSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Invalid request' });
     return;
   }
 
-  const { conversationId, content } = parsed.data;
+  const { conversationId, content, intent = 'DEFAULT' } = parsed.data;
   const meta = getConversationMeta(conversationId);
   if (!meta) {
     res.status(404).json({ error: 'Conversation not found' });
@@ -59,11 +68,17 @@ router.post('/send', async (req, res) => {
   const now = new Date().toISOString();
 
   // Load history for AI context (last 20 messages)
+  // Internal messages are mapped to user-role with a label so all providers understand them
   let history: { role: 'user' | 'assistant'; content: string }[] = [];
   try {
     history = getMessages(conversationId)
       .slice(-20)
-      .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+      .map((m) => {
+        if (m.role === 'internal') {
+          return { role: 'user' as const, content: `[Search Context]\n${m.content}` };
+        }
+        return { role: m.role as 'user' | 'assistant', content: m.content };
+      });
   } catch (err) {
     logger.error('Failed to load message history:', err);
     send({ type: 'error', message: 'Failed to load conversation history.' });
@@ -71,33 +86,39 @@ router.post('/send', async (req, res) => {
     return;
   }
 
-  // Add current user message to context
   const context = [...history, { role: 'user' as const, content }];
 
   let fullContent = '';
   let modelUsed = '';
   let aborted = false;
+  const internalMessages: string[] = [];
 
-  // Listen on the response close (not request close) so we only abort when the
-  // client actually drops the response connection, not when the request body is
-  // consumed (which supertest/HTTP can signal right after sending the POST body).
   res.on('close', () => { aborted = true; });
 
   try {
-    // Await the streamChat call so that if it returns a rejected Promise
-    // (e.g. in tests via mockRejectedValue) the rejection is caught here
-    // rather than triggering a TypeError from for-await on a non-iterable.
-    const stream = await Promise.resolve(streamChat(context));
-    for await (const { token, model } of stream as AsyncGenerator<{ token: string; model: string }>) {
-      fullContent += token;
-      modelUsed = model;
-      send({ type: 'token', content: token });
+    const stream = await Promise.resolve(streamChat(context, intent as Intent));
+    for await (const result of stream) {
+      if (result.type === 'token') {
+        fullContent += result.token;
+        modelUsed = result.model;
+        send({ type: 'token', content: result.token });
+      } else if (result.type === 'internal') {
+        internalMessages.push(result.content);
+      }
       if (aborted) break;
     }
 
     if (fullContent && !aborted) {
-      // Persist both messages
       try {
+        // Persist any internal (search grounding) messages first
+        for (const internalContent of internalMessages) {
+          appendMessage(conversationId, {
+            role: 'internal',
+            content: internalContent,
+            model: modelUsed,
+            created_at: now,
+          });
+        }
         appendMessage(conversationId, { role: 'user', content, created_at: now });
         appendMessage(conversationId, {
           role: 'assistant',

@@ -165,7 +165,7 @@ export function deleteConversation(id: string): boolean {
 // ── Messages ──────────────────────────────────────────────────────────────────
 
 export interface StoredMessage {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'internal';
   content: string;
   model?: string;
   created_at: string;

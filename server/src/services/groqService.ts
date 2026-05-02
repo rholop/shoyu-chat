@@ -7,33 +7,27 @@ const client = new OpenAI({
 });
 
 export interface ChatMessage {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
 }
 
-export async function* streamChatGroq(messages: ChatMessage[]): AsyncGenerator<string> {
-  console.log("DEBUG: Sending to Groq:", JSON.stringify(messages)); // See exactly what is sent
-
+export async function* streamChatGroq(
+  messages: ChatMessage[],
+  model: string = 'llama-3.1-8b-instant'
+): AsyncGenerator<string> {
   try {
     const stream = await client.chat.completions.create({
-      model: 'llama-3.1-8b-instant',
-      // CLEAN THE MESSAGES HERE:
-      messages: messages.map(m => ({
-        role: m.role,
-        content: m.content
-      })),
+      model,
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
       stream: true,
     });
 
     for await (const chunk of stream) {
       const text = chunk.choices[0]?.delta?.content;
-      if (text) {
-        console.log("DEBUG: Token received:", text); // Check if tokens come back
-        yield text;
-      }
+      if (text) yield text;
     }
   } catch (error) {
-    console.error("GROQ SDK ERROR:", error); // This is where the real truth lies
+    logger.error('Groq stream error:', error);
     throw error;
   }
 }

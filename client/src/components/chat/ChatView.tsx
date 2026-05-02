@@ -15,8 +15,10 @@ export default function ChatView({ conversationId }: Props) {
   const { messages: storeMessages, streamingContent, isStreaming, streamError } = useChatStore();
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Use store messages if we have them (includes optimistic), else query messages
-  const displayMessages = storeMessages.length > 0 ? storeMessages : storedMessages;
+  // Use store messages if we have them (includes optimistic), else query messages.
+  // Filter out internal messages (search grounding context) — user never sees those.
+  const rawMessages = storeMessages.length > 0 ? storeMessages : storedMessages;
+  const displayMessages = rawMessages.filter((m) => m.role !== 'internal');
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
