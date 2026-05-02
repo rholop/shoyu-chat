@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 import { logger } from '../utils/logger';
 
 const client = new OpenAI({
-  apiKey: process.env.GROQ_API_KEY!,
+  apiKey: process.env.GROQ_API_KEY || 'dummy',
   baseURL: 'https://api.groq.com/openai/v1',
 });
 
@@ -41,52 +41,36 @@ export async function* streamChatGroqCompound(messages: ChatMessage[]): AsyncGen
   }
 }
 
-export async function* streamChatGroqChat(messages: ChatMessage[]): AsyncGenerator<string> {
+export async function* streamChatGroqChat(
+  messages: ChatMessage[],
+  modelName: string = CHAT_MODEL
+): AsyncGenerator<string> {
   const cleanedMessages = messages.map((m) => ({ role: m.role, content: m.content }));
 
-  for (const model of [CHAT_MODEL, CHAT_FALLBACK_MODEL]) {
-    try {
-      const stream = await client.chat.completions.create({
-        model,
-        messages: cleanedMessages,
-        stream: true,
-      });
+  const stream = await client.chat.completions.create({
+    model: modelName,
+    messages: cleanedMessages,
+    stream: true,
+  });
 
-      for await (const chunk of stream) {
-        const text = chunk.choices[0]?.delta?.content;
-        if (text) yield text;
-      }
-      return;
-    } catch (error) {
-      if (model === CHAT_MODEL && isRateLimitError(error)) {
-        logger.warn(`Groq rate limit on ${CHAT_MODEL}, falling back to ${CHAT_FALLBACK_MODEL}`);
-        continue;
-      }
-      throw error;
-    }
+  for await (const chunk of stream) {
+    const text = chunk.choices[0]?.delta?.content;
+    if (text) yield text;
   }
 }
 
-export async function summarizeGroq(prompt: string): Promise<string> {
+export async function summarizeGroq(
+  prompt: string,
+  modelName: string = CHAT_MODEL
+): Promise<string> {
   const messages = [{ role: 'user' as const, content: prompt }];
 
-  for (const model of [CHAT_MODEL, CHAT_FALLBACK_MODEL]) {
-    try {
-      const response = await client.chat.completions.create({
-        model,
-        messages,
-        stream: false,
-      });
-      return response.choices[0]?.message?.content ?? '';
-    } catch (error) {
-      if (model === CHAT_MODEL && isRateLimitError(error)) {
-        logger.warn(`Groq rate limit on ${CHAT_MODEL}, falling back to ${CHAT_FALLBACK_MODEL}`);
-        continue;
-      }
-      throw error;
-    }
-  }
-  return '';
+  const response = await client.chat.completions.create({
+    model: modelName,
+    messages,
+    stream: false,
+  });
+  return response.choices[0]?.message?.content ?? '';
 }
 
 export function isGroqAvailable(): boolean {

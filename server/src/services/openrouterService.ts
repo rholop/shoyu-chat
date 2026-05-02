@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 import { ChatMessage } from './groqService';
 
 const client = new OpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY!,
+  apiKey: process.env.OPENROUTER_API_KEY || 'dummy',
   baseURL: 'https://openrouter.ai/api/v1',
   defaultHeaders: {
     'HTTP-Referer': 'https://holop.dev',
@@ -26,22 +26,12 @@ export async function* streamChatOpenRouter(
   }
 }
 
-export async function* streamChatOpenRouterTranslating(messages: ChatMessage[]): AsyncGenerator<string> {
-  const stream = await client.chat.completions.create({
-    model: 'mistralai/mistral-large',
-    messages,
-    stream: true,
-  });
-
-  for await (const chunk of stream) {
-    const text = chunk.choices[0]?.delta?.content;
-    if (text) yield text;
-  }
-}
-
-export async function summarizeOpenRouter(prompt: string): Promise<string> {
+export async function summarizeOpenRouter(
+  prompt: string,
+  model: string = 'meta-llama/llama-3.1-8b-instruct:free'
+): Promise<string> {
   const response = await client.chat.completions.create({
-    model: 'meta-llama/llama-3.1-8b-instruct:free',
+    model,
     messages: [{ role: 'user', content: prompt }],
     stream: false,
   });

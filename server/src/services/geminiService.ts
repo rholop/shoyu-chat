@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { ChatMessage } from './groqService';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'dummy');
 
 export function isGeminiAvailable(): boolean {
   return Boolean(process.env.GEMINI_API_KEY);
@@ -67,10 +67,13 @@ function prepareHistory(messages: ChatMessage[]) {
   return { history, lastMsg };
 }
 
-export async function* streamChatGemini(messages: ChatMessage[]): AsyncGenerator<string> {
+export async function* streamChatGemini(
+  messages: ChatMessage[],
+  modelName: string = 'gemini-2.0-flash'
+): AsyncGenerator<string> {
   const systemInstruction = extractSystemInstruction(messages);
   const model = genAI.getGenerativeModel({
-    model: 'gemini-2.0-flash',
+    model: modelName,
     ...(systemInstruction ? { systemInstruction } : {}),
   });
   const { history, lastMsg } = prepareHistory(messages);
@@ -85,10 +88,11 @@ export async function* streamChatGemini(messages: ChatMessage[]): AsyncGenerator
 
 export async function* streamChatGeminiWithSearch(
   messages: ChatMessage[],
+  modelName: string = 'gemini-2.0-flash'
 ): AsyncGenerator<string | GroundingChunk> {
   const systemInstruction = extractSystemInstruction(messages);
   const model = genAI.getGenerativeModel({
-    model: 'gemini-2.0-flash',
+    model: modelName,
     ...(systemInstruction ? { systemInstruction } : {}),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     tools: [{ googleSearch: {} }] as any,
@@ -117,8 +121,11 @@ export async function* streamChatGeminiWithSearch(
   }
 }
 
-export async function summarizeGemini(prompt: string): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+export async function summarizeGemini(
+  prompt: string,
+  modelName: string = 'gemini-2.0-flash'
+): Promise<string> {
+  const model = genAI.getGenerativeModel({ model: modelName });
   const result = await model.generateContent(prompt);
   return result.response.text();
 }
