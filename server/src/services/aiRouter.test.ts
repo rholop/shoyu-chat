@@ -253,7 +253,7 @@ describe('aiRouter v4.0', () => {
         expect(streamChatGroqChat).toHaveBeenCalledTimes(1);
     });
 
-    it('throws QUOTA_EXCEEDED when all tiers fail with non-retryable errors', async () => {
+    it('throws ALL_PROVIDERS_FAILED when all tiers fail with non-retryable errors', async () => {
         vi.mocked(isNvidiaAvailable).mockReturnValue(true);
         vi.mocked(isGroqAvailable).mockReturnValue(true);
         vi.mocked(isGeminiAvailable).mockReturnValue(true);
@@ -264,7 +264,7 @@ describe('aiRouter v4.0', () => {
 
         await expect(async () => {
           for await (const _ of streamChat(messages, Intent.CODING)) {}
-        }).rejects.toThrow('QUOTA_EXCEEDED');
+        }).rejects.toThrow('ALL_PROVIDERS_FAILED');
     });
   });
 

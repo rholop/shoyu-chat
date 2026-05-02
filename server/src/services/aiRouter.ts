@@ -148,6 +148,8 @@ export async function* streamChat(
 
   const tiers = FALLBACK_MATRIX[intent] || FALLBACK_MATRIX[Intent.CODING];
 
+  let anyTierAttempted = false;
+
   for (let i = 0; i < tiers.length; i++) {
     const tier = tiers[i];
     const isFallback = i > 0;
@@ -168,6 +170,7 @@ export async function* streamChat(
       continue;
     }
 
+    anyTierAttempted = true;
     const msgs = tier.trimContext ? trimForGroq(contextualMessages) : contextualMessages;
 
     try {
@@ -211,7 +214,7 @@ export async function* streamChat(
     }
   }
 
-  throw new Error('QUOTA_EXCEEDED');
+  throw new Error(anyTierAttempted ? 'ALL_PROVIDERS_FAILED' : 'QUOTA_EXCEEDED');
 }
 
 export async function summarize(prompt: string): Promise<string> {
