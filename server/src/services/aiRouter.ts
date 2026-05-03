@@ -77,6 +77,8 @@ interface TierConfig {
   vision?: boolean;
 }
 
+// Per-intent ordered fallback tiers (T1→T2→T3).
+// The first available tier that succeeds is used; subsequent tiers show "(Fallback)" in label.
 const FALLBACK_MATRIX: Record<Intent, TierConfig[]> = {
   [Intent.WEB_SEARCH]: [
     { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini: 2.5 Flash', useSearch: true, searchTool: { google_search: {} }, vision: true },
@@ -129,12 +131,12 @@ function trimForGroq(messages: ChatMessage[]): ChatMessage[] {
   return [...system, ...trimmed];
 }
 
-function isRetryable(error: any): boolean {
-  const status = error?.status || error?.response?.status;
-  if (status === 429 || status >= 500) return true;
-  const msg = error?.message?.toLowerCase() || '';
-  if (msg.includes('timeout') || msg.includes('rate limit') || msg.includes('deadline')) return true;
-  return false;
+function isRetryable(error: unknown): boolean {
+  const status = (error as { status?: number; response?: { status?: number } })?.status
+    || (error as { response?: { status?: number } })?.response?.status;
+  if (status === 429 || (status !== undefined && status >= 500)) return true;
+  const msg = (error as { message?: string })?.message?.toLowerCase() ?? '';
+  return msg.includes('timeout') || msg.includes('rate limit') || msg.includes('deadline');
 }
 
 export async function* streamChat(
@@ -162,12 +164,12 @@ export async function* streamChat(
 
     const usage = getUsageCount(tier.provider, today);
     if (usage >= PROVIDER_LIMITS[tier.provider]) {
-      logger.warn(`Tier ${i+1} (${tier.provider}) at daily limit`);
+      logger.warn(`Tier ${i + 1} (${tier.provider}) at daily limit`);
       continue;
     }
 
     if (!isProviderKeyAvailable(tier.provider)) {
-      logger.warn(`Tier ${i+1} (${tier.provider}) API key missing`);
+      logger.warn(`Tier ${i + 1} (${tier.provider}) API key missing`);
       continue;
     }
 
@@ -202,19 +204,19 @@ export async function* streamChat(
         }
       }
       if (hasOutput) return;
-      logger.warn(`Tier ${i+1} (${tier.label}) returned no tokens`);
+      logger.warn(`Tier ${i + 1} (${tier.label}) returned no tokens`);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       const isLastTier = i === tiers.length - 1;
 
       if (!isLastTier) {
         const logFn = isRetryable(err) ? logger.warn : logger.error;
-        logFn(`Tier ${i+1} (${tier.label}) failed, trying next tier: ${errMsg}`);
+        logFn(`Tier ${i + 1} (${tier.label}) failed, trying next tier: ${errMsg}`);
         continue;
       }
 
       logger.error(`All tiers exhausted for intent ${intent}. Last error from ${tier.label}: ${errMsg}`);
-      throw err; // Re-throw the last error so the route handler can provide details if needed
+      throw err;
     }
   }
 
@@ -224,7 +226,6 @@ export async function* streamChat(
 export async function summarize(prompt: string): Promise<string> {
   const today = getToday();
 
-  // Use a sensible default sequence for summarization fallbacks
   const providers: Array<{
     provider: 'nvidia' | 'gemini' | 'groq-chat' | 'openrouter';
     model: string;
@@ -241,10 +242,12 @@ export async function summarize(prompt: string): Promise<string> {
     if (!isProviderKeyAvailable(p.provider)) continue;
 
     try {
-      const result = await (p.provider === 'nvidia' ? summarizeNvidia(prompt, p.model) :
-                           p.provider === 'gemini' ? summarizeGemini(prompt, p.model) :
-                           p.provider === 'groq-chat' ? summarizeGroq(prompt, p.model) :
-                           summarizeOpenRouter(prompt, p.model));
+      const result = await (
+        p.provider === 'nvidia' ? summarizeNvidia(prompt, p.model) :
+        p.provider === 'gemini' ? summarizeGemini(prompt, p.model) :
+        p.provider === 'groq-chat' ? summarizeGroq(prompt, p.model) :
+        summarizeOpenRouter(prompt, p.model)
+      );
 
       if (result) {
         incrementUsage(p.provider, today);

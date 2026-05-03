@@ -382,3 +382,181 @@ describe('aiRouter v4.0', () => {
     });
   });
 });
+
+// ── Per-intent fallback chains (v4) ──────────────────────────────────────────
+// Tests covering T2/T3 fallback paths not exercised by the matrix tests above.
+
+describe('streamChat – Per-intent fallback chains (v4)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getUsageCount).mockReturnValue(0);
+    vi.mocked(incrementUsage).mockReturnValue(undefined as unknown as void);
+    vi.mocked(readMemory).mockReturnValue(null);
+    setAllUnavailable();
+
+    const emptyGen = async function* () {};
+    vi.mocked(streamChatGemini).mockImplementation(emptyGen);
+    vi.mocked(streamChatGeminiWithSearch).mockImplementation(emptyGen);
+    vi.mocked(streamChatNvidia).mockImplementation(emptyGen);
+    vi.mocked(streamChatGroqChat).mockImplementation(emptyGen);
+    vi.mocked(streamChatOpenRouter).mockImplementation(emptyGen);
+  });
+
+  const messages: ChatMessage[] = [{ role: 'user', content: 'hello' }];
+
+  // ── CODING: nvidia(T1) → groq-chat(T2) → gemini-pro(T3) ─────────────────
+
+  it('CODING T3: falls back to gemini-pro when nvidia and groq both fail', async () => {
+    vi.mocked(isNvidiaAvailable).mockReturnValue(true);
+    vi.mocked(isGroqAvailable).mockReturnValue(true);
+    vi.mocked(isGeminiAvailable).mockReturnValue(true);
+    vi.mocked(streamChatNvidia).mockImplementationOnce(async function* () {
+      throw Object.assign(new Error('nvidia down'), { status: 429 });
+    });
+    vi.mocked(streamChatGroqChat).mockImplementationOnce(async function* () {
+      throw Object.assign(new Error('groq down'), { status: 503 });
+    });
+    vi.mocked(streamChatGemini).mockImplementationOnce(async function* () {
+      yield 'gemini T3 code';
+    });
+
+    const { model } = await collectRouter(streamChat(messages, Intent.CODING));
+
+    expect(model).toBe('Gemini: 2.5 Pro (Fallback)');
+    expect(incrementUsage).toHaveBeenCalledWith('gemini', '2026-04-25');
+    expect(streamChatGemini).toHaveBeenCalledWith(expect.anything(), 'gemini-2.5-pro');
+  });
+
+  // ── DRAFTING: groq-chat(T1) → gemini-flash(T2) → nvidia-70b(T3) ─────────
+
+  it('DRAFTING T2: falls back to gemini-flash when groq fails', async () => {
+    vi.mocked(isGroqAvailable).mockReturnValue(true);
+    vi.mocked(isGeminiAvailable).mockReturnValue(true);
+    vi.mocked(streamChatGroqChat).mockImplementationOnce(async function* () {
+      throw Object.assign(new Error('groq down'), { status: 429 });
+    });
+    vi.mocked(streamChatGemini).mockImplementationOnce(async function* () {
+      yield 'gemini draft';
+    });
+
+    const { model } = await collectRouter(streamChat(messages, Intent.DRAFTING));
+
+    expect(model).toBe('Gemini: 2.5 Flash (Fallback)');
+    expect(streamChatGemini).toHaveBeenCalledWith(expect.anything(), 'gemini-2.5-flash');
+  });
+
+  it('DRAFTING T3: falls back to nvidia-70b when groq and gemini both fail', async () => {
+    vi.mocked(isGroqAvailable).mockReturnValue(true);
+    vi.mocked(isGeminiAvailable).mockReturnValue(true);
+    vi.mocked(isNvidiaAvailable).mockReturnValue(true);
+    vi.mocked(streamChatGroqChat).mockImplementationOnce(async function* () {
+      throw Object.assign(new Error('groq down'), { status: 429 });
+    });
+    vi.mocked(streamChatGemini).mockImplementationOnce(async function* () {
+      throw Object.assign(new Error('gemini down'), { status: 503 });
+    });
+    vi.mocked(streamChatNvidia).mockImplementationOnce(async function* () {
+      yield 'nvidia draft fallback';
+    });
+
+    const { model } = await collectRouter(streamChat(messages, Intent.DRAFTING));
+
+    expect(model).toBe('NVIDIA: Llama 3.1 70B (Fallback)');
+    expect(streamChatNvidia).toHaveBeenCalledWith(expect.anything(), 'meta/llama-3.1-70b-instruct');
+  });
+
+  // ── SUMMARIZING: gemini-flash(T1) → groq-chat(T2) → openrouter-mistral-small(T3) ──
+
+  it('SUMMARIZING T2: falls back to groq when gemini fails', async () => {
+    vi.mocked(isGeminiAvailable).mockReturnValue(true);
+    vi.mocked(isGroqAvailable).mockReturnValue(true);
+    vi.mocked(streamChatGemini).mockImplementationOnce(async function* () {
+      throw Object.assign(new Error('gemini down'), { status: 429 });
+    });
+    vi.mocked(streamChatGroqChat).mockImplementationOnce(async function* () {
+      yield 'groq summary';
+    });
+
+    const { model } = await collectRouter(streamChat(messages, Intent.SUMMARIZING));
+
+    expect(model).toBe('Groq: Llama 3.3 70B (Fallback)');
+    expect(streamChatGroqChat).toHaveBeenCalledWith(expect.anything(), 'llama-3.3-70b-versatile');
+  });
+
+  it('SUMMARIZING T3: falls back to OR mistral-small when gemini and groq both fail', async () => {
+    vi.mocked(isGeminiAvailable).mockReturnValue(true);
+    vi.mocked(isGroqAvailable).mockReturnValue(true);
+    vi.mocked(isOpenRouterAvailable).mockReturnValue(true);
+    vi.mocked(streamChatGemini).mockImplementationOnce(async function* () {
+      throw Object.assign(new Error('fail'), { status: 429 });
+    });
+    vi.mocked(streamChatGroqChat).mockImplementationOnce(async function* () {
+      throw Object.assign(new Error('fail'), { status: 503 });
+    });
+    vi.mocked(streamChatOpenRouter).mockImplementationOnce(async function* () {
+      yield 'mistral small summary';
+    });
+
+    const { model } = await collectRouter(streamChat(messages, Intent.SUMMARIZING));
+
+    expect(model).toBe('OR: Mistral Small (Fallback)');
+    expect(streamChatOpenRouter).toHaveBeenCalledWith(expect.anything(), 'mistralai/mistral-small-2409');
+  });
+
+  // ── TRANSLATING: openrouter-mistral-large(T1) → gemini-pro(T2) → groq-chat(T3) ──
+
+  it('TRANSLATING T2: falls back to gemini-pro when openrouter fails', async () => {
+    vi.mocked(isOpenRouterAvailable).mockReturnValue(true);
+    vi.mocked(isGeminiAvailable).mockReturnValue(true);
+    vi.mocked(streamChatOpenRouter).mockImplementationOnce(async function* () {
+      throw Object.assign(new Error('openrouter down'), { status: 429 });
+    });
+    vi.mocked(streamChatGemini).mockImplementationOnce(async function* () {
+      yield 'gemini translation';
+    });
+
+    const { model } = await collectRouter(streamChat(messages, Intent.TRANSLATING));
+
+    expect(model).toBe('Gemini: 2.5 Pro (Fallback)');
+    expect(streamChatGemini).toHaveBeenCalledWith(expect.anything(), 'gemini-2.5-pro');
+  });
+
+  it('TRANSLATING T3: falls back to groq when openrouter and gemini both fail', async () => {
+    vi.mocked(isOpenRouterAvailable).mockReturnValue(true);
+    vi.mocked(isGeminiAvailable).mockReturnValue(true);
+    vi.mocked(isGroqAvailable).mockReturnValue(true);
+    vi.mocked(streamChatOpenRouter).mockImplementationOnce(async function* () {
+      throw Object.assign(new Error('fail'), { status: 429 });
+    });
+    vi.mocked(streamChatGemini).mockImplementationOnce(async function* () {
+      throw Object.assign(new Error('fail'), { status: 503 });
+    });
+    vi.mocked(streamChatGroqChat).mockImplementationOnce(async function* () {
+      yield 'groq translation';
+    });
+
+    const { model } = await collectRouter(streamChat(messages, Intent.TRANSLATING));
+
+    expect(model).toBe('Groq: Llama 3.3 70B (Fallback)');
+    expect(streamChatGroqChat).toHaveBeenCalledWith(expect.anything(), 'llama-3.3-70b-versatile');
+  });
+
+  // ── Usage invariant ───────────────────────────────────────────────────────
+
+  it('usage is incremented only for the tier that succeeds, not for failed tiers', async () => {
+    vi.mocked(isNvidiaAvailable).mockReturnValue(true);
+    vi.mocked(isGroqAvailable).mockReturnValue(true);
+    vi.mocked(streamChatNvidia).mockImplementationOnce(async function* () {
+      throw Object.assign(new Error('nvidia fail'), { status: 429 });
+    });
+    vi.mocked(streamChatGroqChat).mockImplementationOnce(async function* () {
+      yield 'groq success';
+    });
+
+    await collectRouter(streamChat(messages, Intent.CODING));
+
+    expect(incrementUsage).not.toHaveBeenCalledWith('nvidia', expect.any(String));
+    expect(incrementUsage).toHaveBeenCalledWith('groq-chat', '2026-04-25');
+    expect(incrementUsage).toHaveBeenCalledTimes(1);
+  });
+});
