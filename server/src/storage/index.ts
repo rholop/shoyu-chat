@@ -68,6 +68,14 @@ export function incrementUsage(provider: string, date: string) {
   atomicWrite(path.join(dataDir(), 'usage.json'), JSON.stringify(usage, null, 2));
 }
 
+export function setUsageCount(provider: string, date: string, count: number) {
+  const usage = readUsageRaw();
+  if (!usage[provider]) usage[provider] = {};
+  usage[provider][date] = count;
+  fs.mkdirSync(dataDir(), { recursive: true });
+  atomicWrite(path.join(dataDir(), 'usage.json'), JSON.stringify(usage, null, 2));
+}
+
 // ── Projects ──────────────────────────────────────────────────────────────────
 
 export interface ProjectMeta {
