@@ -58,7 +58,7 @@ describe('useChat', () => {
     vi.mocked(getConversation).mockResolvedValue({ ...convData, messages: [] });
     async function* fakeStream() {
       yield { type: 'token' as const, content: 'Hello' };
-      yield { type: 'done' as const, model: 'groq-chat', conversationId: 'conv-1' };
+      yield { type: 'done' as const, model: 'groq-chat', conversationId: 'conv-1', intent: Intent.CODING };
     }
     vi.mocked(sendMessage).mockReturnValue(fakeStream());
 
@@ -92,7 +92,7 @@ describe('useChat', () => {
   it('auto-detects intent from message content (summarize → SUMMARIZING)', async () => {
     vi.mocked(getConversation).mockResolvedValue({ ...convData, messages: [] });
     async function* fakeStream() {
-      yield { type: 'done' as const, model: 'gemini', conversationId: 'conv-1' };
+      yield { type: 'done' as const, model: 'gemini', conversationId: 'conv-1', intent: Intent.SUMMARIZING };
     }
     vi.mocked(sendMessage).mockReturnValue(fakeStream());
 
@@ -109,7 +109,7 @@ describe('useChat', () => {
   it('respects manual intent lock when intentLocked=true', async () => {
     vi.mocked(getConversation).mockResolvedValue({ ...convData, messages: [] });
     async function* fakeStream() {
-      yield { type: 'done' as const, model: 'groq-chat', conversationId: 'conv-1' };
+      yield { type: 'done' as const, model: 'groq-chat', conversationId: 'conv-1', intent: Intent.DEBUGGING };
     }
     vi.mocked(sendMessage).mockReturnValue(fakeStream());
 
@@ -131,7 +131,7 @@ describe('useChat', () => {
   it('unlocks intent after send completes', async () => {
     vi.mocked(getConversation).mockResolvedValue({ ...convData, messages: [] });
     async function* fakeStream() {
-      yield { type: 'done' as const, model: 'gemini', conversationId: 'conv-1' };
+      yield { type: 'done' as const, model: 'gemini', conversationId: 'conv-1', intent: Intent.WEB_SEARCH };
     }
     vi.mocked(sendMessage).mockReturnValue(fakeStream());
 
@@ -157,7 +157,7 @@ describe('useChat', () => {
     vi.mocked(getConversation).mockResolvedValue({ ...convData, messages: [] });
     vi.mocked(sendMessage).mockImplementation(async function* () {
       throw new Error('Failed to fetch');
-    });
+    } as any);
 
     const { result } = renderHook(() => useChat('conv-1'), { wrapper: makeWrapper() });
     await act(async () => {
