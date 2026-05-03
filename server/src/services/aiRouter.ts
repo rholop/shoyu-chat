@@ -1,4 +1,4 @@
-import { getUsageCount, incrementUsage } from '../storage';
+import { getUsageCount, incrementUsage, setUsageCount } from '../storage';
 import { getToday } from '../utils/dateHelpers';
 import { logger } from '../utils/logger';
 import { Intent } from '../types';
@@ -213,6 +213,13 @@ export async function* streamChat(
       const errMsg  = e?.message ?? String(err);
       const body    = e?.error ? ` body=${JSON.stringify(e.error)}` : '';
       const detail  = `provider=${tier.provider} model=${tier.model} status=${status} type=${errName} msg="${errMsg}"${body}`;
+
+      // 402/403 = billing cap or key hard-limit — provider is dead for the day.
+      // Auto-exhaust its daily counter so subsequent requests skip it immediately.
+      if (status === 402 || status === 403) {
+        setUsageCount(tier.provider, today, PROVIDER_LIMITS[tier.provider]);
+        logger.warn(`[aiRouter] ${tier.provider} auto-exhausted for today (status=${status})`);
+      }
 
       const isLastTier = i === tiers.length - 1;
 
