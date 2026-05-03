@@ -160,6 +160,8 @@ export async function* streamChatGeminiWithTools(
   const contents = toGeminiHistory(messages);
   const streamResult = await model.generateContentStream({ contents } as any);
 
+  const yieldedFunctionCalls = new Set<string>();
+
   for await (const chunk of streamResult.stream) {
     try {
       const text = chunk.text();
@@ -171,24 +173,32 @@ export async function* streamChatGeminiWithTools(
     const parts = (chunk as any).candidates?.[0]?.content?.parts ?? [];
     for (const part of parts) {
       if (part.functionCall) {
-        yield {
-          toolName: part.functionCall.name,
-          toolArgs: part.functionCall.args ?? {},
-        };
+        const key = JSON.stringify({ name: part.functionCall.name, args: part.functionCall.args });
+        if (!yieldedFunctionCalls.has(key)) {
+          yieldedFunctionCalls.add(key);
+          yield {
+            toolName: part.functionCall.name,
+            toolArgs: part.functionCall.args ?? {},
+          };
+        }
       }
     }
   }
 
-  // Also check final response for function calls
+  // Also check final response for any function calls not already yielded during streaming
   try {
     const finalResponse = await streamResult.response;
     const parts = (finalResponse as any).candidates?.[0]?.content?.parts ?? [];
     for (const part of parts) {
       if (part.functionCall) {
-        yield {
-          toolName: part.functionCall.name,
-          toolArgs: part.functionCall.args ?? {},
-        };
+        const key = JSON.stringify({ name: part.functionCall.name, args: part.functionCall.args });
+        if (!yieldedFunctionCalls.has(key)) {
+          yieldedFunctionCalls.add(key);
+          yield {
+            toolName: part.functionCall.name,
+            toolArgs: part.functionCall.args ?? {},
+          };
+        }
       }
     }
   } catch {
