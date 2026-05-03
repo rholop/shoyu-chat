@@ -23,26 +23,7 @@ Browser → Nginx (holop-web) → :3001 (shoyu-chat server)
 
 ## Data Directory Layout
 
-```
-data/
-├── user.json              Single user record
-├── user-memory.md         User's long-term memory profile
-├── usage.json             Daily API usage counters per provider
-├── projects/
-│   ├── {id}.json          Project metadata
-│   ├── {id}-context.md    Project context document
-│   └── {id}-summary.md    Project summary
-├── conversations/
-│   ├── {id}.json          Conversation metadata
-│   ├── {id}.ndjson        Messages (append-only)
-│   └── {id}/              Uploaded files for this conversation
-│       └── {fileId}-{filename}
-├── chats/
-│   └── YYYY-MM-DD-{id}.md Per-conversation AI summary
-└── summaries/
-    ├── YYYY-WXX.md        Weekly one-liner table
-    └── YYYY-MM.md         Monthly AI-generated overview
-```
+Please see the [Storage README](../server/src/storage/docs/README.md) for the filesystem layout.
 
 ## Key Design Decisions
 
