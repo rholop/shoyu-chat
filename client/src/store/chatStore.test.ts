@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useChatStore } from './chatStore';
-import { Message } from '../types';
+import { Message, Intent } from '../types';
 
 const makeMessage = (overrides: Partial<Message> = {}): Message => ({
   id: 1,
@@ -82,7 +82,7 @@ describe('chatStore', () => {
     it('creates an assistant message from accumulated streamingContent', () => {
       useChatStore.setState({ streamingContent: 'The answer is 42.' });
       useChatStore.getState().finalizeStream(
-        { type: 'done', model: 'groq-chat', conversationId: 'conv-1' },
+        { type: 'done', model: 'groq-chat', conversationId: 'conv-1', intent: Intent.CODING },
         'groq-chat'
       );
       const { messages } = useChatStore.getState();
@@ -97,7 +97,7 @@ describe('chatStore', () => {
       const existing = makeMessage({ id: 10, role: 'user', content: 'hi' });
       useChatStore.setState({ messages: [existing], streamingContent: 'response' });
       useChatStore.getState().finalizeStream(
-        { type: 'done', model: 'groq-chat', conversationId: 'conv-1' },
+        { type: 'done', model: 'groq-chat', conversationId: 'conv-1', intent: Intent.CODING },
         'groq-chat'
       );
       expect(useChatStore.getState().messages).toHaveLength(2);
@@ -106,7 +106,7 @@ describe('chatStore', () => {
     it('clears streaming state after finalizing', () => {
       useChatStore.setState({ streamingContent: 'done', isStreaming: true, streamError: 'old error' });
       useChatStore.getState().finalizeStream(
-        { type: 'done', model: 'groq-chat', conversationId: 'conv-1' },
+        { type: 'done', model: 'groq-chat', conversationId: 'conv-1', intent: Intent.CODING },
         'groq-chat'
       );
       const state = useChatStore.getState();
