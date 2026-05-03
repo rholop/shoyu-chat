@@ -3,7 +3,6 @@ import { getToday } from '../utils/dateHelpers';
 import { logger } from '../utils/logger';
 import { Intent } from '../types';
 import {
-  streamChatGroqCompound,
   streamChatGroqChat,
   summarizeGroq,
   isGroqAvailable,
@@ -30,7 +29,6 @@ import {
 } from './nvidiaService';
 import { readMemory } from './memoryService';
 
-const GROQ_COMPOUND_LIMIT = Number(process.env.GROQ_COMPOUND_DAILY_LIMIT ?? 250);
 const GROQ_CHAT_LIMIT = Number(process.env.GROQ_CHAT_DAILY_LIMIT ?? 1000);
 const GEMINI_LIMIT = Number(process.env.GEMINI_DAILY_LIMIT ?? 1500);
 const OPENROUTER_LIMIT = Number(process.env.OPENROUTER_DAILY_LIMIT ?? 200);
@@ -78,6 +76,15 @@ interface SpecialistConfig {
   vision: boolean;
   modelLabel: string;
   stream: (msgs: ChatMessage[]) => AsyncGenerator<StreamChunk>;
+  trimContext?: boolean;
+}
+
+interface FallbackConfig {
+  key: string;
+  limit: number;
+  vision: boolean;
+  modelLabel: string;
+  stream: (msgs: ChatMessage[]) => AsyncGenerator<string>;
   trimContext?: boolean;
 }
 
@@ -135,19 +142,45 @@ const SPECIALIST_MAP: Record<Intent, SpecialistConfig> = {
   },
 };
 
-// Ordered fallback chain when the specialist is unavailable or fails
-const FALLBACK_CHAIN: Array<{
-  key: string;
-  limit: number;
-  vision: boolean;
-  stream: (msgs: ChatMessage[]) => AsyncGenerator<string>;
-}> = [
-  { key: 'nvidia', limit: NVIDIA_LIMIT, vision: false, stream: streamChatNvidia },
-  { key: 'gemini', limit: GEMINI_LIMIT, vision: true, stream: streamChatGemini },
-  { key: 'groq-compound', limit: GROQ_COMPOUND_LIMIT, vision: false, stream: streamChatGroqCompound },
-  { key: 'groq-chat', limit: GROQ_CHAT_LIMIT, vision: false, stream: streamChatGroqChat },
-  { key: 'openrouter', limit: OPENROUTER_LIMIT, vision: false, stream: streamChatOpenRouter },
-];
+// Per-intent ordered fallback tiers (T2, T3) used when the T1 specialist fails.
+// Each intent defines its own priority list rather than a shared generic chain.
+const INTENT_FALLBACK_MAP: Record<Intent, FallbackConfig[]> = {
+  // WEB_SEARCH: T1 gemini-search → T2 gemini (no search) → T3 openrouter
+  [Intent.WEB_SEARCH]: [
+    { key: 'gemini', limit: GEMINI_LIMIT, vision: false, modelLabel: 'gemini', stream: streamChatGemini },
+    { key: 'openrouter', limit: OPENROUTER_LIMIT, vision: false, modelLabel: 'openrouter', stream: streamChatOpenRouter },
+  ],
+  // CODING: T1 nvidia-405b → T2 groq-70b → T3 gemini
+  [Intent.CODING]: [
+    { key: 'groq-chat', limit: GROQ_CHAT_LIMIT, vision: false, modelLabel: 'groq-chat', stream: streamChatGroqChat, trimContext: true },
+    { key: 'gemini', limit: GEMINI_LIMIT, vision: false, modelLabel: 'gemini', stream: streamChatGemini },
+  ],
+  // DEBUGGING: T1 groq-70b → T2 gemini → T3 openrouter
+  [Intent.DEBUGGING]: [
+    { key: 'gemini', limit: GEMINI_LIMIT, vision: false, modelLabel: 'gemini', stream: streamChatGemini },
+    { key: 'openrouter', limit: OPENROUTER_LIMIT, vision: false, modelLabel: 'openrouter', stream: streamChatOpenRouter },
+  ],
+  // TRANSLATING: T1 openrouter-mistral → T2 gemini → T3 groq-70b
+  [Intent.TRANSLATING]: [
+    { key: 'gemini', limit: GEMINI_LIMIT, vision: false, modelLabel: 'gemini', stream: streamChatGemini },
+    { key: 'groq-chat', limit: GROQ_CHAT_LIMIT, vision: false, modelLabel: 'groq-chat', stream: streamChatGroqChat, trimContext: true },
+  ],
+  // DRAFTING: T1 groq-70b → T2 gemini → T3 nvidia-70b
+  [Intent.DRAFTING]: [
+    { key: 'gemini', limit: GEMINI_LIMIT, vision: false, modelLabel: 'gemini', stream: streamChatGemini },
+    { key: 'nvidia', limit: NVIDIA_LIMIT, vision: false, modelLabel: 'nvidia', stream: streamChatNvidia },
+  ],
+  // SUMMARIZING: T1 gemini → T2 groq-70b → T3 openrouter
+  [Intent.SUMMARIZING]: [
+    { key: 'groq-chat', limit: GROQ_CHAT_LIMIT, vision: false, modelLabel: 'groq-chat', stream: streamChatGroqChat, trimContext: true },
+    { key: 'openrouter', limit: OPENROUTER_LIMIT, vision: false, modelLabel: 'openrouter', stream: streamChatOpenRouter },
+  ],
+  // IMAGE_ANALYSIS: T1 gemini-vision → T2 nvidia (text-only, skipped when hasImages) → T3 groq
+  [Intent.IMAGE_ANALYSIS]: [
+    { key: 'nvidia', limit: NVIDIA_LIMIT, vision: false, modelLabel: 'nvidia', stream: streamChatNvidia },
+    { key: 'groq-chat', limit: GROQ_CHAT_LIMIT, vision: false, modelLabel: 'groq-chat', stream: streamChatGroqChat, trimContext: true },
+  ],
+};
 
 function trimForGroq(messages: ChatMessage[]): ChatMessage[] {
   const system = messages.filter((m) => m.role === 'system');
@@ -206,10 +239,16 @@ export async function* streamChat(
     );
   }
 
-  // Fallback chain
-  for (const provider of FALLBACK_CHAIN) {
-    if (provider.key === specialist.providerKey) continue;
-    if (hasImages && !provider.vision) continue;
+  // Per-intent fallback chain (T2, T3)
+  const effectiveIntent = hasImages && !SPECIALIST_MAP[intent].vision
+    ? Intent.IMAGE_ANALYSIS
+    : intent;
+
+  for (const provider of INTENT_FALLBACK_MAP[effectiveIntent]) {
+    if (hasImages && !provider.vision) {
+      // Skip non-vision fallbacks when the request has images
+      continue;
+    }
 
     const usage = getUsageCount(provider.key, today);
     if (usage >= provider.limit) {
@@ -222,10 +261,7 @@ export async function* streamChat(
       continue;
     }
 
-    const fallbackMsgs =
-      provider.key === 'groq-chat' || provider.key === 'groq-compound'
-        ? trimForGroq(contextualMessages)
-        : contextualMessages;
+    const fallbackMsgs = provider.trimContext ? trimForGroq(contextualMessages) : contextualMessages;
 
     try {
       let hasOutput = false;
@@ -234,7 +270,7 @@ export async function* streamChat(
           incrementUsage(provider.key, today);
           hasOutput = true;
         }
-        yield { token, model: provider.key };
+        yield { token, model: provider.modelLabel };
       }
       if (hasOutput) return;
       logger.warn(`Fallback ${provider.key} returned no tokens`);
