@@ -1,26 +1,30 @@
-# Summary System
+# Markdown Summary System
+
+The summary system automatically compresses conversation history into structured markdown logs after periods of inactivity.
 
 ## Inactivity Debounce
 
-After every AI response, `summaryService.schedule(conversationId)` is called. This sets (or resets) a 4-hour timer. When the timer fires, `runSummary()` executes.
+- Triggered after every assistant response.
+- **Wait time:** 4 hours of inactivity.
+- **Recovery:** On server start, timers are rescheduled for conversations active within the last 4 hours.
 
-On server boot, `recoverSummaryTimers()` reschedules timers for any conversation whose NDJSON `mtime` is within the last 4 hours.
+## Process Steps
 
-## Summary Run Steps
+1. **Transcript Parsing:** Read `conversation.ndjson` and extract text-only messages.
+2. **Conversation Summary:** Generate a 2-4 sentence summary of goal, approach, and outcome.
+3. **One-liner:** Generate a single-sentence "action log" entry.
+4. **Weekly Log:** Append the one-liner to `data/summaries/YYYY-WXX.md`.
+5. **Monthly Overview:** Update the high-level summary in `data/summaries/YYYY-MM.md`.
+6. **Project Summary:** If applicable, regenerate the cross-conversation project summary.
+7. **Memory Update:** Merge new personal facts from the conversation into `user-memory.md`.
 
-1. Read all messages from `{id}.ndjson`
-2. Generate a **full summary** (2–4 sentences) → write `data/chats/YYYY-MM-DD-{id}.md`
-3. Generate a **topics list** (3–6 noun phrases) → included in the chat file
-4. Generate a **one-liner** → upsert a row in `data/summaries/YYYY-WXX.md`
-5. Regenerate the **monthly overview** → rewrite `data/summaries/YYYY-MM.md`
+## File Formats
 
-All file writes are atomic (`.tmp` → `rename`).
+### Weekly Log (`YYYY-WXX.md`)
+Markdown table with Date, Conversation Title, and One-liner summary.
 
-## AI Prompts
+### Monthly Overview (`YYYY-MM.md`)
+AI-generated narrative of usage patterns and recurring goals, plus a list of all conversations for the month.
 
-- **Full summary**: 2–4 sentences covering goal, approach, outcome
-- **One-liner**: single sentence starting with a verb, describing the user's goal
-- **Topics**: 3–6 comma-separated concrete noun phrases
-- **Monthly overview**: 3–4 sentences in second person ("You spent…"), covering recurring themes
-
-Summarization uses `aiRouter.summarize()` which routes to groq-chat → gemini → openrouter, skipping groq-compound to preserve its chat budget.
+### Project Summary (`summary.md`)
+A 3-5 sentence summary of what the project is working toward and what has been accomplished, written in second person.

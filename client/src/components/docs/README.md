@@ -1,27 +1,16 @@
 # Components
 
-React UI components organized by feature area.
+React UI components for the shoyu-chat PWA.
 
-## auth/
+## Subdirectories
 
-| File | Purpose |
-|---|---|
-| `LoginScreen.tsx` | Username/password form; delegates to `useAuth` |
+- **layout/**: `AppShell`, `Sidebar`, and `TopBar` — the framing of the application.
+- **chat/**: `ChatView`, `MessageBubble`, `MessageInput` — the core conversation interface.
+- **projects/**: `ProjectList`, `ProjectDetail`, `ContextEditor` — project-specific management.
+- **auth/**: `LoginScreen` — authentication interface.
 
-## chat/
+## Design Principles
 
-| File | Purpose |
-|---|---|
-| `AttachmentChip.tsx` | Pill showing filename + icon (or image thumbnail); optional remove button; wraps in `<a>` when `conversationId` is provided |
-| `ChatView.tsx` | Main chat pane; renders message list, streaming bubble, and `MessageInput` |
-| `MessageBubble.tsx` | Single message; renders markdown; shows `AttachmentChip`s for messages with files |
-| `MessageInput.tsx` | Textarea + send + paperclip buttons; drag-and-drop target; shows pending `AttachmentChip`s above textarea |
-| `ModelBadge.tsx` | Tiny colored badge showing the AI provider used |
-
-## layout/
-
-| File | Purpose |
-|---|---|
-| `AppShell.tsx` | Root layout — sidebar + topbar + chat pane; owns mobile/desktop sidebar open state; auto-selects first conversation |
-| `Sidebar.tsx` | Conversation list with new-chat button; each row shows title, date, `ModelBadge`, delete button |
-| `TopBar.tsx` | Header with hamburger (mobile), title, new-chat, sign-out buttons |
+- **Mobile-First:** All components are designed to be fully functional on small screens.
+- **High Contrast:** UI elements follow the strict accessibility guidelines for dark/light modes.
+- **Streaming UI:** `ChatView` and `MessageBubble` handle incremental text updates from SSE.

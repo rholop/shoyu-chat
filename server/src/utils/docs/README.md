@@ -1,26 +1,19 @@
 # Utils
 
-Stateless helper functions.
+Stateless helper functions and application-wide utilities.
 
 | File | Purpose |
 |---|---|
-| `dateHelpers.ts` | ISO week key, month key, human-readable range labels |
-| `logger.ts` | Thin console wrapper with ISO timestamps; `debug` suppressed in production |
+| `dateHelpers.ts` | Formatting for ISO weeks, months, and human-readable date ranges for summaries. |
+| `logger.ts` | Standardized logging with timestamps and environment-aware debug levels. |
 
 ## dateHelpers
 
-| Export | Returns | Example |
-|---|---|---|
-| `getISOWeekKey()` | `YYYY-WXX` | `2026-W18` |
-| `getMonthKey()` | `YYYY-MM` | `2026-05` |
-| `getWeekRangeLabel()` | `"Apr 27 – May 3"` | human-readable |
-| `getMonthLabel(date)` | `"May 2026"` | for monthly file headers |
+- `getToday()`: Current date in `YYYY-MM-DD`.
+- `getISOWeekKey()`: Current week for markdown file naming (e.g., `2026-W18`).
+- `getMonthKey()`: Current month for directory and file naming.
 
 ## logger
 
-```ts
-logger.info(...)   // console.log  with [ISO] INFO prefix
-logger.warn(...)   // console.warn with [ISO] WARN prefix
-logger.error(...) // console.error with [ISO] ERROR prefix
-logger.debug(...) // console.debug with [ISO] DEBUG prefix — no-op in production
-```
+- Wraps console methods with ISO timestamps.
+- `debug` messages are suppressed when `NODE_ENV=production`.

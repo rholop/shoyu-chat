@@ -1,28 +1,44 @@
 # AI Router
 
-`server/src/services/aiRouter.ts`
+The AI Router classifies message intent and routes requests across multiple providers using a tiered fallback matrix.
 
-## Provider Priority
+## Intent Classification
 
-| Priority | Key | Model | Daily limit | Vision |
-|---|---|---|---|---|
-| 1 | `groq-compound` | `groq/compound` | 250 | No |
-| 2 | `groq-chat` | `llama-3.3-70b-versatile` | 1,000 | No |
-| 3 | `gemini` | `gemini-2.0-flash` | 1,500 | Yes |
-| 4 | `openrouter` | `meta-llama/llama-3.1-8b-instruct:free` | 200 | No |
+| Intent | Description |
+|---|---|
+| `WEB_SEARCH` | Triggers Google Search grounding (Gemini only) |
+| `CODING` | Optimized for implementation and script writing |
+| `DEBUGGING` | Optimized for log analysis and bug fixing |
+| `TRANSLATING` | Language translation tasks |
+| `DRAFTING` | General writing and brainstorming |
+| `SUMMARIZING` | Conversation and document summarization |
+| `IMAGE_ANALYSIS` | Native vision processing for images |
 
-## Vision Routing
+## Fallback Matrix
 
-When a message includes image attachments (`hasImages=true`), non-vision providers are skipped. Only Gemini handles images natively. If Gemini is also over quota, the request fails with `QUOTA_EXCEEDED`.
+| Provider | Key Models | Vision | Tools |
+|---|---|---|---|
+| **NVIDIA** | Llama 3.3 70B | No | Yes |
+| **Groq** | Llama 3.3 70B | No | Yes |
+| **Gemini** | 2.5 Flash / 2.5 Pro | Yes | Yes |
+| **OpenRouter** | Various free models | Yes | Yes |
 
-## Summarization
+## Routing Logic
 
-`summarize()` skips `groq-compound` (preserving its 250/day budget for chat) and routes groq-chat → gemini → openrouter.
+1. Classify intent via regex or manual override.
+2. Select the ordered list of tiers for that intent.
+3. Check daily usage limits in `usage.json`.
+4. Attempt call to the first available tier.
+5. Fall back to the next tier if rate-limited or quota-exhausted.
 
-## Usage Tracking
+## User Memory Service
 
-Counters are stored in `data/usage.json` keyed by provider and YYYY-MM-DD date. Usage is incremented on the first token received from a provider (not before), so failed requests before yielding don't count.
+`data/user-memory.md` is injected as the first system message on every call. It provides long-term personal context (identity, career, preferences) and is automatically updated during inactivity summarization runs.
 
-## Limits Configuration
+## Context Injection Order
 
-All limits are read from environment variables (see `.env.example`). Defaults match the free-tier quotas at the time of writing.
+1. **User Memory** (Personal profile)
+2. **Project Context** (If conversation belongs to a project)
+3. **Internal Notes** (Previous web search results)
+4. **Conversation History** (Recent messages)
+5. **Active File List** (Available downloads context)

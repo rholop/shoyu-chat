@@ -1,12 +1,8 @@
 # Types
 
-Shared TypeScript interfaces for the client.
+TypeScript interface and type definitions shared across the client application.
 
-| Type | Description |
-|---|---|
-| `User` | `{ userId, username, email? }` — JWT payload shape |
-| `Attachment` | `{ fileId, filename, mimeType, size? }` — uploaded file reference |
-| `Message` | Single chat message with optional `attachments` and `model_used` |
-| `Conversation` | Metadata summary including `model_last_used` and `has_files` |
-| `ConversationWithMessages` | `Conversation & { messages: Message[] }` — returned by `GET /api/conversations/:id` |
-| `SSEEvent` | Discriminated union: `token` \| `done` \| `error` — emitted by `sendMessage` generator |
+- **index.ts**: Core entities (User, Message, Project, Conversation).
+- **api.ts**: Request/Response shapes for the backend API.
+
+Follows the server's data structure to ensure end-to-end type safety.

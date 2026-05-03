@@ -1,21 +1,14 @@
 # Hooks
 
-Custom React hooks that encapsulate data fetching and side-effect logic.
+Reusable React hooks for state management and API interaction.
 
 | File | Purpose |
 |---|---|
-| `useAuth.ts` | TanStack Query wrapper for `/api/auth/me`; exposes `login`, `logout`, `user`, loading/error state |
-| `useChat.ts` | Fetches conversation messages; `send()` drives the SSE stream and updates Zustand chat store |
-| `useConversations.ts` | List, create, delete, rename conversations via TanStack Query mutations |
-| `useFileUpload.ts` | Manages pending attachment state; `upload(files)` calls `uploadFile` API; `remove(fileId)` calls `deleteFile` |
+| `useAuth.ts` | Session state, login/logout actions. |
+| `useChat.ts` | Managing SSE streaming and message sending state. |
+| `useConversations.ts` | CRUD hooks for conversation list and meta. |
+| `useFileUpload.ts` | Logic for handling multi-file uploads and progress. |
+| `useProjects.ts` | CRUD hooks for project management. |
+| `useFileDownload.ts` | Triggering downloads for AI-created files. |
 
-## useFileUpload
-
-```ts
-const { attachments, uploading, uploadError, upload, remove, clear } = useFileUpload(conversationId);
-```
-
-- `upload(FileList | File[])` — uploads sequentially, accumulates results, sets error on failure
-- `remove(fileId)` — removes optimistically from state, calls DELETE in background (errors ignored)
-- `clear()` — resets attachment list and error (called after message send)
-- No-ops when `conversationId` is `null`
+All hooks use **TanStack Query** for caching, refetching, and optimistic updates.
