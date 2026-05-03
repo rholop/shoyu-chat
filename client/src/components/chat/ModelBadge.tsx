@@ -5,27 +5,28 @@ const MODEL_COLORS: Record<string, string> = {
   'groq-chat': 'bg-orange-500/20 text-orange-300',
   'Groq: Llama 3.3 70B': 'bg-orange-500/20 text-orange-300',
   nvidia: 'bg-green-500/20 text-green-300',
-  'NVIDIA: Llama 3.1 405B': 'bg-green-500/20 text-green-300',
+  'NVIDIA: Llama 3.3 70B': 'bg-green-500/20 text-green-300',
   'NVIDIA: Llama 3.1 70B': 'bg-green-500/20 text-green-300',
   gemini: 'bg-blue-500/20 text-blue-300',
-  'Gemini: 2.0 Flash': 'bg-blue-500/20 text-blue-300',
-  'Gemini: 1.5 Pro': 'bg-blue-500/20 text-blue-300',
+  'Gemini: 2.5 Flash': 'bg-blue-500/20 text-blue-300',
+  'Gemini: 2.5 Pro': 'bg-blue-500/20 text-blue-300',
   openrouter: 'bg-purple-500/20 text-purple-300',
-  'OR: Llama 3.1 70B': 'bg-purple-500/20 text-purple-300',
-  'OR: Qwen 2.5 72B': 'bg-purple-500/20 text-purple-300',
-  'OR: Mistral Large': 'bg-purple-500/20 text-purple-300',
-  'OR: Mistral Small': 'bg-purple-500/20 text-purple-300',
-  'OR: GPT-4o-mini': 'bg-purple-500/20 text-purple-300',
+  'OR: GPT-oss-120b': 'bg-purple-500/20 text-purple-300',
+  'OR: Laguna M.1': 'bg-purple-500/20 text-purple-300',
+  'OR: Llama 3.2 3B': 'bg-purple-500/20 text-purple-300',
+  'OR: Perplexity Sonar Pro': 'bg-purple-500/20 text-purple-300',
 };
 
+// Used only as a fallback when intent is not available (e.g. historical messages).
+// Checked in insertion order — first match wins.
 const INTENT_TO_PROVIDER: Record<Intent, string[]> = {
-  [Intent.WEB_SEARCH]: ['gemini', 'Gemini:', 'OR: Llama'],
-  [Intent.CODING]: ['nvidia', 'NVIDIA:', 'Groq:', 'Gemini:'],
-  [Intent.DEBUGGING]: ['groq-chat', 'Groq:', 'Gemini:', 'OR: Qwen'],
-  [Intent.TRANSLATING]: ['openrouter', 'OR: Mistral', 'Gemini:', 'Groq:'],
-  [Intent.DRAFTING]: ['groq-chat', 'Groq:', 'Gemini:', 'NVIDIA:'],
-  [Intent.SUMMARIZING]: ['gemini', 'Gemini:', 'Groq:', 'OR: Mistral'],
-  [Intent.IMAGE_ANALYSIS]: ['gemini', 'Gemini:', 'OR: GPT'],
+  [Intent.CODING]: ['NVIDIA:', 'Groq:'],
+  [Intent.DEBUGGING]: ['OR: Laguna'],
+  [Intent.SUMMARIZING]: ['OR: Llama 3.2'],
+  [Intent.DRAFTING]: ['Groq:', 'NVIDIA:'],
+  [Intent.WEB_SEARCH]: ['Gemini:'],
+  [Intent.TRANSLATING]: ['Groq:', 'Gemini:', 'OR:'],
+  [Intent.IMAGE_ANALYSIS]: ['Gemini:'],
 };
 
 interface Props {

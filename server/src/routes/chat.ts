@@ -234,7 +234,7 @@ router.post('/send', async (req, res) => {
         logger.error('Failed to schedule summary:', err);
       }
 
-      send({ type: 'done', model: modelUsed, conversationId });
+      send({ type: 'done', model: modelUsed, conversationId, intent });
     } else if (!fullContent) {
       send({ type: 'error', message: 'No response generated. Please try again.' });
     }
