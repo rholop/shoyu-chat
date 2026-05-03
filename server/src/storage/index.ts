@@ -6,12 +6,6 @@ function dataDir(): string {
   return process.env.DATA_DIR ?? path.join(__dirname, '../../../data');
 }
 
-function conversationsDir() {
-  const d = path.join(dataDir(), 'conversations');
-  fs.mkdirSync(d, { recursive: true });
-  return d;
-}
-
 function atomicWrite(filePath: string, content: string) {
   const tmp = `${filePath}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, content, 'utf8');
@@ -85,32 +79,33 @@ export interface ProjectMeta {
   created_at: string;
 }
 
-function projectsDir() {
-  const d = path.join(dataDir(), 'projects');
-  fs.mkdirSync(d, { recursive: true });
-  return d;
+function projectDir(id: string) {
+  return path.join(dataDir(), `project-${id}`);
 }
 
 function projectMetaPath(id: string) {
-  return path.join(projectsDir(), `${id}.json`);
+  return path.join(projectDir(id), 'meta.json');
 }
 
 export function projectContextPath(id: string) {
-  return path.join(projectsDir(), `${id}-context.md`);
+  return path.join(projectDir(id), 'context.md');
 }
 
 export function projectSummaryPath(id: string) {
-  return path.join(projectsDir(), `${id}-summary.md`);
+  return path.join(projectDir(id), 'summary.md');
 }
 
 export function listProjects(): ProjectMeta[] {
-  const dir = projectsDir();
+  const base = dataDir();
+  if (!fs.existsSync(base)) return [];
   return fs
-    .readdirSync(dir)
-    .filter((f) => f.endsWith('.json'))
-    .flatMap((f) => {
+    .readdirSync(base)
+    .filter((name) => name.startsWith('project-') && fs.statSync(path.join(base, name)).isDirectory())
+    .flatMap((name) => {
+      const metaFile = path.join(base, name, 'meta.json');
+      if (!fs.existsSync(metaFile)) return [];
       try {
-        return [JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')) as ProjectMeta];
+        return [JSON.parse(fs.readFileSync(metaFile, 'utf8')) as ProjectMeta];
       } catch {
         return [];
       }
@@ -132,6 +127,8 @@ export function createProject(name: string, description: string): string {
   const id = uuidv4();
   const now = new Date().toISOString();
   const meta: ProjectMeta = { id, name, description, created_at: now };
+  const dir = projectDir(id);
+  fs.mkdirSync(dir, { recursive: true });
   atomicWrite(projectMetaPath(id), JSON.stringify(meta, null, 2));
   atomicWrite(projectContextPath(id), '');
   atomicWrite(projectSummaryPath(id), '');
@@ -147,11 +144,9 @@ export function updateProject(id: string, fields: Partial<Pick<ProjectMeta, 'nam
 }
 
 export function deleteProject(id: string): boolean {
-  const mp = projectMetaPath(id);
-  if (!fs.existsSync(mp)) return false;
-  fs.rmSync(mp, { force: true });
-  fs.rmSync(projectContextPath(id), { force: true });
-  fs.rmSync(projectSummaryPath(id), { force: true });
+  const dir = projectDir(id);
+  if (!fs.existsSync(dir)) return false;
+  fs.rmSync(dir, { recursive: true, force: true });
   return true;
 }
 
@@ -188,25 +183,47 @@ export interface ConversationSummary extends ConversationMeta {
   has_files: boolean;
 }
 
+export interface MessageDownload {
+  fileId: string;
+  filename: string;
+  description?: string;
+  version: number;
+  updated?: boolean;
+}
+
+function conversationDir(id: string) {
+  return path.join(dataDir(), `conversation-${id}`);
+}
+
 function metaPath(id: string) {
-  return path.join(conversationsDir(), `${id}.json`);
+  return path.join(conversationDir(id), 'meta.json');
 }
 
 function ndjsonPath(id: string) {
-  return path.join(conversationsDir(), `${id}.ndjson`);
+  return path.join(conversationDir(id), 'conversation.ndjson');
 }
 
 export function conversationFilesDir(id: string) {
-  return path.join(conversationsDir(), id);
+  return path.join(conversationDir(id), 'uploads');
+}
+
+export function conversationDownloadsDir(id: string) {
+  return path.join(conversationDir(id), 'downloads');
 }
 
 export function listConversations(): ConversationSummary[] {
-  const dir = conversationsDir();
-  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json'));
+  const base = dataDir();
+  if (!fs.existsSync(base)) return [];
 
   const results: ConversationSummary[] = [];
-  for (const file of files) {
-    const id = file.slice(0, -5);
+  const entries = fs.readdirSync(base);
+
+  for (const name of entries) {
+    if (!name.startsWith('conversation-')) continue;
+    const fullPath = path.join(base, name);
+    if (!fs.statSync(fullPath).isDirectory()) continue;
+
+    const id = name.slice('conversation-'.length);
     const meta = getConversationMeta(id);
     if (!meta) continue;
 
@@ -231,10 +248,10 @@ export function listConversations(): ConversationSummary[] {
       }
     }
 
-    const filesDir = conversationFilesDir(id);
+    const uploadsDir = conversationFilesDir(id);
     const has_files =
-      fs.existsSync(filesDir) &&
-      fs.readdirSync(filesDir).some((f) => !f.endsWith('.ndjson') && !f.endsWith('.json'));
+      fs.existsSync(uploadsDir) &&
+      fs.readdirSync(uploadsDir).some((f) => !f.endsWith('.ndjson') && !f.endsWith('.json'));
 
     results.push({ ...meta, updated_at, model_last_used, has_files });
   }
@@ -257,10 +274,13 @@ export function createConversation(projectId?: string | null): string {
   const now = new Date().toISOString();
   const meta: ConversationMeta = { id, title: 'New Conversation', created_at: now };
   if (projectId != null) meta.projectId = projectId;
+
+  const dir = conversationDir(id);
+  fs.mkdirSync(dir, { recursive: true });
   atomicWrite(metaPath(id), JSON.stringify(meta, null, 2));
   fs.writeFileSync(ndjsonPath(id), '', 'utf8');
-  // Create the files directory upfront so uploads work immediately
   fs.mkdirSync(conversationFilesDir(id), { recursive: true });
+  fs.mkdirSync(conversationDownloadsDir(id), { recursive: true });
   return id;
 }
 
@@ -281,15 +301,9 @@ export function updateConversationTitle(id: string, title: string): boolean {
 }
 
 export function deleteConversation(id: string): boolean {
-  const mp = metaPath(id);
-  if (!fs.existsSync(mp)) return false;
-  fs.rmSync(mp, { force: true });
-  fs.rmSync(ndjsonPath(id), { force: true });
-  // Remove the files directory and all uploaded files
-  const filesDir = conversationFilesDir(id);
-  if (fs.existsSync(filesDir)) {
-    fs.rmSync(filesDir, { recursive: true, force: true });
-  }
+  const dir = conversationDir(id);
+  if (!fs.existsSync(dir)) return false;
+  fs.rmSync(dir, { recursive: true, force: true });
   return true;
 }
 
@@ -307,6 +321,7 @@ export interface StoredMessage {
   content: string;
   model?: string;
   attachments?: MessageAttachment[];
+  downloads?: MessageDownload[];
   created_at: string;
 }
 
@@ -337,15 +352,23 @@ export function listConversationsByProject(projectId: string): ConversationSumma
 }
 
 export function getRecentlyActiveConversations(withinMs: number): string[] {
-  const dir = conversationsDir();
-  if (!fs.existsSync(dir)) return [];
+  const base = dataDir();
+  if (!fs.existsSync(base)) return [];
   const cutoff = Date.now() - withinMs;
+
   return fs
-    .readdirSync(dir)
-    .filter((f) => f.endsWith('.ndjson'))
-    .filter((f) => {
-      const stat = fs.statSync(path.join(dir, f));
-      return stat.mtimeMs > cutoff && stat.size > 0;
+    .readdirSync(base)
+    .filter((name) => {
+      if (!name.startsWith('conversation-')) return false;
+      const fullPath = path.join(base, name);
+      return fs.existsSync(fullPath) && fs.statSync(fullPath).isDirectory();
     })
-    .map((f) => f.slice(0, -7));
+    .flatMap((name) => {
+      const id = name.slice('conversation-'.length);
+      const ndPath = ndjsonPath(id);
+      if (!fs.existsSync(ndPath)) return [];
+      const stat = fs.statSync(ndPath);
+      if (stat.mtimeMs > cutoff && stat.size > 0) return [id];
+      return [];
+    });
 }

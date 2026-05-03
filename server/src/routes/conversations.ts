@@ -1,4 +1,7 @@
 import { Router } from 'express';
+import path from 'path';
+import fs from 'fs';
+import mime from 'mime-types';
 import { z } from 'zod';
 import {
   listConversations,
@@ -8,7 +11,9 @@ import {
   updateConversationTitle,
   deleteConversation,
   assignConversationProject,
+  conversationDownloadsDir,
 } from '../storage';
+import { getConversationDownloads } from '../services/fileService';
 
 const router = Router();
 
@@ -31,7 +36,6 @@ router.get('/:id', (req, res) => {
     return;
   }
   const rawMessages = getMessages(id);
-  // Map to the shape the frontend expects
   const messages = rawMessages.map((m, i) => ({
     id: i,
     conversation_id: id,
@@ -39,6 +43,8 @@ router.get('/:id', (req, res) => {
     content: m.content,
     model_used: m.model ?? null,
     created_at: m.created_at,
+    attachments: m.attachments,
+    downloads: m.downloads,
   }));
   res.json({ ...meta, updated_at: new Date().toISOString(), messages });
 });
@@ -81,6 +87,59 @@ router.post('/:id/assign', (req, res) => {
     return;
   }
   res.json({ ok: true });
+});
+
+// ── Download routes ────────────────────────────────────────────────────────────
+
+router.get('/:id/downloads', async (req, res) => {
+  const { id } = req.params;
+  if (!getConversationMeta(id)) {
+    res.status(404).json({ error: 'Not found' });
+    return;
+  }
+  const downloads = await getConversationDownloads(id);
+  res.json(downloads);
+});
+
+const downloadParamsSchema = z.object({
+  id: z.string().uuid(),
+  fileId: z.string().uuid(),
+});
+
+router.get('/:id/downloads/:fileId', (req, res) => {
+  const parsed = downloadParamsSchema.safeParse(req.params);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid parameters' });
+    return;
+  }
+
+  const { id, fileId } = parsed.data;
+  if (!getConversationMeta(id)) {
+    res.status(404).json({ error: 'Not found' });
+    return;
+  }
+
+  const downloadsDir = conversationDownloadsDir(id);
+  if (!fs.existsSync(downloadsDir)) {
+    res.status(404).json({ error: 'File not found' });
+    return;
+  }
+
+  const files = fs.readdirSync(downloadsDir).filter(
+    (f) => f !== '.versions' && f.startsWith(`${fileId}-`),
+  );
+  if (files.length === 0) {
+    res.status(404).json({ error: 'File not found' });
+    return;
+  }
+
+  const filename = files[0].slice(fileId.length + 1);
+  const filePath = path.join(downloadsDir, files[0]);
+
+  const mimeType = mime.lookup(filename) || 'application/octet-stream';
+  res.setHeader('Content-Type', mimeType);
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.sendFile(filePath);
 });
 
 export default router;

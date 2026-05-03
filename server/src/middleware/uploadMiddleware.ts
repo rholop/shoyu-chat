@@ -2,8 +2,8 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { randomUUID } from 'crypto';
+import { conversationFilesDir } from '../storage';
 
-const DATA_DIR = process.env.DATA_DIR ?? path.join(__dirname, '../../../../data');
 const MAX_FILE_SIZE_MB = Number(process.env.MAX_FILE_SIZE_MB ?? 20);
 
 const ALLOWED_MIME_TYPES = (
@@ -20,7 +20,7 @@ const storage = multer.diskStorage({
       cb(new Error('conversationId is required'), '');
       return;
     }
-    const dir = path.join(DATA_DIR, 'conversations', conversationId);
+    const dir = conversationFilesDir(conversationId);
     try {
       fs.mkdirSync(dir, { recursive: true });
       cb(null, dir);

@@ -9,6 +9,12 @@ vi.mock('../storage', () => ({
   createConversation: vi.fn(),
   updateConversationTitle: vi.fn(),
   deleteConversation: vi.fn(),
+  assignConversationProject: vi.fn(),
+  conversationDownloadsDir: vi.fn(),
+}));
+
+vi.mock('../services/fileService', () => ({
+  getConversationDownloads: vi.fn(),
 }));
 
 vi.mock('../middleware/authMiddleware', () => ({
@@ -22,7 +28,9 @@ import {
   createConversation,
   updateConversationTitle,
   deleteConversation,
+  conversationDownloadsDir,
 } from '../storage';
+import { getConversationDownloads } from '../services/fileService';
 import conversationsRouter from './conversations';
 
 describe('Conversations routes', () => {
@@ -195,6 +203,58 @@ describe('Conversations routes', () => {
       expect(res.status).toBe(200);
       expect(res.body.ok).toBe(true);
       expect(deleteConversation).toHaveBeenCalledWith('abc');
+    });
+  });
+
+  describe('GET /:id/downloads', () => {
+    const convId = '00000000-0000-0000-0000-000000000001';
+
+    it('returns 404 when conversation does not exist', async () => {
+      vi.mocked(getConversationMeta).mockReturnValue(null);
+      const res = await request(app).get(`/api/conversations/${convId}/downloads`);
+      expect(res.status).toBe(404);
+    });
+
+    it('returns download list for a valid conversation', async () => {
+      vi.mocked(getConversationMeta).mockReturnValue({ id: convId, title: 'Test', created_at: '' });
+      vi.mocked(getConversationDownloads).mockResolvedValue([
+        { fileId: 'f1', filename: 'script.py', version: 1, updated: false, size: 100 },
+      ]);
+      const res = await request(app).get(`/api/conversations/${convId}/downloads`);
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].filename).toBe('script.py');
+    });
+
+    it('returns empty array when no downloads exist', async () => {
+      vi.mocked(getConversationMeta).mockReturnValue({ id: convId, title: 'Test', created_at: '' });
+      vi.mocked(getConversationDownloads).mockResolvedValue([]);
+      const res = await request(app).get(`/api/conversations/${convId}/downloads`);
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual([]);
+    });
+  });
+
+  describe('GET /:id/downloads/:fileId', () => {
+    const convId = '00000000-0000-0000-0000-000000000001';
+    const fileId = '11111111-1111-1111-1111-111111111111';
+
+    it('returns 404 when conversation does not exist', async () => {
+      vi.mocked(getConversationMeta).mockReturnValue(null);
+      const res = await request(app).get(`/api/conversations/${convId}/downloads/${fileId}`);
+      expect(res.status).toBe(404);
+    });
+
+    it('returns 404 when downloads dir does not exist', async () => {
+      vi.mocked(getConversationMeta).mockReturnValue({ id: convId, title: 'Test', created_at: '' });
+      vi.mocked(conversationDownloadsDir).mockReturnValue('/tmp/definitely-does-not-exist-shoyu-test-xyz');
+      const res = await request(app).get(`/api/conversations/${convId}/downloads/${fileId}`);
+      expect(res.status).toBe(404);
+    });
+
+    it('returns 400 for non-UUID parameters', async () => {
+      const res = await request(app).get('/api/conversations/not-a-uuid/downloads/also-not-uuid');
+      expect(res.status).toBe(400);
     });
   });
 });
