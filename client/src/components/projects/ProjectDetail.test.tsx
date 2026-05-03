@@ -1,7 +1,21 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ProjectDetail from './ProjectDetail';
-import { ProjectDetail as ProjectDetailType } from '../../types';
+import { ProjectDetail as ProjectDetailType, ProjectDownloadEntry } from '../../types';
+
+vi.mock('../../hooks/useFileDownload', () => ({
+  useFileDownload: () => ({ download: vi.fn() }),
+}));
+
+function makeQueryClient() {
+  return new QueryClient({ defaultOptions: { queries: { retry: false } } });
+}
+
+function renderWithQuery(ui: React.ReactElement) {
+  const client = makeQueryClient();
+  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
 
 const PROJECT: ProjectDetailType = {
   id: 'p1',
@@ -113,9 +127,92 @@ describe('ProjectDetail', () => {
   it('calls onUpdateContext when context editor saves', () => {
     const onUpdateContext = vi.fn();
     render(<ProjectDetail {...defaultProps} onUpdateContext={onUpdateContext} />);
+    fireEvent.click(screen.getByRole('button', { name: /context/i }));
     const textarea = screen.getByRole('textbox');
     fireEvent.change(textarea, { target: { value: '# New Context' } });
     fireEvent.click(screen.getByText('Save'));
     expect(onUpdateContext).toHaveBeenCalledWith('# New Context');
+  });
+
+  describe('Downloads tab', () => {
+    it('shows downloads tab button', () => {
+      renderWithQuery(<ProjectDetail {...defaultProps} />);
+      expect(screen.getByRole('button', { name: /downloads/i })).toBeInTheDocument();
+    });
+
+    it('shows loading skeletons while fetch is in flight', async () => {
+      globalThis.fetch = vi.fn().mockReturnValue(new Promise(() => {}));
+      renderWithQuery(<ProjectDetail {...defaultProps} />);
+      fireEvent.click(screen.getByRole('button', { name: /downloads/i }));
+      await waitFor(() => {
+        const pulseEls = document.querySelectorAll('.animate-pulse');
+        expect(pulseEls.length).toBeGreaterThan(0);
+      });
+    });
+
+    it('shows empty state when no downloads returned', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => [] as ProjectDownloadEntry[],
+      } as Response);
+      renderWithQuery(<ProjectDetail {...defaultProps} />);
+      fireEvent.click(screen.getByRole('button', { name: /downloads/i }));
+      await waitFor(() => {
+        expect(screen.getByText(/No files generated yet/)).toBeInTheDocument();
+      });
+    });
+
+    it('renders download entries when data is returned', async () => {
+      const entries: ProjectDownloadEntry[] = [
+        {
+          fileId: 'uuid-1',
+          filename: 'output.py',
+          description: 'Python script',
+          version: 1,
+          updated: false,
+          size: 512,
+          created_at: '2026-01-01T12:00:00Z',
+          conversationId: 'c1',
+          conversationTitle: 'Chat A',
+        },
+      ];
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => entries,
+      } as Response);
+      renderWithQuery(<ProjectDetail {...defaultProps} />);
+      fireEvent.click(screen.getByRole('button', { name: /downloads/i }));
+      await waitFor(() => {
+        expect(screen.getByText('output.py')).toBeInTheDocument();
+        expect(screen.getByText(/Chat A/)).toBeInTheDocument();
+      });
+    });
+
+    it('builds download URL with correct conversationId and fileId', async () => {
+      const entries: ProjectDownloadEntry[] = [
+        {
+          fileId: 'file-uuid-abc',
+          filename: 'report.md',
+          version: 1,
+          updated: false,
+          conversationId: 'conv-xyz',
+          conversationTitle: 'My Chat',
+        },
+      ];
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => entries,
+      } as Response);
+      renderWithQuery(<ProjectDetail {...defaultProps} />);
+      fireEvent.click(screen.getByRole('button', { name: /downloads/i }));
+      await waitFor(() => {
+        expect(screen.getByText('report.md')).toBeInTheDocument();
+      });
+      // fetch was called with the correct URL
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        '/api/projects/p1/downloads',
+        expect.any(Object),
+      );
+    });
   });
 });

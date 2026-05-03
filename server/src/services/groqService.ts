@@ -21,6 +21,11 @@ export interface ImageAttachment {
   filename: string;
 }
 
+export interface ProviderToolCall {
+  toolName: string;
+  toolArgs: Record<string, unknown>;
+}
+
 export async function* streamChatGroqChat(
   messages: ChatMessage[],
   modelName: string = CHAT_MODEL,
@@ -35,6 +40,42 @@ export async function* streamChatGroqChat(
   for await (const chunk of stream) {
     const text = chunk.choices?.[0]?.delta?.content;
     if (text) yield text;
+  }
+}
+
+export async function* streamChatGroqChatWithTools(
+  messages: ChatMessage[],
+  modelName: string,
+  tools: OpenAI.ChatCompletionTool[],
+): AsyncGenerator<string | ProviderToolCall> {
+  const cleanedMessages = messages.map((m) => ({ role: m.role, content: m.content }));
+
+  const stream = await client.chat.completions.create(
+    { model: modelName, messages: cleanedMessages, tools, tool_choice: 'auto', stream: true },
+    { timeout: REQUEST_TIMEOUT_MS },
+  );
+
+  const acc: Record<number, { id: string; name: string; args: string }> = {};
+
+  for await (const chunk of stream) {
+    const delta = chunk.choices?.[0]?.delta;
+    if (delta?.content) yield delta.content;
+    if (delta?.tool_calls) {
+      for (const tc of delta.tool_calls) {
+        if (!acc[tc.index]) acc[tc.index] = { id: tc.id ?? '', name: '', args: '' };
+        if (tc.function?.name) acc[tc.index].name = tc.function.name;
+        if (tc.function?.arguments) acc[tc.index].args += tc.function.arguments;
+      }
+    }
+  }
+
+  for (const tc of Object.values(acc)) {
+    if (!tc.name) continue;
+    try {
+      yield { toolName: tc.name, toolArgs: JSON.parse(tc.args) };
+    } catch {
+      // malformed args — skip
+    }
   }
 }
 

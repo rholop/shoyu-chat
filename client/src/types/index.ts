@@ -11,6 +11,16 @@ export interface Attachment {
   size?: number;
 }
 
+export interface MessageDownload {
+  fileId: string;
+  filename: string;
+  description?: string;
+  version: number;
+  updated?: boolean;
+  size?: number;
+  created_at?: string;
+}
+
 export interface Message {
   id: number;
   conversation_id: string;
@@ -19,6 +29,7 @@ export interface Message {
   model_used: string | null;
   intent?: Intent | null;
   attachments?: Attachment[];
+  downloads?: MessageDownload[];
   created_at: string;
 }
 
@@ -44,6 +55,11 @@ export interface ProjectDetail extends Omit<Project, 'conversationCount'> {
   contextDoc: string;
   summary: string;
   conversations: Conversation[];
+}
+
+export interface ProjectDownloadEntry extends MessageDownload {
+  conversationId: string;
+  conversationTitle: string;
 }
 
 export interface ConversationWithMessages extends Conversation {
@@ -123,6 +139,5 @@ export const INTENT_MODEL_LABELS: Record<string, string> = {
 
 export type SSEEvent =
   | { type: 'token'; content: string }
-  | { type: 'done'; model: string; conversationId: string; intent: Intent }
+  | { type: 'done'; model: string; conversationId: string; intent: Intent; downloads?: MessageDownload[] }
   | { type: 'error'; message: string };
-

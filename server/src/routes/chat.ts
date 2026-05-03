@@ -7,9 +7,10 @@ import {
   updateConversationTitle,
   conversationFilesDir,
   MessageAttachment,
+  MessageDownload,
 } from '../storage';
-import { streamChat, InternalNoteResult } from '../services/aiRouter';
-import { extractContext, formatContextBlock, findConversationFile } from '../services/fileService';
+import { streamChat, InternalNoteResult, ToolCallResult } from '../services/aiRouter';
+import { extractContext, formatContextBlock, findConversationFile, writeDownload, getConversationDownloads } from '../services/fileService';
 import { schedule as scheduleSummary } from '../services/summaryService';
 import { getContext as getProjectContext } from '../services/projectService';
 import { ChatMessage, ImageAttachment } from '../services/groqService';
@@ -19,13 +20,13 @@ import { Intent } from '../types';
 const router = Router();
 
 const FILE_CHAR_LIMIT: Record<Intent, number> = {
-  [Intent.SUMMARIZING]:    500_000, // Gemini 2.0 Flash tier 1, 1M token window
-  [Intent.DRAFTING]:       300_000, // Groq 128K ctx — generous headroom for history + response
-  [Intent.TRANSLATING]:    200_000, // Gemini/Mistral fallback chain
-  [Intent.CODING]:         100_000, // Dense code files; Groq primary
-  [Intent.DEBUGGING]:      100_000, // Logs and snippets; Groq primary
-  [Intent.WEB_SEARCH]:      50_000, // Search is about current info, not large document processing
-  [Intent.IMAGE_ANALYSIS]:  50_000, // Text extraction rarely used; images go via base64
+  [Intent.SUMMARIZING]:    500_000,
+  [Intent.DRAFTING]:       300_000,
+  [Intent.TRANSLATING]:    200_000,
+  [Intent.CODING]:         100_000,
+  [Intent.DEBUGGING]:      100_000,
+  [Intent.WEB_SEARCH]:      50_000,
+  [Intent.IMAGE_ANALYSIS]:  50_000,
 };
 
 const attachmentSchema = z.object({
@@ -95,7 +96,7 @@ router.post('/send', async (req, res) => {
       .map((m) => m.content)
       .join('\n\n');
 
-    // Build system prompt from project context + internal notes
+    // Build system prompt from project context + internal notes + downloads context
     let systemContent = '';
     if (meta.projectId) {
       const projectContext = getProjectContext(meta.projectId);
@@ -107,6 +108,21 @@ router.post('/send', async (req, res) => {
       if (systemContent) systemContent += '\n\n';
       systemContent += `# Research Notes (from previous web searches)\n\n${internalNotes}`;
     }
+
+    // Inject existing downloads context so AI can reference files by fileId
+    try {
+      const existingDownloads = await getConversationDownloads(conversationId);
+      if (existingDownloads.length > 0) {
+        const downloadsContext = existingDownloads
+          .map((d) => `- fileId: "${d.fileId}", filename: "${d.filename}"${d.description ? `, description: "${d.description}"` : ''}, version: ${d.version}`)
+          .join('\n');
+        if (systemContent) systemContent += '\n\n';
+        systemContent += `## Files created in this conversation\n${downloadsContext}`;
+      }
+    } catch (err) {
+      logger.warn('Failed to load downloads context:', err);
+    }
+
     if (systemContent) {
       history.push({ role: 'system', content: systemContent });
     }
@@ -166,6 +182,7 @@ router.post('/send', async (req, res) => {
 
   let fullContent = '';
   let modelUsed = '';
+  const downloads: MessageDownload[] = [];
 
   try {
     const stream = streamChat(context, intent, hasImages);
@@ -182,6 +199,21 @@ router.post('/send', async (req, res) => {
         } catch (err) {
           logger.error('Failed to persist internal note:', err);
         }
+      } else if ('toolName' in result) {
+        const toolResult = result as ToolCallResult;
+        modelUsed = toolResult.model;
+        try {
+          const download = await writeDownload(
+            conversationId,
+            toolResult.args.filename,
+            toolResult.args.content,
+            toolResult.args.description,
+            toolResult.args.fileId,
+          );
+          downloads.push(download);
+        } catch (err) {
+          logger.error('Failed to write download file:', err);
+        }
       } else {
         const { token, model } = result as { token: string; model: string };
         fullContent += token;
@@ -191,7 +223,7 @@ router.post('/send', async (req, res) => {
       }
     }
 
-    if (fullContent && !aborted) {
+    if ((fullContent || downloads.length > 0) && !aborted) {
       const storedAttachments: MessageAttachment[] = attachments.map((a) => ({
         fileId: a.fileId,
         filename: a.filename,
@@ -210,6 +242,7 @@ router.post('/send', async (req, res) => {
           role: 'assistant',
           content: fullContent,
           model: modelUsed,
+          ...(downloads.length > 0 ? { downloads } : {}),
           created_at: new Date().toISOString(),
         });
       } catch (err) {
@@ -234,8 +267,8 @@ router.post('/send', async (req, res) => {
         logger.error('Failed to schedule summary:', err);
       }
 
-      send({ type: 'done', model: modelUsed, conversationId, intent });
-    } else if (!fullContent) {
+      send({ type: 'done', model: modelUsed, conversationId, intent, downloads });
+    } else if (!fullContent && downloads.length === 0) {
       send({ type: 'error', message: 'No response generated. Please try again.' });
     }
   } catch (err) {
@@ -252,7 +285,6 @@ router.post('/send', async (req, res) => {
     } else if (msg.toLowerCase().includes('timeout')) {
       message = 'Request timed out. Please try again.';
     } else if (msg.length > 0 && msg.length < 200) {
-      // Pass through specific error messages if they are reasonably short
       message = `Provider error: ${msg}`;
     }
 

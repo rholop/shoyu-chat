@@ -1,24 +1,30 @@
+import OpenAI from 'openai';
 import { getUsageCount, incrementUsage, setUsageCount } from '../storage';
 import { getToday } from '../utils/dateHelpers';
 import { logger } from '../utils/logger';
 import { Intent } from '../types';
 import {
   streamChatGroqChat,
+  streamChatGroqChatWithTools,
   isGroqAvailable,
   ChatMessage,
+  ProviderToolCall,
 } from './groqService';
 import {
   streamChatGemini,
   streamChatGeminiWithSearch,
+  streamChatGeminiWithTools,
   isGeminiAvailable,
   GroundingChunk,
 } from './geminiService';
 import {
   streamChatOpenRouter,
+  streamChatOpenRouterWithTools,
   isOpenRouterAvailable,
 } from './openrouterService';
 import {
   streamChatNvidia,
+  streamChatNvidiaWithTools,
   isNvidiaAvailable,
   summarizeNvidia,
 } from './nvidiaService';
@@ -33,6 +39,50 @@ const OPENROUTER_LIMIT = Number(process.env.OPENROUTER_DAILY_LIMIT ?? 200);
 const NVIDIA_LIMIT = Number(process.env.NVIDIA_DAILY_LIMIT ?? 1000);
 
 const GROQ_MAX_CONTEXT_MESSAGES = 12;
+
+// ── WRITE_FILE Tool ────────────────────────────────────────────────────────────
+
+export const WRITE_FILE_TOOL: OpenAI.ChatCompletionTool = {
+  type: 'function',
+  function: {
+    name: 'write_file',
+    description: `Create a new file or overwrite an existing one, making it available for the user to download.
+Use this whenever you generate code, scripts, documents, configs, or any content the user might want to save.
+Prefer this over putting long file contents in the chat message.
+If the user asks to update or modify a file you already created, pass its fileId to overwrite it instead of creating a duplicate.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        filename: {
+          type: 'string',
+          description: 'The filename including extension. E.g. "script.py", "report.md", "config.json"',
+        },
+        content: {
+          type: 'string',
+          description: 'The full text content of the file.',
+        },
+        description: {
+          type: 'string',
+          description: 'One sentence describing what this file is and what it does.',
+        },
+        fileId: {
+          type: 'string',
+          description: 'If provided, overwrites the existing file with this ID instead of creating a new one. Use this when updating a file you already created in this conversation.',
+        },
+      },
+      required: ['filename', 'content', 'description'],
+    },
+  },
+};
+
+// Gemini function declaration equivalent
+const WRITE_FILE_FUNCTION_DECLARATION = {
+  name: 'write_file',
+  description: WRITE_FILE_TOOL.function.description,
+  parameters: WRITE_FILE_TOOL.function.parameters,
+};
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 function isProviderKeyAvailable(key: string): boolean {
   if (key === 'groq-chat') return isGroqAvailable();
@@ -63,9 +113,20 @@ export interface InternalNoteResult {
   model: string;
 }
 
-export type RouterResult = StreamResult | InternalNoteResult;
+export interface ToolCallResult {
+  toolName: 'write_file';
+  args: {
+    filename: string;
+    content: string;
+    description: string;
+    fileId?: string;
+  };
+  model: string;
+}
 
-type StreamChunk = string | GroundingChunk;
+export type RouterResult = StreamResult | InternalNoteResult | ToolCallResult;
+
+type StreamChunk = string | GroundingChunk | ProviderToolCall;
 
 interface TierConfig {
   provider: 'gemini' | 'nvidia' | 'groq-chat' | 'openrouter';
@@ -75,6 +136,7 @@ interface TierConfig {
   searchTool?: Record<string, unknown>;
   trimContext?: boolean;
   vision?: boolean;
+  noTools?: boolean;
 }
 
 // Per-intent ordered fallback tiers (T1→T2→T3).
@@ -139,6 +201,10 @@ function isRetryable(error: unknown): boolean {
   return msg.includes('timeout') || msg.includes('rate limit') || msg.includes('deadline');
 }
 
+function isProviderToolCall(chunk: unknown): chunk is ProviderToolCall {
+  return typeof chunk === 'object' && chunk !== null && 'toolName' in chunk && !('groundingNotes' in chunk);
+}
+
 export async function* streamChat(
   messages: ChatMessage[],
   intent: Intent = Intent.CODING,
@@ -181,21 +247,58 @@ export async function* streamChat(
       let hasOutput = false;
       let generator: AsyncGenerator<StreamChunk>;
 
+      const useTools = !tier.noTools && !tier.useSearch;
+
       if (tier.provider === 'gemini') {
-        generator = tier.useSearch
-          ? streamChatGeminiWithSearch(msgs, tier.model, tier.searchTool)
-          : streamChatGemini(msgs, tier.model);
+        if (tier.useSearch) {
+          generator = streamChatGeminiWithSearch(msgs, tier.model, tier.searchTool);
+        } else if (useTools) {
+          generator = streamChatGeminiWithTools(msgs, tier.model, [WRITE_FILE_FUNCTION_DECLARATION]);
+        } else {
+          generator = streamChatGemini(msgs, tier.model);
+        }
       } else if (tier.provider === 'nvidia') {
-        generator = streamChatNvidia(msgs, tier.model);
+        generator = useTools
+          ? streamChatNvidiaWithTools(msgs, tier.model, [WRITE_FILE_TOOL])
+          : streamChatNvidia(msgs, tier.model);
       } else if (tier.provider === 'groq-chat') {
-        generator = streamChatGroqChat(msgs, tier.model);
+        generator = useTools
+          ? streamChatGroqChatWithTools(msgs, tier.model, [WRITE_FILE_TOOL])
+          : streamChatGroqChat(msgs, tier.model);
       } else {
-        generator = streamChatOpenRouter(msgs, tier.model);
+        generator = useTools
+          ? streamChatOpenRouterWithTools(msgs, tier.model, [WRITE_FILE_TOOL])
+          : streamChatOpenRouter(msgs, tier.model);
       }
 
       for await (const chunk of generator) {
         if (typeof chunk === 'object' && 'groundingNotes' in chunk) {
           yield { internalNote: (chunk as GroundingChunk).groundingNotes, model: label };
+        } else if (isProviderToolCall(chunk)) {
+          if (chunk.toolName === 'write_file') {
+            if (!hasOutput) {
+              incrementUsage(tier.provider, today);
+              hasOutput = true;
+            }
+            const args = chunk.toolArgs as {
+              filename?: string;
+              content?: string;
+              description?: string;
+              fileId?: string;
+            };
+            if (args.filename && args.content && args.description) {
+              yield {
+                toolName: 'write_file',
+                args: {
+                  filename: args.filename,
+                  content: args.content,
+                  description: args.description,
+                  fileId: args.fileId,
+                },
+                model: label,
+              };
+            }
+          }
         } else {
           if (!hasOutput) {
             incrementUsage(tier.provider, today);
@@ -215,7 +318,6 @@ export async function* streamChat(
       const detail  = `provider=${tier.provider} model=${tier.model} status=${status} type=${errName} msg="${errMsg}"${body}`;
 
       // 402/403 = billing cap or key hard-limit — provider is dead for the day.
-      // Auto-exhaust its daily counter so subsequent requests skip it immediately.
       if (status === 402 || status === 403) {
         setUsageCount(tier.provider, today, PROVIDER_LIMITS[tier.provider]);
         logger.warn(`[aiRouter] ${tier.provider} auto-exhausted for today (status=${status})`);
