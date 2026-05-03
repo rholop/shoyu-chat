@@ -47,8 +47,6 @@ Routes chat requests across Groq, Gemini, OpenRouter, and NVIDIA free tiers in p
 
 **Tests:** Every service, route, utility, and non-trivial component must have a corresponding test file. Test files live adjacent to the source file they test (e.g. `aiRouter.test.ts` next to `aiRouter.ts`). No untested code ships.
 
-**Docs:** Every subdirectory contains a `/docs` folder with markdown documentation covering the purpose of that directory, what each file does, key design decisions, and any non-obvious behavior. Docs are updated alongside code changes.
-
 ---
 
 ## 2. Repository Structure
