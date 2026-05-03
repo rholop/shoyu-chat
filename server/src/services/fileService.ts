@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { logger } from '../utils/logger';
 
-const MAX_TEXT_CHARS = 50_000;
+const DEFAULT_MAX_TEXT_CHARS = 50_000;
 
 export interface FileContext {
   filename: string;
@@ -16,6 +16,7 @@ export async function extractContext(
   filePath: string,
   mimeType: string,
   filename: string,
+  maxChars: number = DEFAULT_MAX_TEXT_CHARS,
 ): Promise<FileContext> {
   if (mimeType.startsWith('image/')) {
     const base64 = fs.readFileSync(filePath).toString('base64');
@@ -29,8 +30,8 @@ export async function extractContext(
       const data = fs.readFileSync(filePath);
       const parsed = await pdfParse(data);
       const raw = parsed.text;
-      const truncated = raw.length > MAX_TEXT_CHARS;
-      const text = raw.slice(0, MAX_TEXT_CHARS) + (truncated ? `\n\n[Content truncated — first ${MAX_TEXT_CHARS} characters shown]` : '');
+      const truncated = raw.length > maxChars;
+      const text = raw.slice(0, maxChars) + (truncated ? `\n\n[Content truncated — first ${maxChars} characters shown]` : '');
       return { filename, mimeType, isImage: false, textContent: text };
     } catch (err) {
       logger.error('PDF parse failed:', err);
@@ -41,8 +42,8 @@ export async function extractContext(
   // Text / code / JSON / CSV etc.
   try {
     const raw = fs.readFileSync(filePath, 'utf8');
-    const truncated = raw.length > MAX_TEXT_CHARS;
-    const text = raw.slice(0, MAX_TEXT_CHARS) + (truncated ? `\n\n[Content truncated — first ${MAX_TEXT_CHARS} characters shown]` : '');
+    const truncated = raw.length > maxChars;
+    const text = raw.slice(0, maxChars) + (truncated ? `\n\n[Content truncated — first ${maxChars} characters shown]` : '');
     return { filename, mimeType, isImage: false, textContent: text };
   } catch {
     return { filename, mimeType, isImage: false, textContent: '[Binary content cannot be displayed as text]' };

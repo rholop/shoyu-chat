@@ -13,6 +13,7 @@ import {
 } from './markdownService';
 import { getISOWeekKey, getMonthKey } from '../utils/dateHelpers';
 import { logger } from '../utils/logger';
+import { updateMemoryFromConversation } from './memoryService';
 
 const INACTIVITY_MS = 4 * 60 * 60 * 1000; // 4 hours
 const pendingTimers = new Map<string, NodeJS.Timeout>();
@@ -115,7 +116,14 @@ ${transcript}`;
   // 5. Regenerate monthly summary
   await regenerateMonthlySummary(dateStr.slice(0, 7));
 
-  // 6. If conversation belongs to a project, regenerate its summary
+  // 6. Update user memory with new facts from this conversation
+  try {
+    await updateMemoryFromConversation(transcript);
+  } catch (err) {
+    logger.error(`Memory update failed for conversation ${conversationId}:`, err);
+  }
+
+  // 7. If conversation belongs to a project, regenerate its summary
   if (meta.projectId) {
     try {
       await regenerateProjectSummary(meta.projectId);

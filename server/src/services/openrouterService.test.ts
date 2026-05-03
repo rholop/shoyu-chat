@@ -1,130 +1,158 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const { mockCreate } = vi.hoisted(() => ({ mockCreate: vi.fn() }));
 
 vi.mock('openai', () => ({
-  default: vi.fn(() => ({
+  default: vi.fn().mockImplementation(() => ({
     chat: { completions: { create: mockCreate } },
   })),
 }));
 
-import {
-  streamChatOpenRouter,
-  streamChatOpenRouterTranslating,
-  summarizeOpenRouter,
-  isOpenRouterAvailable,
-} from './openrouterService';
-import { ChatMessage } from './groqService';
+import OpenAI from 'openai';
+import { streamChatOpenRouter, summarizeOpenRouter, isOpenRouterAvailable, isRateLimitError } from './openrouterService';
 
 async function collect(gen: AsyncGenerator<string>): Promise<string[]> {
-  const out: string[] = [];
-  for await (const c of gen) out.push(c);
-  return out;
+  const results: string[] = [];
+  for await (const t of gen) results.push(t);
+  return results;
 }
 
-function makeStreamIterable(deltas: Array<string | undefined>) {
+function makeStream(tokens: string[]) {
   return (async function* () {
-    for (const d of deltas) yield { choices: [{ delta: { content: d } }] };
+    for (const t of tokens) yield { choices: [{ delta: { content: t } }] };
   })();
 }
 
-describe('isOpenRouterAvailable', () => {
-  it('returns true when OPENROUTER_API_KEY is set', () => {
-    process.env.OPENROUTER_API_KEY = 'key';
-    expect(isOpenRouterAvailable()).toBe(true);
-    delete process.env.OPENROUTER_API_KEY;
+describe('openrouterService v4.0', () => {
+  beforeEach(() => {
+    mockCreate.mockReset();
   });
 
-  it('returns false when key is absent', () => {
+  it('streamChatOpenRouter calls specified model', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    mockCreate.mockResolvedValueOnce(makeStream(['hello']));
+    await collect(streamChatOpenRouter([{ role: 'user', content: 'hi' }], 'custom-model'));
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'custom-model' }),
+      expect.anything(),
+    );
+  });
+
+  it('yields tokens from the stream', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    mockCreate.mockResolvedValueOnce(makeStream(['Hello', ' OpenRouter']));
+    const tokens = await collect(streamChatOpenRouter([{ role: 'user', content: 'hi' }], 'some-model'));
+    expect(tokens).toEqual(['Hello', ' OpenRouter']);
+  });
+
+  it('summarizeOpenRouter calls specified model', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'summary' } }] });
+    const result = await summarizeOpenRouter('summarize this', 'custom-model');
+    expect(result).toBe('summary');
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'custom-model' }),
+      expect.anything(),
+    );
+  });
+
+  it('passes 60s timeout to create()', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    mockCreate.mockResolvedValueOnce(makeStream(['ok']));
+    await collect(streamChatOpenRouter([{ role: 'user', content: 'hi' }], 'some-model'));
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ timeout: 60_000 }),
+    );
+  });
+
+  it('isOpenRouterAvailable returns correctly', () => {
+    process.env.OPENROUTER_API_KEY = 'test';
+    expect(isOpenRouterAvailable()).toBe(true);
     delete process.env.OPENROUTER_API_KEY;
     expect(isOpenRouterAvailable()).toBe(false);
   });
-});
 
-describe('streamChatOpenRouter (default – llama-3.1-8b-instruct:free)', () => {
-  beforeEach(() => vi.clearAllMocks());
+  it('handles stream chunks without choices (reproduction of crash)', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    const streamWithMetadata = (async function* () {
+      yield { choices: [{ delta: { content: 'hello' } }] };
+      yield { usage: { prompt_tokens: 10, completion_tokens: 5 } }; // No choices!
+    })();
+    mockCreate.mockResolvedValueOnce(streamWithMetadata);
 
-  it('calls meta-llama/llama-3.1-8b-instruct:free model', async () => {
-    mockCreate.mockResolvedValue(makeStreamIterable(['Hello']));
-    const msgs: ChatMessage[] = [{ role: 'user', content: 'hi' }];
-    await collect(streamChatOpenRouter(msgs));
-    expect(mockCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'meta-llama/llama-3.1-8b-instruct:free' }),
+    const tokens = await collect(streamChatOpenRouter([{ role: 'user', content: 'hi' }], 'some-model'));
+    expect(tokens).toEqual(['hello']);
+  });
+
+  // --- New tests below ---
+
+  it('client is instantiated with correct baseURL and required headers', () => {
+    expect(OpenAI).toHaveBeenCalledWith(
+      expect.objectContaining({
+        baseURL: 'https://openrouter.ai/api/v1',
+        defaultHeaders: expect.objectContaining({
+          'HTTP-Referer': 'https://holop.dev',
+          'X-Title': 'shoyu-chat',
+        }),
+      }),
     );
   });
 
-  it('yields non-empty delta content', async () => {
-    mockCreate.mockResolvedValue(makeStreamIterable(['Hello', undefined, ' world']));
-    const msgs: ChatMessage[] = [{ role: 'user', content: 'hi' }];
-    const tokens = await collect(streamChatOpenRouter(msgs));
-    expect(tokens).toEqual(['Hello', ' world']);
+  it('throws on 429 and isRateLimitError() identifies it', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    const rateLimitErr = { status: 429, message: 'Too Many Requests' };
+    mockCreate.mockRejectedValueOnce(rateLimitErr);
+
+    let caught: unknown;
+    try {
+      await collect(streamChatOpenRouter([{ role: 'user', content: 'hi' }], 'some-model'));
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBe(rateLimitErr);
+    expect(isRateLimitError(caught)).toBe(true);
+    expect(isRateLimitError({ status: 500 })).toBe(false);
+    expect(isRateLimitError(new Error('network error'))).toBe(false);
   });
 
-  it('returns empty array when all deltas are undefined', async () => {
-    mockCreate.mockResolvedValue(makeStreamIterable([undefined, undefined]));
-    const tokens = await collect(streamChatOpenRouter([{ role: 'user', content: 'hi' }]));
-    expect(tokens).toEqual([]);
-  });
-});
+  it('strips Perplexity citation metadata — yields only text content', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    const streamWithCitations = (async function* () {
+      yield { choices: [{ delta: { content: 'Paris is the capital of France.' } }] };
+      // Final chunk: empty content + top-level citations field (Perplexity pattern)
+      yield { choices: [{ delta: { content: '' } }], citations: ['https://en.wikipedia.org/wiki/Paris'] };
+    })();
+    mockCreate.mockResolvedValueOnce(streamWithCitations);
 
-describe('streamChatOpenRouterTranslating (TRANSLATING intent – mistral-large)', () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it('calls mistralai/mistral-large model', async () => {
-    mockCreate.mockResolvedValue(makeStreamIterable(['Bonjour']));
-    const msgs: ChatMessage[] = [{ role: 'user', content: 'translate: Hello' }];
-    await collect(streamChatOpenRouterTranslating(msgs));
-    expect(mockCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'mistralai/mistral-large' }),
-    );
+    const tokens = await collect(streamChatOpenRouter([{ role: 'user', content: 'What is the capital of France?' }], 'perplexity/sonar-pro'));
+    // Empty-string content is filtered by `if (text)`, citations field is never read
+    expect(tokens).toEqual(['Paris is the capital of France.']);
   });
 
-  it('yields translated tokens', async () => {
-    mockCreate.mockResolvedValue(makeStreamIterable(['Bonjour', ' le', ' monde']));
-    const msgs: ChatMessage[] = [{ role: 'user', content: 'translate: Hello world' }];
-    const tokens = await collect(streamChatOpenRouterTranslating(msgs));
-    expect(tokens).toEqual(['Bonjour', ' le', ' monde']);
-  });
+  it('throws a clear OPENROUTER_API_KEY error when key is missing', async () => {
+    const saved = process.env.OPENROUTER_API_KEY;
+    delete process.env.OPENROUTER_API_KEY;
 
-  it('skips undefined delta content', async () => {
-    mockCreate.mockResolvedValue(makeStreamIterable(['Hola', undefined, ' mundo']));
-    const tokens = await collect(
-      streamChatOpenRouterTranslating([{ role: 'user', content: 'translate' }]),
-    );
-    expect(tokens).toEqual(['Hola', ' mundo']);
-  });
+    let streamErr: unknown;
+    try {
+      const gen = streamChatOpenRouter([{ role: 'user', content: 'hi' }], 'some-model');
+      await gen.next();
+    } catch (e) {
+      streamErr = e;
+    }
+    expect(streamErr).toBeInstanceOf(Error);
+    expect((streamErr as Error).message).toMatch(/OPENROUTER_API_KEY/);
 
-  it('uses stream:true', async () => {
-    mockCreate.mockResolvedValue(makeStreamIterable(['ok']));
-    await collect(streamChatOpenRouterTranslating([{ role: 'user', content: 'hi' }]));
-    expect(mockCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ stream: true }),
-    );
-  });
-});
+    let summarizeErr: unknown;
+    try {
+      await summarizeOpenRouter('prompt', 'some-model');
+    } catch (e) {
+      summarizeErr = e;
+    }
+    expect(summarizeErr).toBeInstanceOf(Error);
+    expect((summarizeErr as Error).message).toMatch(/OPENROUTER_API_KEY/);
 
-describe('summarizeOpenRouter', () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it('returns the first choice message content', async () => {
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: 'summary here' } }],
-    });
-    const result = await summarizeOpenRouter('prompt');
-    expect(result).toBe('summary here');
-  });
-
-  it('returns empty string when choices are empty', async () => {
-    mockCreate.mockResolvedValue({ choices: [] });
-    const result = await summarizeOpenRouter('prompt');
-    expect(result).toBe('');
-  });
-
-  it('uses the llama free model (not mistral) for summarization', async () => {
-    mockCreate.mockResolvedValue({ choices: [{ message: { content: 'ok' } }] });
-    await summarizeOpenRouter('test');
-    expect(mockCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'meta-llama/llama-3.1-8b-instruct:free' }),
-    );
+    if (saved) process.env.OPENROUTER_API_KEY = saved;
   });
 });

@@ -39,7 +39,7 @@ describe('useChat', () => {
     vi.clearAllMocks();
     useChatStore.setState({
       activeConversationId: null, messages: [], streamingContent: '',
-      isStreaming: false, streamError: null, selectedIntent: Intent.CODING,
+      isStreaming: false, streamError: null, selectedIntent: Intent.CODING, intentLocked: false,
     });
   });
 
@@ -69,6 +69,7 @@ describe('useChat', () => {
       await result.current.send('hey', optimistic);
     });
 
+    // 'hey' has no strong signal → detectIntent falls back to CODING
     expect(sendMessage).toHaveBeenCalledWith('conv-1', 'hey', [], Intent.CODING);
     expect(useChatStore.getState().isStreaming).toBe(false);
   });
@@ -88,11 +89,82 @@ describe('useChat', () => {
     expect(useChatStore.getState().streamError).toBe('quota exceeded');
   });
 
+  it('auto-detects intent from message content (summarize → SUMMARIZING)', async () => {
+    vi.mocked(getConversation).mockResolvedValue({ ...convData, messages: [] });
+    async function* fakeStream() {
+      yield { type: 'done' as const, model: 'gemini', conversationId: 'conv-1' };
+    }
+    vi.mocked(sendMessage).mockReturnValue(fakeStream());
+
+    const { result } = renderHook(() => useChat('conv-1'), { wrapper: makeWrapper() });
+    await act(async () => {
+      await result.current.send('summarize this article for me', makeMessage());
+    });
+
+    expect(sendMessage).toHaveBeenCalledWith(
+      'conv-1', 'summarize this article for me', [], Intent.SUMMARIZING,
+    );
+  });
+
+  it('respects manual intent lock when intentLocked=true', async () => {
+    vi.mocked(getConversation).mockResolvedValue({ ...convData, messages: [] });
+    async function* fakeStream() {
+      yield { type: 'done' as const, model: 'groq-chat', conversationId: 'conv-1' };
+    }
+    vi.mocked(sendMessage).mockReturnValue(fakeStream());
+
+    // User manually selected DEBUGGING
+    useChatStore.setState({ selectedIntent: Intent.DEBUGGING, intentLocked: true });
+
+    const { result } = renderHook(() => useChat('conv-1'), { wrapper: makeWrapper() });
+    await act(async () => {
+      // Content would normally auto-detect as SUMMARIZING
+      await result.current.send('summarize this article', makeMessage());
+    });
+
+    // Should use locked DEBUGGING, not auto-detected SUMMARIZING
+    expect(sendMessage).toHaveBeenCalledWith(
+      'conv-1', 'summarize this article', [], Intent.DEBUGGING,
+    );
+  });
+
+  it('unlocks intent after send completes', async () => {
+    vi.mocked(getConversation).mockResolvedValue({ ...convData, messages: [] });
+    async function* fakeStream() {
+      yield { type: 'done' as const, model: 'gemini', conversationId: 'conv-1' };
+    }
+    vi.mocked(sendMessage).mockReturnValue(fakeStream());
+
+    useChatStore.setState({ selectedIntent: Intent.WEB_SEARCH, intentLocked: true });
+
+    const { result } = renderHook(() => useChat('conv-1'), { wrapper: makeWrapper() });
+    await act(async () => {
+      await result.current.send('search for news', makeMessage());
+    });
+
+    expect(useChatStore.getState().intentLocked).toBe(false);
+  });
+
   it('send is a no-op when conversationId is null', async () => {
     const { result } = renderHook(() => useChat(null), { wrapper: makeWrapper() });
     await act(async () => {
       await result.current.send('hey', makeMessage());
     });
     expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('sets streamError when sendMessage throws (network failure)', async () => {
+    vi.mocked(getConversation).mockResolvedValue({ ...convData, messages: [] });
+    vi.mocked(sendMessage).mockImplementation(async function* () {
+      throw new Error('Failed to fetch');
+    });
+
+    const { result } = renderHook(() => useChat('conv-1'), { wrapper: makeWrapper() });
+    await act(async () => {
+      await result.current.send('hey', makeMessage());
+    });
+
+    expect(useChatStore.getState().streamError).toBe('Failed to fetch');
+    expect(useChatStore.getState().isStreaming).toBe(false);
   });
 });

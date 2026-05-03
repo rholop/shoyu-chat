@@ -8,6 +8,8 @@ interface ChatState {
   isStreaming: boolean;
   streamError: string | null;
   selectedIntent: Intent;
+  /** true when the user manually clicked an intent button; resets after each send */
+  intentLocked: boolean;
 
   setActiveConversation: (id: string | null) => void;
   setMessages: (messages: Message[]) => void;
@@ -15,7 +17,10 @@ interface ChatState {
   finalizeStream: (event: Extract<SSEEvent, { type: 'done' }>, model: string) => void;
   setStreamError: (msg: string) => void;
   resetStream: () => void;
+  /** Manual override — locks intent for the next send only */
   setIntent: (intent: Intent) => void;
+  /** Called internally after each send to re-enable auto-detection */
+  unlockIntent: () => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -25,6 +30,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isStreaming: false,
   streamError: null,
   selectedIntent: Intent.CODING,
+  intentLocked: false,
 
   setActiveConversation: (id) =>
     set({ activeConversationId: id, messages: [], streamingContent: '', isStreaming: false, streamError: null }),
@@ -50,5 +56,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   resetStream: () => set({ streamingContent: '', isStreaming: true, streamError: null }),
 
-  setIntent: (intent) => set({ selectedIntent: intent }),
+  setIntent: (intent) => set({ selectedIntent: intent, intentLocked: true }),
+
+  unlockIntent: () => set({ intentLocked: false }),
 }));

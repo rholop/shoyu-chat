@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import { logger } from '../utils/logger';
+import { summarizeNvidia, isNvidiaAvailable } from './nvidiaService';
+import { summarizeGemini } from './geminiService';
 
 const MAX_WORDS = 4000;
 
@@ -46,8 +48,7 @@ export function getMemoryFilePath(): string {
 }
 
 export async function updateMemoryFromConversation(
-  conversationHistory: string,
-  summarizeFn: (prompt: string) => Promise<string>
+  conversationHistory: string
 ): Promise<void> {
   const existing = readMemory() ?? '';
 
@@ -69,7 +70,24 @@ RULES:
 
 Return the complete updated memory file in Markdown format. Do not include any preamble or explanation.`;
 
-  const updated = await summarizeFn(prompt);
+  let updated: string | undefined;
+
+  // v4.0: Architect is NVIDIA Llama 3.1 405B (Fallback: Gemini 1.5 Pro)
+  try {
+    if (isNvidiaAvailable()) {
+      updated = await summarizeNvidia(prompt, 'meta/llama-3.1-405b-instruct');
+    } else {
+      updated = await summarizeGemini(prompt);
+    }
+  } catch (err) {
+    logger.warn(`Memory architect failed, trying fallback: ${err}`);
+    try {
+      updated = await summarizeGemini(prompt);
+    } catch (fallbackErr) {
+      logger.error(`Memory update failed permanently: ${fallbackErr}`);
+    }
+  }
+
   if (updated?.trim()) {
     writeMemory(updated.trim());
     logger.info('User memory updated successfully');

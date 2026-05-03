@@ -1,7 +1,9 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { ChatMessage } from './groqService';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'dummy');
+
+const REQUEST_TIMEOUT_MS = 60_000;
 
 export function isGeminiAvailable(): boolean {
   return Boolean(process.env.GEMINI_API_KEY);
@@ -59,47 +61,69 @@ function buildGroundingNotes(metadata: Record<string, unknown>): string {
 
 function prepareHistory(messages: ChatMessage[]) {
   const allHistory = toGeminiHistory(messages);
+  const lastMsg = allHistory.at(-1);
+  if (!lastMsg) throw new Error('No user or assistant messages to send to Gemini');
   const history = allHistory.slice(0, -1);
   while (history.length > 0 && history[0].role !== 'user') {
     history.shift();
   }
-  const lastMsg = allHistory.at(-1)!;
   return { history, lastMsg };
 }
 
-export async function* streamChatGemini(messages: ChatMessage[]): AsyncGenerator<string> {
+export async function* streamChatGemini(
+  messages: ChatMessage[],
+  modelName: string = 'gemini-2.5-flash'
+): AsyncGenerator<string> {
   const systemInstruction = extractSystemInstruction(messages);
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.0-flash',
-    ...(systemInstruction ? { systemInstruction } : {}),
-  });
+  const model = genAI.getGenerativeModel(
+    { model: modelName, ...(systemInstruction ? { systemInstruction } : {}) },
+    { timeout: REQUEST_TIMEOUT_MS },
+  );
   const { history, lastMsg } = prepareHistory(messages);
   const chat = model.startChat({ history });
   const result = await chat.sendMessageStream(lastMsg.parts);
 
   for await (const chunk of result.stream) {
-    const text = chunk.text();
-    if (text) yield text;
+    try {
+      const text = chunk.text();
+      if (text) yield text;
+    } catch {
+      // Some chunks (e.g. metadata) don't have text
+    }
   }
 }
 
 export async function* streamChatGeminiWithSearch(
   messages: ChatMessage[],
+  modelName: string = 'gemini-2.5-flash',
+  // Gemini 2.x/2.5 use the native google_search tool
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  searchTool: Record<string, unknown> = { google_search: {} }
 ): AsyncGenerator<string | GroundingChunk> {
   const systemInstruction = extractSystemInstruction(messages);
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.0-flash',
-    ...(systemInstruction ? { systemInstruction } : {}),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    tools: [{ googleSearch: {} }] as any,
-  });
-  const { history, lastMsg } = prepareHistory(messages);
-  const chat = model.startChat({ history });
-  const streamResult = await chat.sendMessageStream(lastMsg.parts);
+  const model = genAI.getGenerativeModel(
+    {
+      model: modelName,
+      ...(systemInstruction ? { systemInstruction } : {}),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      tools: [searchTool] as any,
+    },
+    { timeout: REQUEST_TIMEOUT_MS },
+  );
+  // googleSearch grounding is incompatible with startChat/sendMessageStream —
+  // the API rejects tool-enabled requests in chat sessions. Use
+  // generateContentStream with the full contents array instead.
+  const contents = toGeminiHistory(messages);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const streamResult = await model.generateContentStream({ contents } as any);
 
   for await (const chunk of streamResult.stream) {
-    const text = chunk.text();
-    if (text) yield text;
+    try {
+      const text = chunk.text();
+      if (text) yield text;
+    } catch {
+      // Some chunks (e.g. metadata) don't have text
+    }
   }
 
   try {
@@ -117,8 +141,14 @@ export async function* streamChatGeminiWithSearch(
   }
 }
 
-export async function summarizeGemini(prompt: string): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+export async function summarizeGemini(
+  prompt: string,
+  modelName: string = 'gemini-2.5-flash'
+): Promise<string> {
+  const model = genAI.getGenerativeModel(
+    { model: modelName },
+    { timeout: REQUEST_TIMEOUT_MS },
+  );
   const result = await model.generateContent(prompt);
   return result.response.text();
 }

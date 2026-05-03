@@ -4,41 +4,38 @@ import { logger } from '../utils/logger';
 import { Intent } from '../types';
 import {
   streamChatGroqChat,
-  summarizeGroq,
   isGroqAvailable,
   ChatMessage,
 } from './groqService';
 import {
   streamChatGemini,
   streamChatGeminiWithSearch,
-  summarizeGemini,
   isGeminiAvailable,
   GroundingChunk,
 } from './geminiService';
 import {
   streamChatOpenRouter,
-  streamChatOpenRouterTranslating,
-  summarizeOpenRouter,
   isOpenRouterAvailable,
 } from './openrouterService';
 import {
   streamChatNvidia,
-  streamChatNvidiaCoding,
-  summarizeNvidia,
   isNvidiaAvailable,
+  summarizeNvidia,
 } from './nvidiaService';
 import { readMemory } from './memoryService';
+import { summarizeGemini } from './geminiService';
+import { summarizeGroq } from './groqService';
+import { summarizeOpenRouter } from './openrouterService';
 
 const GROQ_CHAT_LIMIT = Number(process.env.GROQ_CHAT_DAILY_LIMIT ?? 1000);
 const GEMINI_LIMIT = Number(process.env.GEMINI_DAILY_LIMIT ?? 1500);
 const OPENROUTER_LIMIT = Number(process.env.OPENROUTER_DAILY_LIMIT ?? 200);
 const NVIDIA_LIMIT = Number(process.env.NVIDIA_DAILY_LIMIT ?? 1000);
 
-// Maximum messages kept in context for Groq to stay within token limits
 const GROQ_MAX_CONTEXT_MESSAGES = 12;
 
 function isProviderKeyAvailable(key: string): boolean {
-  if (key === 'groq-compound' || key === 'groq-chat') return isGroqAvailable();
+  if (key === 'groq-chat') return isGroqAvailable();
   if (key === 'gemini') return isGeminiAvailable();
   if (key === 'openrouter') return isOpenRouterAvailable();
   if (key === 'nvidia') return isNvidiaAvailable();
@@ -70,116 +67,61 @@ export type RouterResult = StreamResult | InternalNoteResult;
 
 type StreamChunk = string | GroundingChunk;
 
-interface SpecialistConfig {
-  providerKey: string;
-  limit: number;
-  vision: boolean;
-  modelLabel: string;
-  stream: (msgs: ChatMessage[]) => AsyncGenerator<StreamChunk>;
+interface TierConfig {
+  provider: 'gemini' | 'nvidia' | 'groq-chat' | 'openrouter';
+  model: string;
+  label: string;
+  useSearch?: boolean;
+  searchTool?: Record<string, unknown>;
   trimContext?: boolean;
+  vision?: boolean;
 }
 
-interface FallbackConfig {
-  key: string;
-  limit: number;
-  vision: boolean;
-  modelLabel: string;
-  stream: (msgs: ChatMessage[]) => AsyncGenerator<string>;
-  trimContext?: boolean;
-}
-
-const SPECIALIST_MAP: Record<Intent, SpecialistConfig> = {
-  [Intent.WEB_SEARCH]: {
-    providerKey: 'gemini',
-    limit: GEMINI_LIMIT,
-    vision: false,
-    modelLabel: 'gemini',
-    stream: streamChatGeminiWithSearch as (msgs: ChatMessage[]) => AsyncGenerator<StreamChunk>,
-  },
-  [Intent.CODING]: {
-    providerKey: 'nvidia',
-    limit: NVIDIA_LIMIT,
-    vision: false,
-    modelLabel: 'nvidia',
-    stream: streamChatNvidiaCoding as (msgs: ChatMessage[]) => AsyncGenerator<StreamChunk>,
-  },
-  [Intent.DEBUGGING]: {
-    providerKey: 'groq-chat',
-    limit: GROQ_CHAT_LIMIT,
-    vision: false,
-    modelLabel: 'groq-chat',
-    stream: streamChatGroqChat as (msgs: ChatMessage[]) => AsyncGenerator<StreamChunk>,
-    trimContext: true,
-  },
-  [Intent.TRANSLATING]: {
-    providerKey: 'openrouter',
-    limit: OPENROUTER_LIMIT,
-    vision: false,
-    modelLabel: 'openrouter',
-    stream: streamChatOpenRouterTranslating as (msgs: ChatMessage[]) => AsyncGenerator<StreamChunk>,
-  },
-  [Intent.DRAFTING]: {
-    providerKey: 'groq-chat',
-    limit: GROQ_CHAT_LIMIT,
-    vision: false,
-    modelLabel: 'groq-chat',
-    stream: streamChatGroqChat as (msgs: ChatMessage[]) => AsyncGenerator<StreamChunk>,
-    trimContext: true,
-  },
-  [Intent.SUMMARIZING]: {
-    providerKey: 'gemini',
-    limit: GEMINI_LIMIT,
-    vision: false,
-    modelLabel: 'gemini',
-    stream: streamChatGemini as (msgs: ChatMessage[]) => AsyncGenerator<StreamChunk>,
-  },
-  [Intent.IMAGE_ANALYSIS]: {
-    providerKey: 'gemini',
-    limit: GEMINI_LIMIT,
-    vision: true,
-    modelLabel: 'gemini',
-    stream: streamChatGemini as (msgs: ChatMessage[]) => AsyncGenerator<StreamChunk>,
-  },
+// Per-intent ordered fallback tiers (T1→T2→T3).
+// The first available tier that succeeds is used; subsequent tiers show "(Fallback)" in label.
+const FALLBACK_MATRIX: Record<Intent, TierConfig[]> = {
+  [Intent.WEB_SEARCH]: [
+    { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini: 2.5 Flash', useSearch: true, searchTool: { google_search: {} }, vision: true },
+    { provider: 'gemini', model: 'gemini-2.5-pro', label: 'Gemini: 2.5 Pro', useSearch: true, searchTool: { google_search: {} }, vision: true },
+    { provider: 'openrouter', model: 'perplexity/sonar-pro', label: 'OR: Perplexity Sonar Pro' },
+  ],
+  [Intent.CODING]: [
+    { provider: 'nvidia', model: 'meta/llama-3.3-70b-instruct', label: 'NVIDIA: Llama 3.3 70B' },
+    { provider: 'groq-chat', model: 'llama-3.3-70b-versatile', label: 'Groq: Llama 3.3 70B' },
+    { provider: 'gemini', model: 'gemini-2.5-pro', label: 'Gemini: 2.5 Pro' },
+  ],
+  [Intent.DEBUGGING]: [
+    { provider: 'groq-chat', model: 'llama-3.3-70b-versatile', label: 'Groq: Llama 3.3 70B', trimContext: true },
+    { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini: 2.5 Flash' },
+    { provider: 'openrouter', model: 'qwen/qwen-2.5-72b-instruct', label: 'OR: Qwen 2.5 72B' },
+  ],
+  [Intent.TRANSLATING]: [
+    { provider: 'openrouter', model: 'mistralai/mistral-large-2411', label: 'OR: Mistral Large' },
+    { provider: 'gemini', model: 'gemini-2.5-pro', label: 'Gemini: 2.5 Pro' },
+    { provider: 'groq-chat', model: 'llama-3.3-70b-versatile', label: 'Groq: Llama 3.3 70B' },
+  ],
+  [Intent.DRAFTING]: [
+    { provider: 'groq-chat', model: 'llama-3.3-70b-versatile', label: 'Groq: Llama 3.3 70B', trimContext: true },
+    { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini: 2.5 Flash' },
+    { provider: 'nvidia', model: 'meta/llama-3.1-70b-instruct', label: 'NVIDIA: Llama 3.1 70B' },
+  ],
+  [Intent.SUMMARIZING]: [
+    { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini: 2.5 Flash' },
+    { provider: 'groq-chat', model: 'llama-3.3-70b-versatile', label: 'Groq: Llama 3.3 70B' },
+    { provider: 'openrouter', model: 'mistralai/mistral-small-2409', label: 'OR: Mistral Small' },
+  ],
+  [Intent.IMAGE_ANALYSIS]: [
+    { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini: 2.5 Flash', vision: true },
+    { provider: 'gemini', model: 'gemini-2.5-pro', label: 'Gemini: 2.5 Pro', vision: true },
+    { provider: 'openrouter', model: 'openai/gpt-4o-mini', label: 'OR: GPT-4o-mini', vision: true },
+  ],
 };
 
-// Per-intent ordered fallback tiers (T2, T3) used when the T1 specialist fails.
-// Each intent defines its own priority list rather than a shared generic chain.
-const INTENT_FALLBACK_MAP: Record<Intent, FallbackConfig[]> = {
-  // WEB_SEARCH: T1 gemini-search → T2 gemini (no search) → T3 openrouter
-  [Intent.WEB_SEARCH]: [
-    { key: 'gemini', limit: GEMINI_LIMIT, vision: false, modelLabel: 'gemini', stream: streamChatGemini },
-    { key: 'openrouter', limit: OPENROUTER_LIMIT, vision: false, modelLabel: 'openrouter', stream: streamChatOpenRouter },
-  ],
-  // CODING: T1 nvidia-405b → T2 groq-70b → T3 gemini
-  [Intent.CODING]: [
-    { key: 'groq-chat', limit: GROQ_CHAT_LIMIT, vision: false, modelLabel: 'groq-chat', stream: streamChatGroqChat, trimContext: true },
-    { key: 'gemini', limit: GEMINI_LIMIT, vision: false, modelLabel: 'gemini', stream: streamChatGemini },
-  ],
-  // DEBUGGING: T1 groq-70b → T2 gemini → T3 openrouter
-  [Intent.DEBUGGING]: [
-    { key: 'gemini', limit: GEMINI_LIMIT, vision: false, modelLabel: 'gemini', stream: streamChatGemini },
-    { key: 'openrouter', limit: OPENROUTER_LIMIT, vision: false, modelLabel: 'openrouter', stream: streamChatOpenRouter },
-  ],
-  // TRANSLATING: T1 openrouter-mistral → T2 gemini → T3 groq-70b
-  [Intent.TRANSLATING]: [
-    { key: 'gemini', limit: GEMINI_LIMIT, vision: false, modelLabel: 'gemini', stream: streamChatGemini },
-    { key: 'groq-chat', limit: GROQ_CHAT_LIMIT, vision: false, modelLabel: 'groq-chat', stream: streamChatGroqChat, trimContext: true },
-  ],
-  // DRAFTING: T1 groq-70b → T2 gemini → T3 nvidia-70b
-  [Intent.DRAFTING]: [
-    { key: 'gemini', limit: GEMINI_LIMIT, vision: false, modelLabel: 'gemini', stream: streamChatGemini },
-    { key: 'nvidia', limit: NVIDIA_LIMIT, vision: false, modelLabel: 'nvidia', stream: streamChatNvidia },
-  ],
-  // SUMMARIZING: T1 gemini → T2 groq-70b → T3 openrouter
-  [Intent.SUMMARIZING]: [
-    { key: 'groq-chat', limit: GROQ_CHAT_LIMIT, vision: false, modelLabel: 'groq-chat', stream: streamChatGroqChat, trimContext: true },
-    { key: 'openrouter', limit: OPENROUTER_LIMIT, vision: false, modelLabel: 'openrouter', stream: streamChatOpenRouter },
-  ],
-  // IMAGE_ANALYSIS: T1 gemini-vision → T2 nvidia (text-only, skipped when hasImages) → T3 groq
-  [Intent.IMAGE_ANALYSIS]: [
-    { key: 'nvidia', limit: NVIDIA_LIMIT, vision: false, modelLabel: 'nvidia', stream: streamChatNvidia },
-    { key: 'groq-chat', limit: GROQ_CHAT_LIMIT, vision: false, modelLabel: 'groq-chat', stream: streamChatGroqChat, trimContext: true },
-  ],
+const PROVIDER_LIMITS: Record<string, number> = {
+  'groq-chat': GROQ_CHAT_LIMIT,
+  gemini: GEMINI_LIMIT,
+  openrouter: OPENROUTER_LIMIT,
+  nvidia: NVIDIA_LIMIT,
 };
 
 function trimForGroq(messages: ChatMessage[]): ChatMessage[] {
@@ -189,6 +131,14 @@ function trimForGroq(messages: ChatMessage[]): ChatMessage[] {
   return [...system, ...trimmed];
 }
 
+function isRetryable(error: unknown): boolean {
+  const status = (error as { status?: number; response?: { status?: number } })?.status
+    || (error as { response?: { status?: number } })?.response?.status;
+  if (status === 429 || (status !== undefined && status >= 500)) return true;
+  const msg = (error as { message?: string })?.message?.toLowerCase() ?? '';
+  return msg.includes('timeout') || msg.includes('rate limit') || msg.includes('deadline');
+}
+
 export async function* streamChat(
   messages: ChatMessage[],
   intent: Intent = Intent.CODING,
@@ -196,121 +146,115 @@ export async function* streamChat(
   injectMemory = true,
 ): AsyncGenerator<RouterResult> {
   const today = getToday();
-
   const memoryContext = injectMemory ? readMemory() : null;
   const contextualMessages = buildMessagesWithMemory(messages, memoryContext);
 
-  // Force IMAGE_ANALYSIS when images are present and specialist doesn't support vision
-  const specialist =
-    hasImages && !SPECIALIST_MAP[intent].vision
-      ? SPECIALIST_MAP[Intent.IMAGE_ANALYSIS]
-      : SPECIALIST_MAP[intent];
+  const tiers = FALLBACK_MATRIX[intent] || FALLBACK_MATRIX[Intent.CODING];
 
-  const msgs = specialist.trimContext ? trimForGroq(contextualMessages) : contextualMessages;
+  let anyTierAttempted = false;
 
-  const specialistUsage = getUsageCount(specialist.providerKey, today);
-  const specialistAvailable =
-    specialistUsage < specialist.limit && isProviderKeyAvailable(specialist.providerKey);
+  for (let i = 0; i < tiers.length; i++) {
+    const tier = tiers[i];
+    const isFallback = i > 0;
+    const label = isFallback ? `${tier.label} (Fallback)` : tier.label;
 
-  if (specialistAvailable) {
+    if (hasImages && !tier.vision && intent !== Intent.IMAGE_ANALYSIS) {
+      continue;
+    }
+
+    const usage = getUsageCount(tier.provider, today);
+    if (usage >= PROVIDER_LIMITS[tier.provider]) {
+      logger.warn(`Tier ${i + 1} (${tier.provider}) at daily limit`);
+      continue;
+    }
+
+    if (!isProviderKeyAvailable(tier.provider)) {
+      logger.warn(`Tier ${i + 1} (${tier.provider}) API key missing`);
+      continue;
+    }
+
+    anyTierAttempted = true;
+    const msgs = tier.trimContext ? trimForGroq(contextualMessages) : contextualMessages;
+
     try {
       let hasOutput = false;
-      for await (const chunk of specialist.stream(msgs)) {
+      let generator: AsyncGenerator<StreamChunk>;
+
+      if (tier.provider === 'gemini') {
+        generator = tier.useSearch
+          ? streamChatGeminiWithSearch(msgs, tier.model, tier.searchTool)
+          : streamChatGemini(msgs, tier.model);
+      } else if (tier.provider === 'nvidia') {
+        generator = streamChatNvidia(msgs, tier.model);
+      } else if (tier.provider === 'groq-chat') {
+        generator = streamChatGroqChat(msgs, tier.model);
+      } else {
+        generator = streamChatOpenRouter(msgs, tier.model);
+      }
+
+      for await (const chunk of generator) {
         if (typeof chunk === 'object' && 'groundingNotes' in chunk) {
-          yield { internalNote: (chunk as GroundingChunk).groundingNotes, model: specialist.modelLabel };
+          yield { internalNote: (chunk as GroundingChunk).groundingNotes, model: label };
         } else {
           if (!hasOutput) {
-            incrementUsage(specialist.providerKey, today);
+            incrementUsage(tier.provider, today);
             hasOutput = true;
           }
-          yield { token: chunk as string, model: specialist.modelLabel };
+          yield { token: chunk as string, model: label };
         }
       }
       if (hasOutput) return;
-      logger.warn(`Specialist ${specialist.providerKey} returned no tokens`);
+      logger.warn(`Tier ${i + 1} (${tier.label}) returned no tokens`);
     } catch (err) {
-      logger.warn(
-        `Specialist ${specialist.providerKey} failed: ${err instanceof Error ? err.message : err}`,
-      );
-    }
-  } else {
-    logger.warn(
-      `Specialist ${specialist.providerKey} unavailable or at daily limit (${specialistUsage}/${specialist.limit})`,
-    );
-  }
+      const errMsg = err instanceof Error ? err.message : String(err);
+      const isLastTier = i === tiers.length - 1;
 
-  // Per-intent fallback chain (T2, T3)
-  const effectiveIntent = hasImages && !SPECIALIST_MAP[intent].vision
-    ? Intent.IMAGE_ANALYSIS
-    : intent;
-
-  for (const provider of INTENT_FALLBACK_MAP[effectiveIntent]) {
-    if (hasImages && !provider.vision) {
-      // Skip non-vision fallbacks when the request has images
-      continue;
-    }
-
-    const usage = getUsageCount(provider.key, today);
-    if (usage >= provider.limit) {
-      logger.warn(`Fallback ${provider.key} daily limit reached (${usage}/${provider.limit})`);
-      continue;
-    }
-
-    if (!isProviderKeyAvailable(provider.key)) {
-      logger.warn(`Fallback ${provider.key} not available (no API key)`);
-      continue;
-    }
-
-    const fallbackMsgs = provider.trimContext ? trimForGroq(contextualMessages) : contextualMessages;
-
-    try {
-      let hasOutput = false;
-      for await (const token of provider.stream(fallbackMsgs)) {
-        if (!hasOutput) {
-          incrementUsage(provider.key, today);
-          hasOutput = true;
-        }
-        yield { token, model: provider.modelLabel };
+      if (!isLastTier) {
+        const logFn = isRetryable(err) ? logger.warn : logger.error;
+        logFn(`Tier ${i + 1} (${tier.label}) failed, trying next tier: ${errMsg}`);
+        continue;
       }
-      if (hasOutput) return;
-      logger.warn(`Fallback ${provider.key} returned no tokens`);
-    } catch (err) {
-      logger.warn(`Fallback ${provider.key} failed: ${err instanceof Error ? err.message : err}`);
+
+      logger.error(`All tiers exhausted for intent ${intent}. Last error from ${tier.label}: ${errMsg}`);
+      throw err;
     }
   }
 
-  throw new Error('QUOTA_EXCEEDED');
+  throw new Error(anyTierAttempted ? 'ALL_PROVIDERS_FAILED' : 'QUOTA_EXCEEDED');
 }
 
 export async function summarize(prompt: string): Promise<string> {
   const today = getToday();
 
-  // groq-compound is skipped for summarization to preserve its chat budget
   const providers: Array<{
-    key: string;
-    limit: number;
-    fn: (p: string) => Promise<string>;
+    provider: 'nvidia' | 'gemini' | 'groq-chat' | 'openrouter';
+    model: string;
   }> = [
-    { key: 'nvidia', limit: NVIDIA_LIMIT, fn: summarizeNvidia },
-    { key: 'gemini', limit: GEMINI_LIMIT, fn: summarizeGemini },
-    { key: 'groq-chat', limit: GROQ_CHAT_LIMIT, fn: summarizeGroq },
-    { key: 'openrouter', limit: OPENROUTER_LIMIT, fn: summarizeOpenRouter },
+    { provider: 'nvidia', model: 'meta/llama-3.3-70b-instruct' },
+    { provider: 'gemini', model: 'gemini-2.5-flash' },
+    { provider: 'groq-chat', model: 'llama-3.3-70b-versatile' },
+    { provider: 'openrouter', model: 'mistralai/mistral-small-2409' },
   ];
 
-  for (const provider of providers) {
-    const usage = getUsageCount(provider.key, today);
-    if (usage >= provider.limit) continue;
-
-    if (!isProviderKeyAvailable(provider.key)) continue;
+  for (const p of providers) {
+    const usage = getUsageCount(p.provider, today);
+    if (usage >= PROVIDER_LIMITS[p.provider]) continue;
+    if (!isProviderKeyAvailable(p.provider)) continue;
 
     try {
-      incrementUsage(provider.key, today);
-      const result = await provider.fn(prompt);
-      if (result) return result;
-    } catch (err) {
-      logger.warn(
-        `Summarize provider ${provider.key} failed: ${err instanceof Error ? err.message : err}`,
+      const result = await (
+        p.provider === 'nvidia' ? summarizeNvidia(prompt, p.model) :
+        p.provider === 'gemini' ? summarizeGemini(prompt, p.model) :
+        p.provider === 'groq-chat' ? summarizeGroq(prompt, p.model) :
+        summarizeOpenRouter(prompt, p.model)
       );
+
+      if (result) {
+        incrementUsage(p.provider, today);
+        return result;
+      }
+    } catch (err) {
+      logger.warn(`Summarize fallback failed for ${p.provider}: ${err}`);
     }
   }
 

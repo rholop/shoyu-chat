@@ -50,6 +50,11 @@ import {
 import { streamChat } from '../services/aiRouter';
 import { schedule as scheduleSummary } from '../services/summaryService';
 import { getContext as getProjectContext } from '../services/projectService';
+import {
+  extractContext,
+  formatContextBlock,
+  findConversationFile,
+} from '../services/fileService';
 import chatRouter from '../routes/chat';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -539,5 +544,142 @@ describe('POST /api/chat/send – project context injection', () => {
     });
 
     expect(capturedMsgs.some((m: any) => m.role === 'system')).toBe(false);
+  });
+});
+
+// ── File attachment tests ─────────────────────────────────────────────────────
+
+describe('POST /api/chat/send – file attachments', () => {
+  const FILE_ATT = {
+    fileId: '11111111-2222-3333-4444-555555555555',
+    filename: 'notes.txt',
+    mimeType: 'text/plain',
+    size: 200,
+  };
+
+  let app: express.Application;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    app = makeApp();
+    vi.mocked(getConversationMeta).mockReturnValue(CONV_META);
+    vi.mocked(getMessages).mockReturnValue([]);
+    vi.mocked(appendMessage).mockReturnValue();
+    vi.mocked(updateConversationTitle).mockReturnValue(true);
+    vi.mocked(scheduleSummary).mockReturnValue();
+    vi.mocked(streamChat).mockImplementation(() => makeStream('ok') as any);
+  });
+
+  it('prepends extracted text context to user message', async () => {
+    vi.mocked(findConversationFile).mockReturnValue({ filePath: '/tmp/notes.txt', filename: FILE_ATT.filename });
+    vi.mocked(extractContext).mockResolvedValue({
+      filename: 'notes.txt',
+      mimeType: 'text/plain',
+      isImage: false,
+      textContent: 'Meeting notes content here.',
+    });
+    vi.mocked(formatContextBlock).mockReturnValue('--- notes.txt ---\nMeeting notes content here.');
+
+    let capturedMsgs: unknown[] = [];
+    vi.mocked(streamChat).mockImplementation(async function* (msgs: unknown[]) {
+      capturedMsgs = msgs;
+      yield { token: 'ok', model: 'groq-chat' };
+    } as any);
+
+    await request(app)
+      .post('/api/chat/send')
+      .send({ conversationId: CONV_ID, content: 'summarise this', attachments: [FILE_ATT] });
+
+    const userMsg = capturedMsgs.find((m: any) => m.role === 'user') as
+      | { role: string; content: string }
+      | undefined;
+    expect(userMsg).toBeDefined();
+    expect(userMsg!.content).toContain('notes.txt');
+    expect(userMsg!.content).toContain('Meeting notes content here.');
+    expect(userMsg!.content).toContain('summarise this');
+  });
+
+  it('calls streamChat with hasImages=true when an image attachment is found', async () => {
+    const imgAtt = { ...FILE_ATT, filename: 'photo.png', mimeType: 'image/png' };
+
+    vi.mocked(findConversationFile).mockReturnValue({ filePath: '/tmp/photo.png', filename: imgAtt.filename });
+    vi.mocked(extractContext).mockResolvedValue({
+      filename: 'photo.png',
+      mimeType: 'image/png',
+      isImage: true,
+      base64: 'abc123base64',
+    });
+
+    let capturedHasImages: boolean | undefined;
+    vi.mocked(streamChat).mockImplementation(async function* (_msgs: unknown[], _intent: unknown, hasImages: boolean) {
+      capturedHasImages = hasImages;
+      yield { token: 'image description', model: 'gemini' };
+    } as any);
+
+    const res = await request(app)
+      .post('/api/chat/send')
+      .send({ conversationId: CONV_ID, content: 'what is in this image?', attachments: [imgAtt] });
+
+    expect(res.status).toBe(200);
+    expect(capturedHasImages).toBe(true);
+    expect(streamChat).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.any(String),
+      true,
+    );
+  });
+
+  it('skips a file that is not found and continues with content', async () => {
+    vi.mocked(findConversationFile).mockReturnValue(null);
+
+    await request(app)
+      .post('/api/chat/send')
+      .send({ conversationId: CONV_ID, content: 'hello', attachments: [FILE_ATT] });
+
+    expect(extractContext).not.toHaveBeenCalled();
+    expect(streamChat).toHaveBeenCalledTimes(1);
+  });
+
+  it('persists attachments on the stored user message', async () => {
+    vi.mocked(findConversationFile).mockReturnValue({ filePath: '/tmp/notes.txt', filename: FILE_ATT.filename });
+    vi.mocked(extractContext).mockResolvedValue({
+      filename: 'notes.txt', mimeType: 'text/plain', isImage: false, textContent: 'content',
+    });
+    vi.mocked(formatContextBlock).mockReturnValue('--- notes.txt ---\ncontent');
+
+    await request(app)
+      .post('/api/chat/send')
+      .send({ conversationId: CONV_ID, content: 'check this', attachments: [FILE_ATT] });
+
+    const calls = vi.mocked(appendMessage).mock.calls;
+    const userCall = calls.find((c) => c[1].role === 'user');
+    expect(userCall).toBeDefined();
+    expect((userCall![1] as any).attachments).toEqual([FILE_ATT]);
+  });
+
+  it.each([
+    { intent: Intent.SUMMARIZING, expected: 500_000 },
+    { intent: Intent.DRAFTING,    expected: 300_000 },
+    { intent: Intent.TRANSLATING, expected: 200_000 },
+    { intent: Intent.CODING,      expected: 100_000 },
+    { intent: Intent.DEBUGGING,   expected: 100_000 },
+    { intent: Intent.WEB_SEARCH,  expected:  50_000 },
+  ])('passes maxChars=$expected to extractContext for intent $intent', async ({ intent, expected }) => {
+    vi.mocked(findConversationFile).mockReturnValue({ filePath: '/tmp/doc.txt', filename: FILE_ATT.filename });
+    vi.mocked(extractContext).mockResolvedValue({
+      filename: 'doc.txt', mimeType: 'text/plain', isImage: false, textContent: 'content',
+    });
+    vi.mocked(formatContextBlock).mockReturnValue('--- doc.txt ---\ncontent');
+
+    await request(app)
+      .post('/api/chat/send')
+      .send({ conversationId: CONV_ID, content: 'go', attachments: [FILE_ATT], intent });
+
+    expect(extractContext).toHaveBeenCalledWith(
+      '/tmp/doc.txt',
+      FILE_ATT.mimeType,
+      FILE_ATT.filename,
+      expected,
+    );
   });
 });

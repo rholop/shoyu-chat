@@ -18,6 +18,16 @@ import { Intent } from '../types';
 
 const router = Router();
 
+const FILE_CHAR_LIMIT: Record<Intent, number> = {
+  [Intent.SUMMARIZING]:    500_000, // Gemini 2.0 Flash tier 1, 1M token window
+  [Intent.DRAFTING]:       300_000, // Groq 128K ctx — generous headroom for history + response
+  [Intent.TRANSLATING]:    200_000, // Gemini/Mistral fallback chain
+  [Intent.CODING]:         100_000, // Dense code files; Groq primary
+  [Intent.DEBUGGING]:      100_000, // Logs and snippets; Groq primary
+  [Intent.WEB_SEARCH]:      50_000, // Search is about current info, not large document processing
+  [Intent.IMAGE_ANALYSIS]:  50_000, // Text extraction rarely used; images go via base64
+};
+
 const attachmentSchema = z.object({
   fileId: z.string().uuid(),
   filename: z.string().min(1),
@@ -129,7 +139,7 @@ router.post('/send', async (req, res) => {
       }
 
       try {
-        const ctx = await extractContext(found.filePath, att.mimeType, att.filename);
+        const ctx = await extractContext(found.filePath, att.mimeType, att.filename, FILE_CHAR_LIMIT[intent]);
         if (ctx.isImage && ctx.base64) {
           imageAttachments.push({ mimeType: ctx.mimeType, base64: ctx.base64, filename: ctx.filename });
         } else {
@@ -230,14 +240,22 @@ router.post('/send', async (req, res) => {
     }
   } catch (err) {
     logger.error('Chat stream error:', err);
-    const message =
-      err instanceof Error && err.message === 'QUOTA_EXCEEDED'
-        ? 'All AI providers have reached their daily quota. Try again tomorrow.'
-        : err instanceof Error && err.message.toLowerCase().includes('rate limit')
-        ? 'Rate limit exceeded. Please wait a moment and try again.'
-        : err instanceof Error && err.message.toLowerCase().includes('timeout')
-        ? 'Request timed out. Please try again.'
-        : 'An error occurred. Please try again.';
+    const msg = err instanceof Error ? err.message : String(err);
+    let message = 'An error occurred. Please try again.';
+
+    if (msg === 'QUOTA_EXCEEDED') {
+      message = 'All AI providers have reached their daily quota. Try again tomorrow.';
+    } else if (msg === 'ALL_PROVIDERS_FAILED') {
+      message = 'All AI providers returned an error. Please try again in a moment.';
+    } else if (msg.toLowerCase().includes('rate limit')) {
+      message = 'Rate limit exceeded. Please wait a moment and try again.';
+    } else if (msg.toLowerCase().includes('timeout')) {
+      message = 'Request timed out. Please try again.';
+    } else if (msg.length > 0 && msg.length < 200) {
+      // Pass through specific error messages if they are reasonably short
+      message = `Provider error: ${msg}`;
+    }
+
     send({ type: 'error', message });
   }
 

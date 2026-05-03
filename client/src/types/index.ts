@@ -109,6 +109,16 @@ export const INTENT_MODEL_LABELS: Record<string, string> = {
   'groq-chat': 'Llama 3.3 70B',
   'groq-compound': 'Groq⚡',
   openrouter: 'Mistral Large',
+  'Gemini: 2.0 Flash': 'Gemini 2.0 Flash',
+  'Gemini: 1.5 Pro': 'Gemini 1.5 Pro',
+  'NVIDIA: Llama 3.1 405B': 'Llama 3.1 405B',
+  'NVIDIA: Llama 3.1 70B': 'Llama 3.1 70B',
+  'Groq: Llama 3.3 70B': 'Llama 3.3 70B',
+  'OR: Perplexity Sonar Pro': 'Perplexity Sonar Pro',
+  'OR: Qwen 2.5 72B': 'Qwen 2.5 72B',
+  'OR: Mistral Large': 'Mistral Large',
+  'OR: Mistral Small': 'Mistral Small',
+  'OR: GPT-4o-mini': 'GPT-4o-mini',
 };
 
 export type SSEEvent =
