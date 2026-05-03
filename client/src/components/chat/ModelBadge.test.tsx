@@ -21,12 +21,12 @@ describe('ModelBadge', () => {
 
   it('renders "Gemini" for gemini', () => {
     render(<ModelBadge model="gemini" />);
-    expect(screen.getByText(/Gemini/)).toBeInTheDocument();
+    expect(screen.getByText(/Gemini 2.5 Flash/)).toBeInTheDocument();
   });
 
-  it('renders "OpenRouter" for openrouter', () => {
+  it('renders "OR" for openrouter', () => {
     render(<ModelBadge model="openrouter" />);
-    expect(screen.getByText(/Mistral Large/)).toBeInTheDocument();
+    expect(screen.getByText(/OR/)).toBeInTheDocument();
   });
 
   it('renders the raw model string for unknown models', () => {
@@ -37,28 +37,35 @@ describe('ModelBadge', () => {
   it('applies orange colors for groq-chat', () => {
     const { container } = render(<ModelBadge model="groq-chat" />);
     const badge = container.firstChild as HTMLElement;
-    expect(badge.className).toContain('bg-orange-500/20');
-    expect(badge.className).toContain('text-orange-300');
+    expect(badge.className).toContain('bg-orange-100');
+    expect(badge.className).toContain('text-orange-900');
+    expect(badge.className).toContain('dark:bg-orange-900/40');
+    expect(badge.className).toContain('dark:text-orange-100');
   });
 
   it('applies blue colors for gemini', () => {
     const { container } = render(<ModelBadge model="gemini" />);
     const badge = container.firstChild as HTMLElement;
-    expect(badge.className).toContain('bg-blue-500/20');
-    expect(badge.className).toContain('text-blue-300');
+    expect(badge.className).toContain('bg-blue-100');
+    expect(badge.className).toContain('text-blue-900');
+    expect(badge.className).toContain('dark:bg-blue-900/40');
+    expect(badge.className).toContain('dark:text-blue-100');
   });
 
   it('applies purple colors for openrouter', () => {
     const { container } = render(<ModelBadge model="openrouter" />);
     const badge = container.firstChild as HTMLElement;
-    expect(badge.className).toContain('bg-purple-500/20');
-    expect(badge.className).toContain('text-purple-300');
+    expect(badge.className).toContain('bg-purple-100');
+    expect(badge.className).toContain('text-purple-900');
+    expect(badge.className).toContain('dark:bg-purple-900/40');
+    expect(badge.className).toContain('dark:text-purple-100');
   });
 
   it('applies fallback slate colors for unknown model', () => {
     const { container } = render(<ModelBadge model="unknown-model" />);
     const badge = container.firstChild as HTMLElement;
-    expect(badge.className).toContain('bg-slate-500/20');
+    expect(badge.className).toContain('bg-slate-100');
+    expect(badge.className).toContain('dark:bg-slate-900/40');
   });
 
   it('shows intent icon when intent prop is provided', () => {
