@@ -201,7 +201,7 @@ describe('aiRouter v4.0', () => {
 
         expect(streamChatGeminiWithSearch).toHaveBeenNthCalledWith(1, expect.anything(), 'gemini-2.5-flash', { google_search: {} });
         expect(streamChatGeminiWithSearch).toHaveBeenNthCalledWith(2, expect.anything(), 'gemini-2.5-pro', { google_search: {} });
-        expect(streamChatOpenRouter).toHaveBeenCalledWith(expect.anything(), 'perplexity/sonar-pro-search');
+        expect(streamChatOpenRouter).toHaveBeenCalledWith(expect.anything(), 'perplexity/sonar-pro');
     });
 
     it('CODING falls back from NVIDIA to Groq', async () => {
