@@ -47,6 +47,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       role: 'assistant',
       content: streamingContent,
       model_used: model,
+      intent: event.intent ?? null,
       created_at: new Date().toISOString(),
     };
     set({ messages: [...messages, newMessage], streamingContent: '', isStreaming: false, streamError: null });

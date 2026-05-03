@@ -75,7 +75,7 @@ export default function MessageBubble({ message, conversationId }: Props) {
         </div>
         <div className={`flex items-center gap-1.5 mt-1 px-1 ${isUser ? 'justify-end' : 'justify-start'}`}>
           <span className="text-xs text-[#93a1a1] dark:text-slate-500">{formatTime(message.created_at)}</span>
-          {!isUser && <ModelBadge model={message.model_used} />}
+          {!isUser && <ModelBadge model={message.model_used} intent={message.intent} />}
         </div>
       </div>
     </div>
