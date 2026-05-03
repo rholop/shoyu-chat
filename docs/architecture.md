@@ -26,7 +26,12 @@ Browser → Nginx (holop-web) → :3001 (shoyu-chat server)
 ```
 data/
 ├── user.json              Single user record
+├── user-memory.md         User's long-term memory profile
 ├── usage.json             Daily API usage counters per provider
+├── projects/
+│   ├── {id}.json          Project metadata
+│   ├── {id}-context.md    Project context document
+│   └── {id}-summary.md    Project summary
 ├── conversations/
 │   ├── {id}.json          Conversation metadata
 │   ├── {id}.ndjson        Messages (append-only)

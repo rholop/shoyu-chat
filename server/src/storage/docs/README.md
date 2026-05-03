@@ -20,7 +20,12 @@ Filesystem-only persistence layer. No database.
 ```
 data/
   user.json
+  user-memory.md         ← User's long-term memory profile
   usage.json
+  projects/
+    {uuid}.json          ← Project metadata
+    {uuid}-context.md    ← Project context document
+    {uuid}-summary.md    ← Project summary
   conversations/
     {uuid}.json          ← ConversationMeta sidecar
     {uuid}.ndjson        ← one StoredMessage per line
