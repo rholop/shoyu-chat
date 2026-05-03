@@ -1,0 +1,53 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ] # This triggers whenever you push to the 'main' branch
+
+jobs:
+  test-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # STEP 1: RUN TESTS (CI)
+      - name: Install & Test
+        run: |
+          cd server && npm install && npm test
+          cd ../client && npm install && npm test
+
+      # STEP 2: LOG INTO DROPLET AND DEPLOY (CD)
+      - name: Deploy to DigitalOcean
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            # 1. Update the code in the root folder
+            cd /home/shoyu-chat
+            git pull origin main
+
+            # 2. Build the Server
+            cd /home/shoyu-chat/server
+            npm install
+            npm run build
+
+            # 3. Build the Client
+            cd /home/shoyu-chat/client
+            npm install
+            npm run build
+
+            # 4. Move the frontend to the Nginx folder
+            # We copy FROM the absolute client path TO the web server path
+            cp -r /home/shoyu-chat/client/dist /var/www/shoyu-chat/dist
+
+            # 5. Restart the application
+            pm2 restart shoyu-chat
