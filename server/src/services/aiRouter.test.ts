@@ -7,6 +7,7 @@ vi.mock('../storage', () => ({
 
 vi.mock('./groqService', () => ({
   streamChatGroqChat: vi.fn(),
+  streamChatGroqChatWithTools: vi.fn(),
   summarizeGroq: vi.fn(),
   isGroqAvailable: vi.fn(),
 }));
@@ -14,18 +15,21 @@ vi.mock('./groqService', () => ({
 vi.mock('./geminiService', () => ({
   streamChatGemini: vi.fn(),
   streamChatGeminiWithSearch: vi.fn(),
+  streamChatGeminiWithTools: vi.fn(),
   summarizeGemini: vi.fn(),
   isGeminiAvailable: vi.fn(),
 }));
 
 vi.mock('./openrouterService', () => ({
   streamChatOpenRouter: vi.fn(),
+  streamChatOpenRouterWithTools: vi.fn(),
   summarizeOpenRouter: vi.fn(),
   isOpenRouterAvailable: vi.fn(),
 }));
 
 vi.mock('./nvidiaService', () => ({
   streamChatNvidia: vi.fn(),
+  streamChatNvidiaWithTools: vi.fn(),
   summarizeNvidia: vi.fn(),
   isNvidiaAvailable: vi.fn(),
 }));
@@ -42,32 +46,36 @@ vi.mock('../utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-import { streamChat, summarize, StreamResult, InternalNoteResult } from './aiRouter';
+import { streamChat, summarize, StreamResult, InternalNoteResult, RouterResult } from './aiRouter';
 import { Intent } from '../types';
 import { ChatMessage } from './groqService';
 import { getUsageCount, incrementUsage } from '../storage';
 import {
   streamChatGroqChat,
+  streamChatGroqChatWithTools,
   isGroqAvailable,
 } from './groqService';
 import {
   streamChatGemini,
+  streamChatGeminiWithTools,
   streamChatGeminiWithSearch,
   isGeminiAvailable,
   summarizeGemini,
 } from './geminiService';
 import {
   streamChatOpenRouter,
+  streamChatOpenRouterWithTools,
   isOpenRouterAvailable,
 } from './openrouterService';
 import {
   streamChatNvidia,
+  streamChatNvidiaWithTools,
   isNvidiaAvailable,
   summarizeNvidia,
 } from './nvidiaService';
 import { readMemory } from './memoryService';
 
-async function collectRouter(gen: AsyncGenerator<StreamResult | InternalNoteResult>) {
+async function collectRouter(gen: AsyncGenerator<RouterResult>) {
   const tokens: string[] = [];
   const notes: string[] = [];
   let model = '';
@@ -75,8 +83,11 @@ async function collectRouter(gen: AsyncGenerator<StreamResult | InternalNoteResu
     if ('internalNote' in r) {
       notes.push(r.internalNote);
       model = r.model;
-    } else {
+    } else if ('token' in r) {
       tokens.push(r.token);
+      model = r.model;
+    } else {
+      // ToolCallResult — skip in these tests
       model = r.model;
     }
   }
@@ -104,6 +115,12 @@ describe('aiRouter v4.0', () => {
     vi.mocked(streamChatNvidia).mockImplementation(emptyGen);
     vi.mocked(streamChatGroqChat).mockImplementation(emptyGen);
     vi.mocked(streamChatOpenRouter).mockImplementation(emptyGen);
+
+    // Delegate *WithTools variants to plain variants so existing tests continue to work
+    vi.mocked(streamChatGeminiWithTools).mockImplementation((msgs, model) => (streamChatGemini as Function)(msgs, model));
+    vi.mocked(streamChatNvidiaWithTools).mockImplementation((msgs, model) => (streamChatNvidia as Function)(msgs, model));
+    vi.mocked(streamChatGroqChatWithTools).mockImplementation((msgs, model) => (streamChatGroqChat as Function)(msgs, model));
+    vi.mocked(streamChatOpenRouterWithTools).mockImplementation((msgs, model) => (streamChatOpenRouter as Function)(msgs, model));
   });
 
   const messages: ChatMessage[] = [{ role: 'user', content: 'hello' }];
@@ -400,6 +417,12 @@ describe('streamChat – Per-intent fallback chains (v4)', () => {
     vi.mocked(streamChatNvidia).mockImplementation(emptyGen);
     vi.mocked(streamChatGroqChat).mockImplementation(emptyGen);
     vi.mocked(streamChatOpenRouter).mockImplementation(emptyGen);
+
+    // Delegate *WithTools variants to plain variants so existing tests continue to work
+    vi.mocked(streamChatGeminiWithTools).mockImplementation((msgs, model) => (streamChatGemini as Function)(msgs, model));
+    vi.mocked(streamChatNvidiaWithTools).mockImplementation((msgs, model) => (streamChatNvidia as Function)(msgs, model));
+    vi.mocked(streamChatGroqChatWithTools).mockImplementation((msgs, model) => (streamChatGroqChat as Function)(msgs, model));
+    vi.mocked(streamChatOpenRouterWithTools).mockImplementation((msgs, model) => (streamChatOpenRouter as Function)(msgs, model));
   });
 
   const messages: ChatMessage[] = [{ role: 'user', content: 'hello' }];

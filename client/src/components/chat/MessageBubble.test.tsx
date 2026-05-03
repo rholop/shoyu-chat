@@ -1,7 +1,11 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import MessageBubble from './MessageBubble';
-import { Message } from '../../types';
+import { Message, MessageDownload } from '../../types';
+
+vi.mock('../../hooks/useFileDownload', () => ({
+  useFileDownload: () => ({ download: vi.fn() }),
+}));
 
 function makeMessage(overrides: Partial<Message> = {}): Message {
   return {
@@ -75,6 +79,91 @@ describe('MessageBubble', () => {
         <MessageBubble message={makeMessage({ role: 'assistant', content: '```\ncode here\n```' })} />
       );
       expect(container.querySelector('pre')).toBeInTheDocument();
+    });
+  });
+
+  describe('download chips', () => {
+    const downloads: MessageDownload[] = [
+      { fileId: 'uuid-1', filename: 'report.md', description: 'A report', version: 1, updated: false, size: 1024 },
+      { fileId: 'uuid-2', filename: 'script.py', description: 'A script', version: 2, updated: true, size: 2048 },
+    ];
+
+    it('renders download chips for assistant messages with downloads', () => {
+      render(
+        <MessageBubble
+          message={makeMessage({ role: 'assistant', downloads })}
+          conversationId="conv-1"
+        />
+      );
+      expect(screen.getByText('report.md')).toBeInTheDocument();
+      expect(screen.getByText('script.py')).toBeInTheDocument();
+    });
+
+    it('does not render download chips when downloads is absent', () => {
+      render(<MessageBubble message={makeMessage({ role: 'assistant' })} conversationId="conv-1" />);
+      expect(screen.queryByText('report.md')).not.toBeInTheDocument();
+    });
+
+    it('does not render download chips when downloads is empty', () => {
+      render(
+        <MessageBubble
+          message={makeMessage({ role: 'assistant', downloads: [] })}
+          conversationId="conv-1"
+        />
+      );
+      expect(screen.queryByRole('button', { name: /report/ })).not.toBeInTheDocument();
+    });
+
+    it('does not render download chips for user messages even if downloads present', () => {
+      render(
+        <MessageBubble
+          message={makeMessage({ role: 'user', downloads })}
+          conversationId="conv-1"
+        />
+      );
+      expect(screen.queryByText('report.md')).not.toBeInTheDocument();
+    });
+
+    it('shows updated badge for updated downloads', () => {
+      render(
+        <MessageBubble
+          message={makeMessage({ role: 'assistant', downloads })}
+          conversationId="conv-1"
+        />
+      );
+      expect(screen.getByText('v2 updated')).toBeInTheDocument();
+    });
+
+    it('shows file description when present', () => {
+      render(
+        <MessageBubble
+          message={makeMessage({ role: 'assistant', downloads })}
+          conversationId="conv-1"
+        />
+      );
+      expect(screen.getByText('A report')).toBeInTheDocument();
+    });
+
+    it('chip buttons are clickable without error', () => {
+      const { getAllByRole } = render(
+        <MessageBubble
+          message={makeMessage({ role: 'assistant', downloads: [downloads[0]] })}
+          conversationId="conv-1"
+        />
+      );
+      const buttons = getAllByRole('button');
+      const chipButton = buttons.find((b) => b.textContent?.includes('report.md'));
+      expect(chipButton).toBeDefined();
+      expect(() => fireEvent.click(chipButton!)).not.toThrow();
+    });
+
+    it('does not show download chips when conversationId is absent', () => {
+      render(
+        <MessageBubble
+          message={makeMessage({ role: 'assistant', downloads })}
+        />
+      );
+      expect(screen.queryByText('report.md')).not.toBeInTheDocument();
     });
   });
 });

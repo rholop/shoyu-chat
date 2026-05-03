@@ -48,6 +48,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       content: streamingContent,
       model_used: model,
       intent: event.intent ?? null,
+      downloads: event.downloads,
       created_at: new Date().toISOString(),
     };
     set({ messages: [...messages, newMessage], streamingContent: '', isStreaming: false, streamError: null });

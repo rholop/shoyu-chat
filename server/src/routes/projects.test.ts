@@ -16,6 +16,10 @@ vi.mock('../storage', () => ({
   assignConversationProject: vi.fn(),
 }));
 
+vi.mock('../services/fileService', () => ({
+  getProjectDownloads: vi.fn(),
+}));
+
 vi.mock('../middleware/authMiddleware', () => ({
   requireAuth: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
@@ -33,6 +37,7 @@ import {
   listConversationsByProject,
   assignConversationProject,
 } from '../storage';
+import { getProjectDownloads } from '../services/fileService';
 import projectsRouter from './projects';
 
 const PROJECT = {
@@ -204,6 +209,50 @@ describe('Projects routes', () => {
     it('returns 400 when content is missing', async () => {
       const res = await request(app).put('/api/projects/proj-1/context').send({});
       expect(res.status).toBe(400);
+    });
+  });
+
+  describe('GET /:id/downloads', () => {
+    it('returns 404 when project not found', async () => {
+      vi.mocked(getProjectMeta).mockReturnValue(null);
+      const res = await request(app).get('/api/projects/missing/downloads');
+      expect(res.status).toBe(404);
+    });
+
+    it('returns aggregated downloads for a project', async () => {
+      vi.mocked(getProjectMeta).mockReturnValue(PROJECT);
+      vi.mocked(getProjectDownloads).mockResolvedValue([
+        {
+          fileId: 'f1',
+          filename: 'output.py',
+          version: 1,
+          updated: false,
+          conversationId: 'c1',
+          conversationTitle: 'Chat A',
+        },
+        {
+          fileId: 'f2',
+          filename: 'report.md',
+          version: 1,
+          updated: false,
+          conversationId: 'c2',
+          conversationTitle: 'Chat B',
+        },
+      ]);
+      const res = await request(app).get('/api/projects/proj-1/downloads');
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveLength(2);
+      expect(res.body[0].filename).toBe('output.py');
+      expect(res.body[1].filename).toBe('report.md');
+      expect(getProjectDownloads).toHaveBeenCalledWith('proj-1');
+    });
+
+    it('returns empty array when project has no downloads', async () => {
+      vi.mocked(getProjectMeta).mockReturnValue(PROJECT);
+      vi.mocked(getProjectDownloads).mockResolvedValue([]);
+      const res = await request(app).get('/api/projects/proj-1/downloads');
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual([]);
     });
   });
 });

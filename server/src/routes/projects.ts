@@ -13,6 +13,7 @@ import {
   listConversationsByProject,
   assignConversationProject,
 } from '../storage';
+import { getProjectDownloads } from '../services/fileService';
 
 const router = Router();
 
@@ -76,7 +77,6 @@ router.delete('/:id', (req, res) => {
     return;
   }
 
-  // Unassign all conversations in this project before deleting
   const conversations = listConversationsByProject(id);
   for (const conv of conversations) {
     assignConversationProject(conv.id, null);
@@ -106,6 +106,16 @@ router.put('/:id/context', (req, res) => {
   }
   writeProjectContext(req.params.id, parsed.data.content);
   res.json({ ok: true });
+});
+
+router.get('/:id/downloads', async (req, res) => {
+  const { id } = req.params;
+  if (!getProjectMeta(id)) {
+    res.status(404).json({ error: 'Not found' });
+    return;
+  }
+  const downloads = await getProjectDownloads(id);
+  res.json(downloads);
 });
 
 export default router;

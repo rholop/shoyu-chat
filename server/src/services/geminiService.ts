@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { ChatMessage } from './groqService';
+import { ChatMessage, ProviderToolCall } from './groqService';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'dummy');
 
@@ -138,6 +138,61 @@ export async function* streamChatGeminiWithSearch(
     }
   } catch {
     // Grounding metadata extraction is best-effort
+  }
+}
+
+export async function* streamChatGeminiWithTools(
+  messages: ChatMessage[],
+  modelName: string = 'gemini-2.5-flash',
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  functionDeclarations: any[],
+): AsyncGenerator<string | ProviderToolCall> {
+  const systemInstruction = extractSystemInstruction(messages);
+  const model = genAI.getGenerativeModel(
+    {
+      model: modelName,
+      ...(systemInstruction ? { systemInstruction } : {}),
+      tools: [{ functionDeclarations }] as any,
+    },
+    { timeout: REQUEST_TIMEOUT_MS },
+  );
+
+  const contents = toGeminiHistory(messages);
+  const streamResult = await model.generateContentStream({ contents } as any);
+
+  for await (const chunk of streamResult.stream) {
+    try {
+      const text = chunk.text();
+      if (text) yield text;
+    } catch {
+      // chunk may be a function call, not text
+    }
+    // Check for function calls in parts
+    const parts = (chunk as any).candidates?.[0]?.content?.parts ?? [];
+    for (const part of parts) {
+      if (part.functionCall) {
+        yield {
+          toolName: part.functionCall.name,
+          toolArgs: part.functionCall.args ?? {},
+        };
+      }
+    }
+  }
+
+  // Also check final response for function calls
+  try {
+    const finalResponse = await streamResult.response;
+    const parts = (finalResponse as any).candidates?.[0]?.content?.parts ?? [];
+    for (const part of parts) {
+      if (part.functionCall) {
+        yield {
+          toolName: part.functionCall.name,
+          toolArgs: part.functionCall.args ?? {},
+        };
+      }
+    }
+  } catch {
+    // best-effort
   }
 }
 

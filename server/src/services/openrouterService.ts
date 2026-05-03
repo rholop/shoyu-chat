@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { logger } from '../utils/logger';
-import { ChatMessage } from './groqService';
+import { ChatMessage, ProviderToolCall } from './groqService';
 
 const client = new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY || 'unset',
@@ -23,7 +23,6 @@ function logOpenRouterError(context: string, model: string, err: unknown): void 
   const status   = e?.status ?? e?.response?.status ?? 'unknown';
   const errName  = e?.name ?? 'UnknownError';
   const errMsg   = e?.message ?? String(err);
-  // OpenAI SDK puts the parsed API response body in .error
   const body     = e?.error ? JSON.stringify(e.error) : '(no body)';
   logger.error(
     `[openrouter] ${context} | model=${model} status=${status} type=${errName} msg="${errMsg}" body=${body}`,
@@ -74,6 +73,64 @@ export async function* streamChatOpenRouter(
     logger.warn(`[openrouter] stream completed with 0 tokens | model=${model}`);
   } else {
     logger.info(`[openrouter] stream done | model=${model} tokens=${tokenCount}`);
+  }
+}
+
+export async function* streamChatOpenRouterWithTools(
+  messages: ChatMessage[],
+  model: string,
+  tools: OpenAI.ChatCompletionTool[],
+): AsyncGenerator<string | ProviderToolCall> {
+  if (!process.env.OPENROUTER_API_KEY) {
+    logger.error('[openrouter] streamChatOpenRouterWithTools called but OPENROUTER_API_KEY is not set');
+    throw new Error('OPENROUTER_API_KEY is not set');
+  }
+
+  logger.info(`[openrouter] stream+tools request | model=${model} messages=${messages.length}`);
+
+  let stream: Awaited<ReturnType<typeof client.chat.completions.create>>;
+  try {
+    stream = await client.chat.completions.create(
+      {
+        model,
+        messages: messages.map((m) => ({ role: m.role, content: m.content })),
+        tools,
+        tool_choice: 'auto',
+        stream: true,
+      },
+      { timeout: REQUEST_TIMEOUT_MS },
+    );
+  } catch (err) {
+    logOpenRouterError('stream+tools create() failed', model, err);
+    throw err;
+  }
+
+  const acc: Record<number, { id: string; name: string; args: string }> = {};
+
+  try {
+    for await (const chunk of stream) {
+      const delta = chunk.choices?.[0]?.delta;
+      if (delta?.content) yield delta.content;
+      if (delta?.tool_calls) {
+        for (const tc of delta.tool_calls) {
+          if (!acc[tc.index]) acc[tc.index] = { id: tc.id ?? '', name: '', args: '' };
+          if (tc.function?.name) acc[tc.index].name = tc.function.name;
+          if (tc.function?.arguments) acc[tc.index].args += tc.function.arguments;
+        }
+      }
+    }
+  } catch (err) {
+    logOpenRouterError('stream+tools interrupted', model, err);
+    throw err;
+  }
+
+  for (const tc of Object.values(acc)) {
+    if (!tc.name) continue;
+    try {
+      yield { toolName: tc.name, toolArgs: JSON.parse(tc.args) };
+    } catch {
+      // malformed args — skip
+    }
   }
 }
 

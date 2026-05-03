@@ -3,17 +3,11 @@ import path from 'path';
 import fs from 'fs';
 import { z } from 'zod';
 import { uploadSingle } from '../middleware/uploadMiddleware';
-import { getConversationMeta } from '../storage';
+import { getConversationMeta, conversationFilesDir } from '../storage';
 import { findConversationFile } from '../services/fileService';
 import { logger } from '../utils/logger';
 
 const router = Router();
-
-const DATA_DIR = process.env.DATA_DIR ?? path.join(__dirname, '../../../../data');
-
-function conversationFilesDir(conversationId: string) {
-  return path.join(DATA_DIR, 'conversations', conversationId);
-}
 
 router.post('/upload', (req, res) => {
   uploadSingle(req, res, (err) => {

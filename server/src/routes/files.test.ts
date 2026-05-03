@@ -18,6 +18,7 @@ vi.mock('../middleware/uploadMiddleware', () => ({
 
 vi.mock('../storage', () => ({
   getConversationMeta: vi.fn(),
+  conversationFilesDir: vi.fn().mockReturnValue('/tmp/test-files'),
 }));
 
 vi.mock('../services/fileService', () => ({
