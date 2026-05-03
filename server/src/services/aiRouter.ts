@@ -83,7 +83,7 @@ const FALLBACK_MATRIX: Record<Intent, TierConfig[]> = {
   [Intent.WEB_SEARCH]: [
     { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini: 2.5 Flash', useSearch: true, searchTool: { google_search: {} }, vision: true },
     { provider: 'gemini', model: 'gemini-2.5-pro', label: 'Gemini: 2.5 Pro', useSearch: true, searchTool: { google_search: {} }, vision: true },
-    { provider: 'openrouter', model: 'perplexity/sonar-pro', label: 'OR: Perplexity Sonar Pro' },
+    { provider: 'openrouter', model: 'openai/gpt-oss-120b:free', label: 'OR: GPT-oss-120b' },
   ],
   [Intent.CODING]: [
     { provider: 'nvidia', model: 'meta/llama-3.3-70b-instruct', label: 'NVIDIA: Llama 3.3 70B' },
@@ -93,10 +93,10 @@ const FALLBACK_MATRIX: Record<Intent, TierConfig[]> = {
   [Intent.DEBUGGING]: [
     { provider: 'groq-chat', model: 'llama-3.3-70b-versatile', label: 'Groq: Llama 3.3 70B', trimContext: true },
     { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini: 2.5 Flash' },
-    { provider: 'openrouter', model: 'qwen/qwen-2.5-72b-instruct', label: 'OR: Qwen 2.5 72B' },
+    { provider: 'openrouter', model: 'poolside/laguna-m.1:free', label: 'OR: Laguna M.1' },
   ],
   [Intent.TRANSLATING]: [
-    { provider: 'openrouter', model: 'mistralai/mistral-large-2411', label: 'OR: Mistral Large' },
+    { provider: 'openrouter', model: 'openai/gpt-oss-120b:free', label: 'OR: GPT-oss-120b' },
     { provider: 'gemini', model: 'gemini-2.5-pro', label: 'Gemini: 2.5 Pro' },
     { provider: 'groq-chat', model: 'llama-3.3-70b-versatile', label: 'Groq: Llama 3.3 70B' },
   ],
@@ -108,12 +108,12 @@ const FALLBACK_MATRIX: Record<Intent, TierConfig[]> = {
   [Intent.SUMMARIZING]: [
     { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini: 2.5 Flash' },
     { provider: 'groq-chat', model: 'llama-3.3-70b-versatile', label: 'Groq: Llama 3.3 70B' },
-    { provider: 'openrouter', model: 'mistralai/mistral-small-2409', label: 'OR: Mistral Small' },
+    { provider: 'openrouter', model: 'meta-llama/llama-3.2-3b-instruct:free', label: 'OR: Llama 3.2 3B' },
   ],
   [Intent.IMAGE_ANALYSIS]: [
     { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini: 2.5 Flash', vision: true },
     { provider: 'gemini', model: 'gemini-2.5-pro', label: 'Gemini: 2.5 Pro', vision: true },
-    { provider: 'openrouter', model: 'openai/gpt-4o-mini', label: 'OR: GPT-4o-mini', vision: true },
+    { provider: 'openrouter', model: 'openai/gpt-oss-120b:free', label: 'OR: GPT-oss-120b', vision: true },
   ],
 };
 
