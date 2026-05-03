@@ -145,7 +145,7 @@ describe('aiRouter v4.0', () => {
         expect(streamChatGroqChat).toHaveBeenCalledWith(expect.anything(), 'llama-3.3-70b-versatile');
     });
 
-    it('TRANSLATING routes to OR Mistral Large (Tier 1)', async () => {
+    it('TRANSLATING routes to OR GPT-oss-120b (Tier 1)', async () => {
         vi.mocked(isOpenRouterAvailable).mockReturnValue(true);
         vi.mocked(streamChatOpenRouter).mockImplementationOnce(async function* () {
             yield 'Bonjour';
@@ -153,8 +153,8 @@ describe('aiRouter v4.0', () => {
 
         const { tokens, model } = await collectRouter(streamChat(messages, Intent.TRANSLATING));
         expect(tokens).toEqual(['Bonjour']);
-        expect(model).toBe('OR: Mistral Large');
-        expect(streamChatOpenRouter).toHaveBeenCalledWith(expect.anything(), 'mistralai/mistral-large-2411');
+        expect(model).toBe('OR: GPT-oss-120b');
+        expect(streamChatOpenRouter).toHaveBeenCalledWith(expect.anything(), 'openai/gpt-oss-120b:free');
     });
 
     it('SUMMARIZING routes to Gemini (Tier 1)', async () => {
@@ -197,11 +197,11 @@ describe('aiRouter v4.0', () => {
 
         const { tokens, model } = await collectRouter(streamChat(messages, Intent.WEB_SEARCH));
         expect(tokens).toEqual(['Tier 3 response']);
-        expect(model).toBe('OR: Perplexity Sonar Pro (Fallback)');
+        expect(model).toBe('OR: GPT-oss-120b (Fallback)');
 
         expect(streamChatGeminiWithSearch).toHaveBeenNthCalledWith(1, expect.anything(), 'gemini-2.5-flash', { google_search: {} });
         expect(streamChatGeminiWithSearch).toHaveBeenNthCalledWith(2, expect.anything(), 'gemini-2.5-pro', { google_search: {} });
-        expect(streamChatOpenRouter).toHaveBeenCalledWith(expect.anything(), 'perplexity/sonar-pro');
+        expect(streamChatOpenRouter).toHaveBeenCalledWith(expect.anything(), 'openai/gpt-oss-120b:free');
     });
 
     it('CODING falls back from NVIDIA to Groq', async () => {
@@ -220,7 +220,7 @@ describe('aiRouter v4.0', () => {
         expect(model).toBe('Groq: Llama 3.3 70B (Fallback)');
     });
 
-    it('DEBUGGING falls back to OR Qwen 2.5 72B (Tier 3)', async () => {
+    it('DEBUGGING falls back to OR Laguna M.1 (Tier 3)', async () => {
         vi.mocked(isGroqAvailable).mockReturnValue(true);
         vi.mocked(isGeminiAvailable).mockReturnValue(true);
         vi.mocked(isOpenRouterAvailable).mockReturnValue(true);
@@ -231,8 +231,8 @@ describe('aiRouter v4.0', () => {
 
         const { tokens, model } = await collectRouter(streamChat(messages, Intent.DEBUGGING));
         expect(tokens).toEqual(['Qwen fixed it']);
-        expect(model).toBe('OR: Qwen 2.5 72B (Fallback)');
-        expect(streamChatOpenRouter).toHaveBeenCalledWith(expect.anything(), 'qwen/qwen-2.5-72b-instruct');
+        expect(model).toBe('OR: Laguna M.1 (Fallback)');
+        expect(streamChatOpenRouter).toHaveBeenCalledWith(expect.anything(), 'poolside/laguna-m.1:free');
     });
 
     it('falls back past a non-retryable error (e.g. 400) to the next tier', async () => {
@@ -465,7 +465,7 @@ describe('streamChat – Per-intent fallback chains (v4)', () => {
     expect(streamChatNvidia).toHaveBeenCalledWith(expect.anything(), 'meta/llama-3.1-70b-instruct');
   });
 
-  // ── SUMMARIZING: gemini-flash(T1) → groq-chat(T2) → openrouter-mistral-small(T3) ──
+  // ── SUMMARIZING: gemini-flash(T1) → groq-chat(T2) → openrouter-llama-3.2-3b(T3) ──
 
   it('SUMMARIZING T2: falls back to groq when gemini fails', async () => {
     vi.mocked(isGeminiAvailable).mockReturnValue(true);
@@ -483,7 +483,7 @@ describe('streamChat – Per-intent fallback chains (v4)', () => {
     expect(streamChatGroqChat).toHaveBeenCalledWith(expect.anything(), 'llama-3.3-70b-versatile');
   });
 
-  it('SUMMARIZING T3: falls back to OR mistral-small when gemini and groq both fail', async () => {
+  it('SUMMARIZING T3: falls back to OR Llama 3.2 3B when gemini and groq both fail', async () => {
     vi.mocked(isGeminiAvailable).mockReturnValue(true);
     vi.mocked(isGroqAvailable).mockReturnValue(true);
     vi.mocked(isOpenRouterAvailable).mockReturnValue(true);
@@ -499,11 +499,11 @@ describe('streamChat – Per-intent fallback chains (v4)', () => {
 
     const { model } = await collectRouter(streamChat(messages, Intent.SUMMARIZING));
 
-    expect(model).toBe('OR: Mistral Small (Fallback)');
-    expect(streamChatOpenRouter).toHaveBeenCalledWith(expect.anything(), 'mistralai/mistral-small-2409');
+    expect(model).toBe('OR: Llama 3.2 3B (Fallback)');
+    expect(streamChatOpenRouter).toHaveBeenCalledWith(expect.anything(), 'meta-llama/llama-3.2-3b-instruct:free');
   });
 
-  // ── TRANSLATING: openrouter-mistral-large(T1) → gemini-pro(T2) → groq-chat(T3) ──
+  // ── TRANSLATING: openrouter-gpt-oss-120b(T1) → gemini-pro(T2) → groq-chat(T3) ──
 
   it('TRANSLATING T2: falls back to gemini-pro when openrouter fails', async () => {
     vi.mocked(isOpenRouterAvailable).mockReturnValue(true);
