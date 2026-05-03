@@ -164,16 +164,17 @@ export async function* streamChat(
 
     const usage = getUsageCount(tier.provider, today);
     if (usage >= PROVIDER_LIMITS[tier.provider]) {
-      logger.warn(`Tier ${i + 1} (${tier.provider}) at daily limit`);
+      logger.warn(`Tier ${i+1} skipped: ${tier.provider} at daily limit (${usage}/${PROVIDER_LIMITS[tier.provider]})`);
       continue;
     }
 
     if (!isProviderKeyAvailable(tier.provider)) {
-      logger.warn(`Tier ${i + 1} (${tier.provider}) API key missing`);
+      logger.warn(`Tier ${i+1} skipped: ${tier.provider} API key missing (${tier.label} | model=${tier.model})`);
       continue;
     }
 
     anyTierAttempted = true;
+    logger.info(`Tier ${i+1} selected: ${tier.label} | model=${tier.model} | intent=${intent}`);
     const msgs = tier.trimContext ? trimForGroq(contextualMessages) : contextualMessages;
 
     try {
@@ -206,16 +207,22 @@ export async function* streamChat(
       if (hasOutput) return;
       logger.warn(`Tier ${i + 1} (${tier.label}) returned no tokens`);
     } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
+      const e = err as any;
+      const status  = e?.status ?? e?.response?.status ?? 'unknown';
+      const errName = e?.name ?? (err instanceof Error ? err.constructor.name : 'UnknownError');
+      const errMsg  = e?.message ?? String(err);
+      const body    = e?.error ? ` body=${JSON.stringify(e.error)}` : '';
+      const detail  = `provider=${tier.provider} model=${tier.model} status=${status} type=${errName} msg="${errMsg}"${body}`;
+
       const isLastTier = i === tiers.length - 1;
 
       if (!isLastTier) {
         const logFn = isRetryable(err) ? logger.warn : logger.error;
-        logFn(`Tier ${i + 1} (${tier.label}) failed, trying next tier: ${errMsg}`);
+        logFn(`Tier ${i+1} (${tier.label}) failed, trying next: ${detail}`);
         continue;
       }
 
-      logger.error(`All tiers exhausted for intent ${intent}. Last error from ${tier.label}: ${errMsg}`);
+      logger.error(`All tiers exhausted for intent=${intent}. Last failure: ${detail}`);
       throw err;
     }
   }
