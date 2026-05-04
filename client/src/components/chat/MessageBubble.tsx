@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import { Download } from 'lucide-react';
+import { Check, Clipboard, Download } from 'lucide-react';
 import ModelBadge from './ModelBadge';
 import AttachmentChip from './AttachmentChip';
 import { Message, MessageDownload } from '../../types';
@@ -56,6 +57,14 @@ function DownloadChip({ dl, conversationId }: { dl: MessageDownload; conversatio
 
 export default function MessageBubble({ message, conversationId }: Props) {
   const isUser = message.role === 'user';
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(message.content).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
 
   return (
     <div className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -112,6 +121,20 @@ export default function MessageBubble({ message, conversationId }: Props) {
               {message.content}
             </ReactMarkdown>
           )}
+          <div className={`flex mt-2 ${isUser ? 'justify-start' : 'justify-end'}`}>
+            <button
+              onClick={handleCopy}
+              aria-label={copied ? 'Copied' : 'Copy message'}
+              className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors min-w-[44px] min-h-[44px] justify-center ${
+                isUser
+                  ? 'text-indigo-200 hover:text-white hover:bg-indigo-500'
+                  : 'text-[#93a1a1] dark:text-slate-500 hover:text-[#073642] dark:hover:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10'
+              }`}
+            >
+              {copied ? <Check size={14} /> : <Clipboard size={14} />}
+              <span>{copied ? 'Copied!' : 'Copy'}</span>
+            </button>
+          </div>
         </div>
 
         {/* Download chips for AI-created files */}
