@@ -3,9 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const { mockCreate } = vi.hoisted(() => ({ mockCreate: vi.fn() }));
 
 vi.mock('openai', () => ({
-  default: vi.fn().mockImplementation(() => ({
-    chat: { completions: { create: mockCreate } },
-  })),
+  default: vi.fn(function () { return { chat: { completions: { create: mockCreate } } }; }),
 }));
 
 import { streamChatGroqChat, summarizeGroq, isGroqAvailable } from './groqService';

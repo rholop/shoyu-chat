@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
 
 function dataDir(): string {
   return process.env.DATA_DIR ?? path.join(__dirname, '../../../data');
@@ -124,7 +123,7 @@ export function getProjectMeta(id: string): ProjectMeta | null {
 }
 
 export function createProject(name: string, description: string): string {
-  const id = uuidv4();
+  const id = crypto.randomUUID();
   const now = new Date().toISOString();
   const meta: ProjectMeta = { id, name, description, created_at: now };
   const dir = projectDir(id);
@@ -270,7 +269,7 @@ export function getConversationMeta(id: string): ConversationMeta | null {
 }
 
 export function createConversation(projectId?: string | null): string {
-  const id = uuidv4();
+  const id = crypto.randomUUID();
   const now = new Date().toISOString();
   const meta: ConversationMeta = { id, title: 'New Conversation', created_at: now };
   if (projectId != null) meta.projectId = projectId;

@@ -13,9 +13,7 @@ const { mockSendMessageStream, mockStartChat, mockGenerateContentStream, mockGet
 });
 
 vi.mock('@google/generative-ai', () => ({
-  GoogleGenerativeAI: vi.fn(() => ({
-    getGenerativeModel: mockGetGenerativeModel,
-  })),
+  GoogleGenerativeAI: vi.fn(function () { return { getGenerativeModel: mockGetGenerativeModel }; }),
 }));
 
 import {
