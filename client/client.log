@@ -1,0 +1,11 @@
+
+> shoyu-chat-client@1.0.0 dev
+> vite
+
+Port 5173 is in use, trying another one...
+Port 5174 is in use, trying another one...
+
+  VITE v6.4.2  ready in 1037 ms
+
+  ➜  Local:   http://localhost:5175/chat
+  ➜  Network: use --host to expose
