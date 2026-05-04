@@ -6,15 +6,15 @@ import { sendWeeklyDigestEmail } from '../services/emailService';
 import { getISOWeekKey, getMonthKey, getWeekRangeLabel } from '../utils/dateHelpers';
 import { logger } from '../utils/logger';
 
-export async function sendWeeklyDigest() {
+export async function sendWeeklyDigest(date?: Date) {
   logger.info('Weekly digest job starting');
 
   // Flush any pending unsummarized conversations first
   await flushAllPending();
 
-  const weekKey = getISOWeekKey();
-  const monthKey = getMonthKey();
-  const weekLabel = getWeekRangeLabel();
+  const weekKey = getISOWeekKey(date);
+  const monthKey = getMonthKey(date);
+  const weekLabel = getWeekRangeLabel(date);
 
   const weekSummary = readWeeklySummary(weekKey);
   const monthSummary = readMonthlySummary(monthKey);
