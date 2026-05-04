@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Menu, Plus } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { useChatStore } from '../../store/chatStore';
 import { useChat } from '../../hooks/useChat';
 import { useFileUpload } from '../../hooks/useFileUpload';
@@ -28,9 +29,26 @@ export default function ChatView({ conversationId, title, onMenuToggle, onNewCha
   const displayMessages =
     storeMessages.length > 0 ? visibleMessages(storeMessages) : visibleMessages(storedMessages);
 
+  const location = useLocation();
+  const messagesRef = useRef<Record<number, HTMLDivElement | null>>({});
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [displayMessages.length, streamingContent]);
+    const params = new URLSearchParams(location.search);
+    const msgId = params.get('msg');
+    if (msgId) {
+      const id = parseInt(msgId, 10);
+      const el = messagesRef.current[id];
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-2', 'ring-indigo-500', 'ring-offset-4', 'dark:ring-offset-slate-950');
+        setTimeout(() => {
+          el.classList.remove('ring-2', 'ring-indigo-500', 'ring-offset-4', 'dark:ring-offset-slate-950');
+        }, 3000);
+      }
+    } else {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [displayMessages.length, streamingContent, location.search]);
 
   const handleSend = (content: string, currentAttachments: Attachment[]) => {
     const optimistic: Message = {
@@ -90,7 +108,9 @@ export default function ChatView({ conversationId, title, onMenuToggle, onNewCha
           )}
 
           {displayMessages.map((msg) => (
-            <MessageBubble key={msg.id} message={msg} conversationId={conversationId} />
+            <div key={msg.id} ref={(el) => (messagesRef.current[msg.id] = el)}>
+              <MessageBubble message={msg} conversationId={conversationId} />
+            </div>
           ))}
 
           {isStreaming && streamingContent && (

@@ -14,6 +14,8 @@ import {
   conversationDownloadsDir,
 } from '../storage';
 import { getConversationDownloads } from '../services/fileService';
+import { SearchExtractor } from '../services/searchExtractor';
+import { SearchIndexService } from '../services/searchIndexService';
 
 const router = Router();
 
@@ -61,15 +63,35 @@ router.patch('/:id', (req, res) => {
     res.status(404).json({ error: 'Not found' });
     return;
   }
+  // Re-index conversation messages when title changes
+  const meta = getConversationMeta(id);
+  if (meta) {
+    const sourcePath = `data/conversation-${id}/conversation.ndjson`;
+    SearchIndexService.removeRecordsBySourcePrefix(sourcePath);
+
+    const messages = getMessages(id);
+    messages.forEach((msg, i) => {
+      SearchExtractor.fromMessage(
+        id,
+        meta.title,
+        meta.projectId || undefined,
+        undefined,
+        msg,
+        i
+      ).forEach(r => SearchIndexService.indexRecord(r));
+    });
+  }
   res.json({ ok: true });
 });
 
 router.delete('/:id', (req, res) => {
-  const ok = deleteConversation(req.params.id);
+  const { id } = req.params;
+  const ok = deleteConversation(id);
   if (!ok) {
     res.status(404).json({ error: 'Not found' });
     return;
   }
+  SearchIndexService.removeRecordsBySourcePrefix(`data/conversation-${id}`);
   res.json({ ok: true });
 });
 

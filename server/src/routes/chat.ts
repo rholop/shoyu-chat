@@ -6,6 +6,7 @@ import {
   appendMessage,
   updateConversationTitle,
   conversationFilesDir,
+  conversationDownloadsDir,
   MessageAttachment,
   MessageDownload,
 } from '../storage';
@@ -13,7 +14,11 @@ import { streamChat, InternalNoteResult, ToolCallResult } from '../services/aiRo
 import { extractContext, formatContextBlock, findConversationFile, writeDownload, getConversationDownloads } from '../services/fileService';
 import { schedule as scheduleSummary } from '../services/summaryService';
 import { getContext as getProjectContext } from '../services/projectService';
+import fs from 'fs';
+import path from 'path';
 import { ChatMessage, ImageAttachment } from '../services/groqService';
+import { SearchExtractor } from '../services/searchExtractor';
+import { SearchIndexService } from '../services/searchIndexService';
 import { logger } from '../utils/logger';
 import { Intent } from '../types';
 
@@ -232,19 +237,56 @@ router.post('/send', async (req, res) => {
       }));
 
       try {
-        appendMessage(conversationId, {
-          role: 'user',
+        const userMsg = {
+          role: 'user' as const,
           content,
           ...(storedAttachments.length > 0 ? { attachments: storedAttachments } : {}),
           created_at: now,
-        });
-        appendMessage(conversationId, {
-          role: 'assistant',
+        };
+        const assistantMsg = {
+          role: 'assistant' as const,
           content: fullContent,
           model: modelUsed,
           ...(downloads.length > 0 ? { downloads } : {}),
           created_at: new Date().toISOString(),
-        });
+        };
+
+        appendMessage(conversationId, userMsg);
+        appendMessage(conversationId, assistantMsg);
+
+        // Update search index
+        const updatedMeta = getConversationMeta(conversationId);
+        if (updatedMeta) {
+          const currentMessageCount = getMessages(conversationId).length;
+          SearchExtractor.fromMessage(
+            conversationId,
+            updatedMeta.title,
+            updatedMeta.projectId || undefined,
+            undefined,
+            userMsg,
+            currentMessageCount - 2
+          ).forEach(r => SearchIndexService.indexRecord(r));
+
+          SearchExtractor.fromMessage(
+            conversationId,
+            updatedMeta.title,
+            updatedMeta.projectId || undefined,
+            undefined,
+            assistantMsg,
+            currentMessageCount - 1
+          ).forEach(r => SearchIndexService.indexRecord(r));
+
+          // Index downloads
+          for (const download of downloads) {
+            const downloadsDir = conversationDownloadsDir(conversationId);
+            const files = fs.readdirSync(downloadsDir).filter(f => f.startsWith(`${download.fileId}-`));
+            if (files.length > 0) {
+              const filePath = path.join(downloadsDir, files[0]);
+              (await SearchExtractor.fromFile('download', filePath, conversationId, updatedMeta.title, updatedMeta.projectId || undefined))
+                .forEach(r => SearchIndexService.indexRecord(r));
+            }
+          }
+        }
       } catch (err) {
         logger.error('Failed to persist messages:', err);
         send({ type: 'error', message: 'Failed to save messages.' });

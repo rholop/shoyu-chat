@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import AppShell from './AppShell';
 
 vi.mock('../../hooks/useConversations', () => ({
@@ -56,6 +57,11 @@ vi.mock('../chat/ChatView', () => ({
   ),
 }));
 
+// Mock SearchPalette since it uses complex hooks
+vi.mock('../search/SearchPalette', () => ({
+  SearchPalette: () => <div>SearchPalette</div>,
+}));
+
 import { useConversations } from '../../hooks/useConversations';
 import { useChatStore } from '../../store/chatStore';
 
@@ -84,7 +90,7 @@ describe('AppShell', () => {
       refresh: vi.fn(),
     } as ReturnType<typeof useConversations>);
 
-    render(<AppShell />);
+    render(<MemoryRouter><AppShell /></MemoryRouter>);
     expect(screen.getByText(/welcome to shoyu chat/i)).toBeInTheDocument();
   });
 
@@ -103,7 +109,7 @@ describe('AppShell', () => {
       refresh: vi.fn(),
     } as ReturnType<typeof useConversations>);
 
-    render(<AppShell />);
+    render(<MemoryRouter><AppShell /></MemoryRouter>);
     expect(screen.getByText('ChatView:conv-1')).toBeInTheDocument();
   });
 
@@ -118,7 +124,7 @@ describe('AppShell', () => {
       refresh: vi.fn(),
     } as ReturnType<typeof useConversations>);
 
-    render(<AppShell />);
+    render(<MemoryRouter><AppShell /></MemoryRouter>);
     await userEvent.click(screen.getAllByRole('button', { name: 'New Chat' })[0]);
 
     await waitFor(() => expect(create).toHaveBeenCalled());
@@ -135,7 +141,7 @@ describe('AppShell', () => {
       refresh: vi.fn(),
     } as ReturnType<typeof useConversations>);
 
-    render(<AppShell />);
+    render(<MemoryRouter><AppShell /></MemoryRouter>);
     expect(setActiveConversation).toHaveBeenCalledWith('conv-1');
   });
 });

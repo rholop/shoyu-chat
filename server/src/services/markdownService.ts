@@ -2,6 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { getISOWeekKey, getMonthKey, getWeekRangeLabel, getMonthLabel } from '../utils/dateHelpers';
+import { SearchExtractor } from './searchExtractor';
+import { SearchIndexService } from './searchIndexService';
 
 const DATA_DIR = process.env.DATA_DIR ?? path.join(__dirname, '../../../../data');
 
@@ -52,6 +54,7 @@ ${data.topics}
 ${new Date().toISOString()}
 `;
   atomicWrite(filePath, content);
+  SearchExtractor.fromSummary(filePath, content).forEach(r => SearchIndexService.indexRecord(r));
   return filePath;
 }
 
@@ -77,14 +80,17 @@ export function upsertWeeklyEntry(entry: WeeklyEntry, weekKey?: string) {
 
   const tableRow = `| ${entry.date} | ${entry.title} | ${entry.oneLiner} |`;
 
+  let newContent = '';
   if (!existing) {
     const header = `# Week ${weekNum} — ${rangeLabel}\n\n| Date | Conversation | Summary |\n|------|-------------|---------|`;
-    atomicWrite(filePath, `${header}\n${tableRow}\n`);
+    newContent = `${header}\n${tableRow}\n`;
   } else {
     // Append row before any trailing newline
     const trimmed = existing.trimEnd();
-    atomicWrite(filePath, `${trimmed}\n${tableRow}\n`);
+    newContent = `${trimmed}\n${tableRow}\n`;
   }
+  atomicWrite(filePath, newContent);
+  SearchExtractor.fromSummary(filePath, newContent).forEach(r => SearchIndexService.indexRecord(r));
 }
 
 export function readWeeklySummary(weekKey?: string): string {
@@ -118,6 +124,7 @@ ${data.overview}
 ${convLines}
 `;
   atomicWrite(filePath, content);
+  SearchExtractor.fromSummary(filePath, content).forEach(r => SearchIndexService.indexRecord(r));
 }
 
 export function readMonthlySummary(monthKey?: string): string {

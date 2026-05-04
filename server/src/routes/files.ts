@@ -5,6 +5,8 @@ import { z } from 'zod';
 import { uploadSingle } from '../middleware/uploadMiddleware';
 import { getConversationMeta, conversationFilesDir } from '../storage';
 import { findConversationFile } from '../services/fileService';
+import { SearchExtractor } from '../services/searchExtractor';
+import { SearchIndexService } from '../services/searchIndexService';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -32,6 +34,14 @@ router.post('/upload', (req, res) => {
     const basename = path.basename(req.file.filename);
     const dashIdx = basename.indexOf('-');
     const fileId = dashIdx > 0 ? basename.slice(0, dashIdx) : basename;
+
+    // Index the file
+    const meta = getConversationMeta(conversationId);
+    if (meta) {
+      SearchExtractor.fromFile('upload', req.file.path, conversationId, meta.title, meta.projectId || undefined)
+        .then(records => records.forEach(r => SearchIndexService.indexRecord(r)))
+        .catch(err => logger.error('Search indexing failed for upload:', err));
+    }
 
     res.status(201).json({
       fileId,
@@ -83,6 +93,10 @@ router.delete('/:conversationId/:fileId', (req, res) => {
   }
 
   fs.rmSync(found.filePath, { force: true });
+  SearchIndexService.removeRecord(`upload-${conversationId}-${path.basename(found.filePath)}`); // This might be brittle if IDs change
+  // Actually, removeRecord might need to be more robust or I should just use sourcePath
+  // But SearchIndexService.removeRecordsBySourcePrefix(found.filePath) is better
+  SearchIndexService.removeRecordsBySourcePrefix(found.filePath);
   res.json({ ok: true });
 });
 
