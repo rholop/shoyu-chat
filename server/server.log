@@ -1,0 +1,26 @@
+
+> shoyu-chat-server@1.0.0 start
+> node dist/index.js
+
+(node:157160) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[2026-05-04T21:52:43.818Z] INFO Server listening on port 3001
+[2026-05-04T21:52:43.857Z] INFO Weekly digest cron scheduled
+[0mGET /api/auth/me [33m401[0m 3.440 ms - 24[0m
+[0mGET /api/auth/me [33m401[0m 0.733 ms - 24[0m
+[0mPOST /api/auth/login [33m401[0m 15.153 ms - 31[0m
+[0mGET /api/auth/me [33m401[0m 0.344 ms - 24[0m
+[0mPOST /api/auth/login [33m401[0m 3.772 ms - 31[0m
+[0mGET /api/auth/me [33m401[0m 0.406 ms - 24[0m
+[0mPOST /api/auth/login [32m200[0m 319.404 ms - 48[0m
+[0mPOST /api/auth/login [32m200[0m 280.130 ms - 48[0m
+[0mGET /api/search?q=test [32m200[0m 4.657 ms - 29[0m
+Rebuilding search index...
+[0mPOST /api/search/rebuild [32m200[0m 2.212 ms - 35[0m
+Index rebuild complete. Indexed 0 records.
+Rebuilding search index...
+[0mPOST /api/search/rebuild [32m200[0m 2.016 ms - 35[0m
+Index rebuild complete. Indexed 2 records.
+[0mGET /api/search?q=test [32m200[0m 1.782 ms - 1031[0m
+[0mGET /api/auth/me [33m401[0m 0.435 ms - 24[0m
+[0mPOST /api/auth/login [32m200[0m 289.033 ms - 48[0m

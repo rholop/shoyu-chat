@@ -14,6 +14,8 @@ import {
   assignConversationProject,
 } from '../storage';
 import { getProjectDownloads } from '../services/fileService';
+import { SearchExtractor } from '../services/searchExtractor';
+import { SearchIndexService } from '../services/searchIndexService';
 
 const router = Router();
 
@@ -38,6 +40,10 @@ router.post('/', (req, res) => {
     return;
   }
   const id = createProject(parsed.data.name, parsed.data.description);
+  const meta = getProjectMeta(id);
+  if (meta) {
+    SearchExtractor.fromProject(meta, '', '').forEach(r => SearchIndexService.indexRecord(r));
+  }
   res.status(201).json({ id });
 });
 
@@ -66,6 +72,12 @@ router.patch('/:id', (req, res) => {
     res.status(404).json({ error: 'Not found' });
     return;
   }
+  const meta = getProjectMeta(req.params.id);
+  if (meta) {
+    const context = getProjectContext(meta.id);
+    const summary = getProjectSummary(meta.id);
+    SearchExtractor.fromProject(meta, context, summary).forEach(r => SearchIndexService.indexRecord(r));
+  }
   res.json({ ok: true });
 });
 
@@ -83,6 +95,7 @@ router.delete('/:id', (req, res) => {
   }
 
   deleteProject(id);
+  SearchIndexService.removeRecordsBySourcePrefix(`data/project-${id}`);
   res.json({ ok: true });
 });
 
@@ -100,11 +113,14 @@ router.put('/:id/context', (req, res) => {
     res.status(400).json({ error: 'Invalid request body' });
     return;
   }
-  if (!getProjectMeta(req.params.id)) {
+  const meta = getProjectMeta(req.params.id);
+  if (!meta) {
     res.status(404).json({ error: 'Not found' });
     return;
   }
   writeProjectContext(req.params.id, parsed.data.content);
+  const summary = getProjectSummary(req.params.id);
+  SearchExtractor.fromProject(meta, parsed.data.content, summary).forEach(r => SearchIndexService.indexRecord(r));
   res.json({ ok: true });
 });
 

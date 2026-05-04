@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 
-function dataDir(): string {
+export function dataDir(): string {
   return process.env.DATA_DIR ?? path.join(__dirname, '../../../data');
 }
 

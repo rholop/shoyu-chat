@@ -6,6 +6,7 @@ import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import ChatView from '../chat/ChatView';
 import ProjectDetail from '../projects/ProjectDetail';
+import { SearchPalette } from '../search/SearchPalette';
 
 type ActiveView = { type: 'chat' } | { type: 'project'; projectId: string };
 
@@ -148,6 +149,7 @@ export default function AppShell() {
 
   return (
     <div className="flex h-[100dvh] bg-[#fdf6e3] dark:bg-slate-950 overflow-hidden">
+      <SearchPalette />
       {showNewProjectModal && (
         <NewProjectModal
           onCreate={handleCreateProject}
