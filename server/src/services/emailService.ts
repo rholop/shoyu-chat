@@ -53,7 +53,7 @@ export async function sendWeeklyDigestEmail(params: {
 </html>`;
 
   const result = await resend.emails.send({
-    from: process.env.EMAIL_FROM ?? 'noreply@holop.dev',
+    from: process.env.EMAIL_FROM ?? 'shoyu@holop.dev',
     to: process.env.EMAIL_TO!,
     subject: `Weekly AI Digest — ${weekLabel}`,
     html,

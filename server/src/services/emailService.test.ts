@@ -26,7 +26,7 @@ describe('sendWeeklyDigestEmail', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.EMAIL_TO = 'user@example.com';
-    process.env.EMAIL_FROM = 'noreply@holop.dev';
+    process.env.EMAIL_FROM = 'shoyu@holop.dev';
   });
 
   it('calls resend.emails.send with correct subject', async () => {
@@ -39,7 +39,7 @@ describe('sendWeeklyDigestEmail', () => {
   it('sends from EMAIL_FROM env var', async () => {
     await sendWeeklyDigestEmail(params);
     expect(mockSend).toHaveBeenCalledWith(
-      expect.objectContaining({ from: 'noreply@holop.dev' }),
+      expect.objectContaining({ from: 'shoyu@holop.dev' }),
     );
   });
 
