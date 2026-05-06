@@ -9,6 +9,14 @@ function getResend(): Resend {
   return _resend;
 }
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 export async function sendWeeklyDigestEmail(params: {
   weekLabel: string;
   weekSummary: string;
@@ -18,27 +26,33 @@ export async function sendWeeklyDigestEmail(params: {
   unresolvedThreads: UnresolvedThread[];
   date: string;
 }) {
+  const to = process.env.EMAIL_TO;
+  if (!to) {
+    logger.error('EMAIL_TO is not configured — cannot send digest email');
+    throw new Error('EMAIL_TO is not configured');
+  }
+
   const { weekLabel, weekSummary, monthSummary, insights, patternReport, unresolvedThreads, date } =
     params;
 
   const topTopicsRow = `<tr><td style="padding: 8px 0; font-weight: 500;">Top topics:</td><td style="padding: 8px 0;">${
-    patternReport.last4Weeks.topTopics.map((t) => `${t.topic} (${t.count})`).join(', ') || 'None'
+    patternReport.last4Weeks.topTopics.map((t) => `${escapeHtml(t.topic)} (${t.count})`).join(', ') || 'None'
   }</td></tr>`;
 
   const intentRow = `<tr><td style="padding: 8px 0; font-weight: 500;">Intent split:</td><td style="padding: 8px 0;">${
-    patternReport.last4Weeks.topIntents.map((i) => `${i.intent} ${i.percentage}%`).join(' · ') || 'None'
+    patternReport.last4Weeks.topIntents.map((i) => `${escapeHtml(i.intent)} ${i.percentage}%`).join(' · ') || 'None'
   }</td></tr>`;
 
   const newTopicsRow = `<tr><td style="padding: 8px 0; font-weight: 500;">New this week:</td><td style="padding: 8px 0;">${
-    patternReport.last4Weeks.newTopics.join(', ') || 'None'
+    patternReport.last4Weeks.newTopics.map(escapeHtml).join(', ') || 'None'
   }</td></tr>`;
 
   const returningTopicsRow = `<tr><td style="padding: 8px 0; font-weight: 500;">Returning:</td><td style="padding: 8px 0;">${
-    patternReport.last4Weeks.returningTopics.join(', ') || 'None'
+    patternReport.last4Weeks.returningTopics.map(escapeHtml).join(', ') || 'None'
   }</td></tr>`;
 
   const conversationsRow = `<tr><td style="padding: 8px 0; font-weight: 500;">Conversations:</td><td style="padding: 8px 0;">${
-    patternReport.last4Weeks.weeklyConversationCounts.map((w) => `${w.week}: ${w.count}`).join(' · ') || 'None'
+    patternReport.last4Weeks.weeklyConversationCounts.map((w) => `${escapeHtml(w.week)}: ${w.count}`).join(' · ') || 'None'
   }</td></tr>`;
 
   const unresolvedSection =
@@ -50,8 +64,8 @@ export async function sendWeeklyDigestEmail(params: {
         .map(
           (t) => `
         <li style="margin-bottom: 8px;">
-          • <strong>${t.title}</strong> — ${t.daysSinceCreated} days ago${
-            t.projectName ? ` (${t.projectName})` : ''
+          • <strong>${escapeHtml(t.title)}</strong> — ${t.daysSinceCreated} days ago${
+            t.projectName ? ` (${escapeHtml(t.projectName)})` : ''
           }
         </li>`,
         )
@@ -81,19 +95,19 @@ export async function sendWeeklyDigestEmail(params: {
 <div class="container">
   <div class="header">
     <h1>Weekly AI Digest</h1>
-    <p>${weekLabel}</p>
+    <p>${escapeHtml(weekLabel)}</p>
   </div>
   <div class="section">
     <h2>This Week</h2>
-    <pre>${weekSummary || 'No conversations this week.'}</pre>
+    <pre>${escapeHtml(weekSummary) || 'No conversations this week.'}</pre>
   </div>
   <div class="section">
     <h2>Monthly Themes</h2>
-    <pre>${monthSummary || 'No monthly summary yet.'}</pre>
+    <pre>${escapeHtml(monthSummary) || 'No monthly summary yet.'}</pre>
   </div>
   <div class="section">
     <h2>AI Insights &amp; Ideas</h2>
-    <pre>${insights}</pre>
+    <pre>${escapeHtml(insights)}</pre>
   </div>
   ${unresolvedSection}
   <div class="section">
@@ -113,7 +127,7 @@ export async function sendWeeklyDigestEmail(params: {
 
   const result = await getResend().emails.send({
     from: process.env.EMAIL_FROM ?? 'shoyu@holop.dev',
-    to: process.env.EMAIL_TO!,
+    to,
     subject: `Weekly AI Digest — ${weekLabel}`,
     html,
   });

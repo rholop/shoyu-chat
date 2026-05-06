@@ -38,7 +38,6 @@ export default function Sidebar({
   onNewChatInProject,
   onCreateProject,
 }: Props) {
-  const projectConversationIds = new Set(conversations.filter((c) => c.projectId).map((c) => c.id));
   const ungrouped = conversations.filter((c) => !c.projectId);
 
   return (

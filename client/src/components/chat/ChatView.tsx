@@ -25,7 +25,7 @@ export default function ChatView({ conversationId, title, onMenuToggle, onNewCha
   // Filter out internal relay messages (role:'internal') — they exist in the
   // ndjson for system context injection but must never render in the UI.
   const visibleMessages = (msgs: typeof storedMessages) =>
-    msgs.filter((m) => (m as unknown as { role: string }).role !== 'internal');
+    msgs.filter((m) => m.role !== 'internal');
 
   const displayMessages =
     storeMessages.length > 0 ? visibleMessages(storeMessages) : visibleMessages(storedMessages);

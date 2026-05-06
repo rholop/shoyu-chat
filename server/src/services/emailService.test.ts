@@ -125,4 +125,27 @@ describe('sendWeeklyDigestEmail', () => {
     const result = await sendWeeklyDigestEmail(params);
     expect(result).toEqual({ id: 'email-123' });
   });
+
+  it('throws and logs an error when EMAIL_TO is not set', async () => {
+    delete process.env.EMAIL_TO;
+    const { logger } = await import('../utils/logger');
+    await expect(sendWeeklyDigestEmail(params)).rejects.toThrow('EMAIL_TO is not configured');
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('EMAIL_TO'));
+  });
+
+  it('HTML-escapes user content to prevent injection in the email body', async () => {
+    const xssParams = {
+      ...params,
+      weekSummary: '<script>alert(1)</script>',
+      unresolvedThreads: [
+        { ...params.unresolvedThreads[0], title: '<b>Injected</b>', projectName: '<img src=x>' },
+      ],
+    };
+    await sendWeeklyDigestEmail(xssParams);
+    const html = mockSend.mock.calls[0][0].html as string;
+    expect(html).not.toContain('<script>');
+    expect(html).toContain('&lt;script&gt;');
+    expect(html).not.toContain('<b>Injected</b>');
+    expect(html).toContain('&lt;b&gt;Injected&lt;/b&gt;');
+  });
 });

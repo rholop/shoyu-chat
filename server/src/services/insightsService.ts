@@ -12,6 +12,8 @@ import { listConversations, getProjectMeta, getConversationMeta } from '../stora
 
 export const SIMILARITY_THRESHOLD = 0.15;
 
+const STOPWORDS = new Set(['the','a','an','is','in','it','to','of','and','or','for','with','on','at','by','from','that','this','was','were','be','been','have','had','do','did','not','but','are','as','i','my','we','you','your','can','will','would','could','should','what','how','why','when','where','which']);
+
 export async function findSimilar(
   message: string,
   excludeConversationId: string
@@ -54,7 +56,6 @@ export async function findSimilar(
 }
 
 export function tokenize(text: string): string[] {
-  const STOPWORDS = new Set(['the','a','an','is','in','it','to','of','and','or','for','with','on','at','by','from','that','this','was','were','be','been','have','had','do','did','not','but','are','as','i','my','we','you','your','can','will','would','could','should','what','how','why','when','where','which']);
   return text
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, ' ')
@@ -85,6 +86,8 @@ export async function getUnresolvedThreads(): Promise<UnresolvedThread[]> {
   const now = new Date();
 
   const results: UnresolvedThread[] = unresolved
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 10)
     .map((c) => {
       const entry = ledgerMap.get(`conversation-${c.id}`);
       const created = new Date(c.created_at);
@@ -105,12 +108,9 @@ export async function getUnresolvedThreads(): Promise<UnresolvedThread[]> {
         projectId: c.projectId ? `project-${c.projectId}` : null,
         projectName,
         date: c.created_at.slice(0, 10),
-        createdAt: c.created_at,
         daysSinceCreated,
       };
-    })
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .slice(0, 10);
+    });
 
   return results;
 }

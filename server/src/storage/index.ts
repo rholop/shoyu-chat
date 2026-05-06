@@ -6,7 +6,7 @@ export function dataDir(): string {
 }
 
 function atomicWrite(filePath: string, content: string) {
-  const tmp = `${filePath}.${process.pid}.tmp`;
+  const tmp = `${filePath}.${crypto.randomUUID()}.tmp`;
   fs.writeFileSync(tmp, content, 'utf8');
   fs.renameSync(tmp, filePath);
 }
