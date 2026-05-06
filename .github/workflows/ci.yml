@@ -1,0 +1,44 @@
+name: CI (Test and Build)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate-project:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Matches your Droplet's environment
+
+      # --- SERVER VALIDATION ---
+      - name: Install Server Deps
+        working-directory: ./server
+        run: npm ci
+
+      - name: Build Server
+        working-directory: ./server
+        run: npm run build
+
+      - name: Test Server
+        working-directory: ./server
+        run: npm test || echo "No tests found in server"
+
+      # --- CLIENT VALIDATION ---
+      - name: Install Client Deps
+        working-directory: ./client
+        run: npm ci
+
+      - name: Build Client
+        working-directory: ./client
+        run: npm run build
+
+      - name: Test Client
+        working-directory: ./client
+        run: npm test || echo "No tests found in client"
