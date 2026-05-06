@@ -1,15 +1,16 @@
-import { Menu, Plus, LogOut, PanelLeftOpen } from 'lucide-react';
+import { Menu, Plus, LogOut, PanelLeftOpen, Search } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
 interface Props {
   title: string;
   onMenuToggle: () => void;
   onNewChat: () => void;
+  onOpenSearch: () => void;
   desktopSidebarOpen: boolean;
   onDesktopSidebarOpen: () => void;
 }
 
-export default function TopBar({ title, onMenuToggle, onNewChat, desktopSidebarOpen, onDesktopSidebarOpen }: Props) {
+export default function TopBar({ title, onMenuToggle, onNewChat, onOpenSearch, desktopSidebarOpen, onDesktopSidebarOpen }: Props) {
   const { logout } = useAuth();
 
   return (
@@ -34,6 +35,14 @@ export default function TopBar({ title, onMenuToggle, onNewChat, desktopSidebarO
       )}
 
       <h1 className="flex-1 text-sm font-medium text-[#073642] dark:text-white truncate">{title}</h1>
+
+      <button
+        onClick={onOpenSearch}
+        className="p-2 rounded-lg hover:bg-[#e0d8c4] dark:hover:bg-slate-800 text-[#586e75] dark:text-slate-400 hover:text-[#073642] dark:hover:text-white transition-colors"
+        aria-label="Search"
+      >
+        <Search size={18} />
+      </button>
 
       <button
         onClick={onNewChat}
