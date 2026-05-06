@@ -60,7 +60,13 @@ import chatRouter from '../routes/chat';
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const CONV_ID = '00000000-0000-0000-0000-000000000001';
-const CONV_META = { id: CONV_ID, title: 'New Conversation', created_at: '' };
+const CONV_META = { 
+      id: CONV_ID, 
+      title: 'New Conversation', 
+      created_at: '', 
+      resolved: false,
+      resolvedAt: null,
+      summarizedAt: null, };
 
 function makeApp() {
   const app = express();
@@ -332,6 +338,9 @@ describe('POST /api/chat/send – SSE streaming', () => {
       id: CONV_ID,
       title: 'Existing Title',
       created_at: '',
+      resolved: false,
+      resolvedAt: null,
+      summarizedAt: null,
     });
     vi.mocked(streamChat).mockImplementation(() => makeStream('ok') as any);
 

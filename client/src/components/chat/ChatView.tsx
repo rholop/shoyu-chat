@@ -7,6 +7,7 @@ import { useFileUpload } from '../../hooks/useFileUpload';
 import { Attachment, Message } from '../../types';
 import MessageBubble from './MessageBubble';
 import MessageInput from './MessageInput';
+import { NudgeBanner } from './NudgeBanner';
 
 interface Props {
   conversationId: string;
@@ -101,6 +102,8 @@ export default function ChatView({ conversationId, title, onMenuToggle, onNewCha
         )}
 
         <div className="max-w-3xl mx-auto px-4 py-4 space-y-4">
+          <NudgeBanner />
+
           {displayMessages.length === 0 && !isStreaming && (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <p className="text-[#93a1a1] dark:text-slate-500 text-sm">Start a conversation</p>

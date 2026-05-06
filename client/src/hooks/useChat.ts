@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getConversation } from '../api/conversations';
 import { sendMessage } from '../api/chat';
+import { findSimilar } from '../api/insights';
 import { useChatStore } from '../store/chatStore';
 import { Attachment, Message } from '../types';
 import { detectIntent } from '../utils/detectIntent';
@@ -18,6 +19,9 @@ export function useChat(conversationId: string | null) {
     unlockIntent,
     selectedIntent,
     intentLocked,
+    setNudges,
+    firstMessageSent,
+    markFirstMessageSent,
   } = useChatStore();
 
   const query = useQuery({
@@ -40,6 +44,19 @@ export function useChat(conversationId: string | null) {
 
       setMessages([...messages, optimisticUserMessage]);
       resetStream();
+
+      // Nudges on first message
+      const isFirstMessage = messages.length === 0 && !firstMessageSent.has(conversationId);
+      if (isFirstMessage) {
+        markFirstMessageSent(conversationId);
+        findSimilar(content, conversationId).then(({ matches }) => {
+          if (matches.length > 0) {
+            setNudges(matches);
+          }
+        }).catch(() => {
+          // fail silently
+        });
+      }
 
       try {
         for await (const event of sendMessage(conversationId, content, attachments, intent)) {
@@ -72,6 +89,9 @@ export function useChat(conversationId: string | null) {
       setMessages,
       setIntent,
       unlockIntent,
+      setNudges,
+      firstMessageSent,
+      markFirstMessageSent,
       queryClient,
     ],
   );

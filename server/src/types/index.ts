@@ -29,6 +29,16 @@ export interface TopicSeries {
   lastSeen: string;
 }
 
+export interface SimilarMatch {
+  conversationId: string;
+  title: string;
+  goal: string;
+  date: string;
+  resolved: boolean | null;
+  score: number;
+  topics: string[];
+}
+
 export interface PatternReport {
   generatedAt: string; // ISO timestamp
 

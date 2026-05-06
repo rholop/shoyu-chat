@@ -4,10 +4,63 @@ import {
   TopicFrequency,
   IntentFrequency,
   TopicSeries,
+  SimilarMatch,
 } from '../types';
 import * as ledgerService from './ledgerService';
 import { getISOWeekKey } from '../utils/dateHelpers';
-import { listConversations, getProjectMeta } from '../storage';
+import { listConversations, getProjectMeta, getConversationMeta } from '../storage';
+
+export const SIMILARITY_THRESHOLD = 0.15;
+
+export async function findSimilar(
+  message: string,
+  excludeConversationId: string
+): Promise<SimilarMatch[]> {
+  const entries = await ledgerService.readAll();
+  const queryTokens = tokenize(message);
+  if (queryTokens.length < 3) return [];
+
+  const excludePrefixed = excludeConversationId.startsWith('conversation-')
+    ? excludeConversationId
+    : `conversation-${excludeConversationId}`;
+
+  const scored = entries
+    .filter(e => e.conversationId !== excludePrefixed)
+    .map(entry => {
+      const entryTokens = entry.topics.flatMap(t => tokenize(t));
+      const overlap = queryTokens.filter(t => entryTokens.includes(t)).length;
+      const score = overlap / Math.max(entryTokens.length, 1);
+      return { entry, score };
+    })
+    .filter(({ score }) => score >= SIMILARITY_THRESHOLD)
+    .sort((a, b) => {
+      // Prefer unresolved, then higher score, then more recent
+      if (a.entry.resolved === false && b.entry.resolved !== false) return -1;
+      if (b.entry.resolved === false && a.entry.resolved !== false) return 1;
+      if (b.score !== a.score) return b.score - a.score;
+      return new Date(b.entry.date).getTime() - new Date(a.entry.date).getTime();
+    })
+    .slice(0, 2);
+
+  return scored.map(({ entry, score }) => ({
+    conversationId: entry.conversationId.replace(/^conversation-/, ''),
+    title: getConversationMeta(entry.conversationId.replace(/^conversation-/, ''))?.title ?? 'Untitled',
+    goal: entry.goal,
+    date: entry.date,
+    resolved: entry.resolved,
+    score,
+    topics: entry.topics
+  }));
+}
+
+export function tokenize(text: string): string[] {
+  const STOPWORDS = new Set(['the','a','an','is','in','it','to','of','and','or','for','with','on','at','by','from','that','this','was','were','be','been','have','had','do','did','not','but','are','as','i','my','we','you','your','can','will','would','could','should','what','how','why','when','where','which']);
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !STOPWORDS.has(w));
+}
 
 export interface UnresolvedThread {
   conversationId: string;

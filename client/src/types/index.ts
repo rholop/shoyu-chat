@@ -67,6 +67,16 @@ export interface ConversationWithMessages extends Conversation {
   messages: Message[];
 }
 
+export interface SimilarMatch {
+  conversationId: string;
+  title: string;
+  goal: string;
+  date: string;
+  resolved: boolean | null;
+  score: number;
+  topics: string[];
+}
+
 export enum Intent {
   WEB_SEARCH = 'WEB_SEARCH',
   CODING = 'CODING',

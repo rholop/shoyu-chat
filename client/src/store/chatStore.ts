@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Message, Intent, SSEEvent } from '../types';
+import { Message, Intent, SSEEvent, SimilarMatch } from '../types';
 
 interface ChatState {
   activeConversationId: string | null;
@@ -11,6 +11,9 @@ interface ChatState {
   /** true when the user manually clicked an intent button; resets after each send */
   intentLocked: boolean;
 
+  nudges: SimilarMatch[];
+  firstMessageSent: Set<string>; // conversationIds where first message has been sent
+
   setActiveConversation: (id: string | null) => void;
   setMessages: (messages: Message[]) => void;
   appendToken: (token: string) => void;
@@ -21,6 +24,10 @@ interface ChatState {
   setIntent: (intent: Intent) => void;
   /** Called internally after each send to re-enable auto-detection */
   unlockIntent: () => void;
+
+  setNudges: (nudges: SimilarMatch[]) => void;
+  clearNudges: () => void;
+  markFirstMessageSent: (conversationId: string) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -32,8 +39,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   selectedIntent: Intent.CODING,
   intentLocked: false,
 
+  nudges: [],
+  firstMessageSent: new Set(),
+
   setActiveConversation: (id) =>
-    set({ activeConversationId: id, messages: [], streamingContent: '', isStreaming: false, streamError: null }),
+    set({ activeConversationId: id, messages: [], streamingContent: '', isStreaming: false, streamError: null, nudges: [] }),
 
   setMessages: (messages) => set({ messages }),
 
@@ -61,4 +71,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setIntent: (intent) => set({ selectedIntent: intent, intentLocked: true }),
 
   unlockIntent: () => set({ intentLocked: false }),
+
+  setNudges: (nudges) => set({ nudges }),
+
+  clearNudges: () => set({ nudges: [] }),
+
+  markFirstMessageSent: (conversationId) => {
+    const { firstMessageSent } = get();
+    const next = new Set(firstMessageSent);
+    next.add(conversationId);
+    set({ firstMessageSent: next });
+  },
 }));

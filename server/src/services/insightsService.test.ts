@@ -226,6 +226,131 @@ describe('insightsService', () => {
     });
   });
 
+  describe('tokenize', () => {
+    it('removes stopwords', () => {
+      const tokens = insightsService.tokenize('the quick brown fox');
+      expect(tokens).not.toContain('the');
+      expect(tokens).toContain('quick');
+      expect(tokens).toContain('brown');
+    });
+
+    it('lowercases and strips punctuation', () => {
+      const tokens = insightsService.tokenize('React! TypeScript?');
+      expect(tokens).toContain('react');
+      expect(tokens).toContain('typescript');
+    });
+
+    it('filters tokens shorter than 3 characters', () => {
+      const tokens = insightsService.tokenize('to be or not to be');
+      expect(tokens).toHaveLength(0);
+    });
+  });
+
+  describe('findSimilar', () => {
+    it('returns empty array when ledger is empty', async () => {
+      vi.mocked(ledgerService.readAll).mockResolvedValue([]);
+      const results = await insightsService.findSimilar('test message here', 'curr');
+      expect(results).toEqual([]);
+    });
+
+    it('returns empty array when no entries meet threshold', async () => {
+      const entries: LedgerEntry[] = [
+        {
+          date: '2024-01-01',
+          conversationId: 'c1',
+          topics: ['something-else'],
+          goal: '',
+          intent: '',
+          projectId: null,
+          projectName: null,
+          model: '',
+          messageCount: 0,
+          resolved: null,
+        },
+      ];
+      vi.mocked(ledgerService.readAll).mockResolvedValue(entries);
+      const results = await insightsService.findSimilar('typescript react node', 'curr');
+      expect(results).toEqual([]);
+    });
+
+    it('excludes the current conversationId from results', async () => {
+      const entries: LedgerEntry[] = [
+        {
+          date: '2024-01-01',
+          conversationId: 'conversation-curr',
+          topics: ['typescript', 'react'],
+          goal: '',
+          intent: '',
+          projectId: null,
+          projectName: null,
+          model: '',
+          messageCount: 0,
+          resolved: null,
+        },
+      ];
+      vi.mocked(ledgerService.readAll).mockResolvedValue(entries);
+      const results = await insightsService.findSimilar('typescript react node', 'curr');
+      expect(results).toEqual([]);
+    });
+
+    it('returns max 2 results', async () => {
+      const entries: LedgerEntry[] = [
+        { conversationId: 'c1', topics: ['typescript'], date: '2024-01-01' },
+        { conversationId: 'c2', topics: ['typescript'], date: '2024-01-02' },
+        { conversationId: 'c3', topics: ['typescript'], date: '2024-01-03' },
+      ].map(e => ({ ...e, goal: '', intent: '', projectId: null, projectName: null, model: '', messageCount: 0, resolved: null }));
+      vi.mocked(ledgerService.readAll).mockResolvedValue(entries);
+      const results = await insightsService.findSimilar('typescript coding help', 'curr');
+      expect(results).toHaveLength(2);
+    });
+
+    it('prefers unresolved conversations at equal score', async () => {
+      const entries: LedgerEntry[] = [
+        { conversationId: 'c1', topics: ['typescript'], date: '2024-01-01', resolved: true },
+        { conversationId: 'c2', topics: ['typescript'], date: '2024-01-01', resolved: false },
+      ].map(e => ({ ...e, goal: '', intent: '', projectId: null, projectName: null, model: '', messageCount: 0 }));
+      vi.mocked(ledgerService.readAll).mockResolvedValue(entries);
+      vi.mocked(storage.getConversationMeta).mockImplementation((id) => ({ id, title: id, created_at: '', resolved: null, resolvedAt: null, summarizedAt: null }));
+
+      const results = await insightsService.findSimilar('typescript coding help', 'curr');
+      expect(results[0].conversationId).toBe('c2');
+    });
+
+    it('prefers higher score over recency', async () => {
+      const entries: LedgerEntry[] = [
+        { conversationId: 'c1', topics: ['typescript', 'react'], date: '2024-01-01', resolved: null },
+        { conversationId: 'c2', topics: ['typescript'], date: '2024-01-20', resolved: null },
+      ].map(e => ({ ...e, goal: '', intent: '', projectId: null, projectName: null, model: '', messageCount: 0 }));
+      vi.mocked(ledgerService.readAll).mockResolvedValue(entries);
+      vi.mocked(storage.getConversationMeta).mockImplementation((id) => ({ id, title: id, created_at: '', resolved: null, resolvedAt: null, summarizedAt: null }));
+
+      const results = await insightsService.findSimilar('typescript react coding', 'curr');
+      // score for c1: 2 matches / 2 topics = 1.0
+      // score for c2: 1 match / 1 topic = 1.0
+      
+      // Let's make scores different.
+      // query: typescript react coding (3 tokens)
+      // c1 topics: typescript, react -> entryTokens: typescript, react (2 tokens) -> score = 2 / 2 = 1.0
+      // c2 topics: typescript, node, jest -> entryTokens: typescript, node, jest (3 tokens) -> score = 1 / 3 = 0.33
+      entries[1].topics = ['typescript', 'node', 'jest'];
+      
+      const res2 = await insightsService.findSimilar('typescript react coding', 'curr');
+      expect(res2[0].conversationId).toBe('c1');
+    });
+
+    it('prefers more recent at equal score', async () => {
+      const entries: LedgerEntry[] = [
+        { conversationId: 'c1', topics: ['typescript'], date: '2024-01-01', resolved: null },
+        { conversationId: 'c2', topics: ['typescript'], date: '2024-01-20', resolved: null },
+      ].map(e => ({ ...e, goal: '', intent: '', projectId: null, projectName: null, model: '', messageCount: 0 }));
+      vi.mocked(ledgerService.readAll).mockResolvedValue(entries);
+      vi.mocked(storage.getConversationMeta).mockImplementation((id) => ({ id, title: id, created_at: '', resolved: null, resolvedAt: null, summarizedAt: null }));
+
+      const results = await insightsService.findSimilar('typescript coding help', 'curr');
+      expect(results[0].conversationId).toBe('c2');
+    });
+  });
+
   it('topicsWithoutProject excludes topics that appear even once with a projectId', async () => {
      const entries: LedgerEntry[] = [
       {
