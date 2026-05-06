@@ -25,6 +25,11 @@ export interface SearchOptions {
   limit?: number;
 }
 
+export async function rebuildSearchIndex(): Promise<void> {
+  const res = await fetch('/api/search/rebuild', { method: 'POST' });
+  if (!res.ok) throw new Error('Rebuild failed');
+}
+
 export async function search(q: string, options: SearchOptions = {}): Promise<SearchResponse> {
   const params = new URLSearchParams({ q });
   if (options.projectId) params.append('projectId', options.projectId);

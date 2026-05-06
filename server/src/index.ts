@@ -10,12 +10,16 @@ import conversationsRouter from './routes/conversations';
 import chatRouter from './routes/chat';
 import filesRouter from './routes/files';
 import projectsRouter from './routes/projects';
-import searchRouter from './routes/search';
+import searchRouter, { rebuildIndexInternal } from './routes/search';
 import { requireAuth } from './middleware/authMiddleware';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
 import { scheduleWeeklyDigest, sendWeeklyDigest } from './jobs/weeklyDigest';
 import { recoverSummaryTimers } from './services/summaryService';
+import { SearchIndexService } from './services/searchIndexService';
+import path from 'path';
+import fs from 'fs';
+import { dataDir } from './storage';
 
 const REQUIRED_ENV = ['JWT_SECRET'] as const;
 for (const key of REQUIRED_ENV) {
@@ -52,4 +56,13 @@ app.listen(PORT, () => {
   logger.info(`Server listening on port ${PORT}`);
   recoverSummaryTimers();
   scheduleWeeklyDigest();
+
+  // Auto-seed search index from existing data if missing
+  const indexPath = path.join(dataDir(), 'search-index.jsonl');
+  if (!fs.existsSync(indexPath)) {
+    logger.info('Search index missing — building from existing data...');
+    rebuildIndexInternal().catch((err) =>
+      logger.error('Failed to build initial search index:', err)
+    );
+  }
 });

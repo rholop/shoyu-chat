@@ -42,12 +42,10 @@ router.get('/', async (req: Request, res: Response) => {
 
 router.post('/rebuild', async (req: Request, res: Response) => {
   try {
-    // In a real app, this might be a long running job.
-    // Here we trigger it and return.
-    rebuildIndexInternal();
-    res.json({ message: 'Index rebuild started' });
+    await rebuildIndexInternal();
+    res.json({ message: 'Index rebuild complete' });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to start index rebuild' });
+    res.status(500).json({ error: 'Failed to rebuild index' });
   }
 });
 

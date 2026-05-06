@@ -1,7 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useSearch } from '../../hooks/useSearch';
 import { SearchResultItem } from './SearchResultItem';
-import { SearchResult } from '../../api/search';
+import { SearchResult, rebuildSearchIndex } from '../../api/search';
 
 interface Props {
   isOpen: boolean;
@@ -19,6 +19,8 @@ export const SearchPalette: React.FC<Props> = ({
   onSelectProject,
 }) => {
   const [activeIndex, setActiveIndex] = React.useState(0);
+  const [isRebuilding, setIsRebuilding] = useState(false);
+  const [rebuildMessage, setRebuildMessage] = useState<string | null>(null);
   const { query, setQuery, results, isLoading } = useSearch({ projectId });
   const inputRef = useRef<HTMLInputElement>(null);
   const paletteRef = useRef<HTMLDivElement>(null);
@@ -27,10 +29,24 @@ export const SearchPalette: React.FC<Props> = ({
     if (isOpen) {
       inputRef.current?.focus();
       setActiveIndex(0);
+      setRebuildMessage(null);
     } else {
       setQuery('');
     }
   }, [isOpen, setQuery]);
+
+  const handleRebuild = async () => {
+    setIsRebuilding(true);
+    setRebuildMessage(null);
+    try {
+      await rebuildSearchIndex();
+      setRebuildMessage('Index rebuilt — try your search again.');
+    } catch {
+      setRebuildMessage('Rebuild failed. Check server logs.');
+    } finally {
+      setIsRebuilding(false);
+    }
+  };
 
   const handleSelect = (result: SearchResult) => {
     onClose();
@@ -116,17 +132,27 @@ export const SearchPalette: React.FC<Props> = ({
           )}
         </div>
 
-        <div className="p-3 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-800 flex justify-between text-[10px] text-gray-400">
+        <div className="p-3 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-800 flex justify-between items-center text-[10px] text-gray-400">
           <div className="flex gap-3">
             <span><kbd className="font-sans border px-1 rounded">↑↓</kbd> to navigate</span>
             <span><kbd className="font-sans border px-1 rounded">↵</kbd> to select</span>
             <span><kbd className="font-sans border px-1 rounded">esc</kbd> to close</span>
           </div>
-          {projectId && (
-            <div className="text-blue-500 font-medium">
-              Boosting results for current project
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            {rebuildMessage && (
+              <span className="text-green-500">{rebuildMessage}</span>
+            )}
+            {projectId && !rebuildMessage && (
+              <span className="text-blue-500 font-medium">Boosting current project</span>
+            )}
+            <button
+              onClick={handleRebuild}
+              disabled={isRebuilding}
+              className="text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 disabled:opacity-50 underline underline-offset-2"
+            >
+              {isRebuilding ? 'Rebuilding…' : 'Rebuild index'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
