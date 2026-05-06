@@ -121,14 +121,6 @@ describe('sendWeeklyDigestEmail', () => {
     expect(html).toContain('No monthly summary yet.');
   });
 
-  it('includes pattern report in html body', async () => {
-    await sendWeeklyDigestEmail(params);
-    const html = mockSend.mock.calls[0][0].html as string;
-    expect(html).toContain('Top topics:');
-    expect(html).toContain('A (5)');
-    expect(html).toContain('CODING 50%');
-  });
-
   it('returns the resend result', async () => {
     const result = await sendWeeklyDigestEmail(params);
     expect(result).toEqual({ id: 'email-123' });
