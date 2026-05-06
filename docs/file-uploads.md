@@ -4,7 +4,7 @@
 
 1. User taps the paperclip button (or drags a file on desktop)
 2. `POST /api/files/upload` — multipart/form-data with `file` + `conversationId`
-3. multer writes to `data/conversations/{conversationId}/{uuid}-{filename}`
+3. multer writes to `data/conversation-{conversationId}/uploads/{fileId}-{filename}`
 4. Server returns `{ fileId, filename, mimeType, size }`
 5. Client stores the `Attachment` object and shows an `AttachmentChip`
 6. On send, `POST /api/chat/send` includes `attachments: [{ fileId, filename, mimeType, size }]`
@@ -23,10 +23,10 @@ Text content is truncated at 50,000 characters with a notice.
 
 ## File Lifecycle
 
-- Files are stored in `data/conversations/{id}/` for the lifetime of the conversation.
-- Deleting a conversation removes all its uploaded files recursively.
+- Uploaded files live in `data/conversation-{id}/uploads/` for the lifetime of the conversation.
+- Deleting a conversation removes the entire `conversation-{id}/` directory, including all uploads and downloads.
 - Files are not shared between conversations.
-- `DELETE /api/files/:conversationId/:fileId` removes a single file without modifying the message history (historical attachment references remain in the NDJSON).
+- `DELETE /api/files/:conversationId/:fileId` removes a single file from `uploads/` without modifying the message history (historical attachment references remain in the NDJSON).
 
 ## Allowed Types
 
