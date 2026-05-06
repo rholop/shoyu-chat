@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useChatStore } from './chatStore';
-import { Message, Intent } from '../types';
+import { Message, Intent, SimilarMatch } from '../types';
 
 const makeMessage = (overrides: Partial<Message> = {}): Message => ({
   id: 1,
@@ -20,6 +20,8 @@ describe('chatStore', () => {
       streamingContent: '',
       isStreaming: false,
       streamError: null,
+      nudges: [],
+      firstMessageSent: new Set(),
     });
   });
 
@@ -138,6 +140,66 @@ describe('chatStore', () => {
       expect(state.isStreaming).toBe(true);
       expect(state.streamingContent).toBe('');
       expect(state.streamError).toBeNull();
+    });
+  });
+
+  describe('nudges', () => {
+    const sampleNudge: SimilarMatch = {
+      conversationId: 'c1', title: 'Old Convo', goal: 'Some goal',
+      date: '2026-01-01', resolved: false, score: 0.7, topics: ['react'],
+    };
+
+    it('setNudges replaces the nudges array', () => {
+      useChatStore.getState().setNudges([sampleNudge]);
+      expect(useChatStore.getState().nudges).toEqual([sampleNudge]);
+    });
+
+    it('setNudges overwrites any existing nudges', () => {
+      useChatStore.setState({ nudges: [sampleNudge] });
+      const newNudge: SimilarMatch = { ...sampleNudge, conversationId: 'c2', title: 'Newer' };
+      useChatStore.getState().setNudges([newNudge]);
+      expect(useChatStore.getState().nudges).toHaveLength(1);
+      expect(useChatStore.getState().nudges[0].title).toBe('Newer');
+    });
+
+    it('clearNudges empties the nudges array', () => {
+      useChatStore.setState({ nudges: [sampleNudge] });
+      useChatStore.getState().clearNudges();
+      expect(useChatStore.getState().nudges).toHaveLength(0);
+    });
+
+    it('setActiveConversation clears any pending nudges', () => {
+      useChatStore.setState({ nudges: [sampleNudge] });
+      useChatStore.getState().setActiveConversation('new-conv');
+      expect(useChatStore.getState().nudges).toHaveLength(0);
+    });
+  });
+
+  describe('firstMessageSent', () => {
+    it('markFirstMessageSent adds a conversationId to the set', () => {
+      useChatStore.getState().markFirstMessageSent('conv-abc');
+      expect(useChatStore.getState().firstMessageSent.has('conv-abc')).toBe(true);
+    });
+
+    it('markFirstMessageSent is idempotent for the same id', () => {
+      useChatStore.getState().markFirstMessageSent('conv-abc');
+      useChatStore.getState().markFirstMessageSent('conv-abc');
+      expect(useChatStore.getState().firstMessageSent.size).toBe(1);
+    });
+
+    it('tracks multiple distinct conversationIds independently', () => {
+      useChatStore.getState().markFirstMessageSent('conv-1');
+      useChatStore.getState().markFirstMessageSent('conv-2');
+      const { firstMessageSent } = useChatStore.getState();
+      expect(firstMessageSent.has('conv-1')).toBe(true);
+      expect(firstMessageSent.has('conv-2')).toBe(true);
+      expect(firstMessageSent.has('conv-3')).toBe(false);
+    });
+
+    it('setActiveConversation does not reset firstMessageSent', () => {
+      useChatStore.getState().markFirstMessageSent('conv-abc');
+      useChatStore.getState().setActiveConversation('new-conv');
+      expect(useChatStore.getState().firstMessageSent.has('conv-abc')).toBe(true);
     });
   });
 });

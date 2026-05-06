@@ -11,11 +11,16 @@ vi.mock('../api/chat', () => ({
   sendMessage: vi.fn(),
 }));
 
+vi.mock('../api/insights', () => ({
+  findSimilar: vi.fn().mockResolvedValue({ matches: [] }),
+}));
+
 import { getConversation } from '../api/conversations';
 import { sendMessage } from '../api/chat';
+import { findSimilar } from '../api/insights';
 import { useChat } from './useChat';
 import { useChatStore } from '../store/chatStore';
-import { Message, Intent } from '../types';
+import { Message, Intent, SimilarMatch } from '../types';
 
 function makeWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -166,5 +171,85 @@ describe('useChat', () => {
 
     expect(useChatStore.getState().streamError).toBe('Failed to fetch');
     expect(useChatStore.getState().isStreaming).toBe(false);
+  });
+
+  describe('nudges via findSimilar', () => {
+    async function* doneStream() {
+      yield { type: 'done' as const, model: 'groq-chat', conversationId: 'conv-1', intent: Intent.CODING };
+    }
+
+    beforeEach(() => {
+      vi.mocked(getConversation).mockResolvedValue({ ...convData, messages: [] });
+      vi.mocked(sendMessage).mockReturnValue(doneStream());
+      vi.mocked(findSimilar).mockResolvedValue({ matches: [] });
+      useChatStore.setState({ firstMessageSent: new Set(), nudges: [] });
+    });
+
+    it('calls findSimilar on the first message of a new conversation', async () => {
+      const { result } = renderHook(() => useChat('conv-1'), { wrapper: makeWrapper() });
+      await act(async () => {
+        await result.current.send('hey', makeMessage());
+      });
+      expect(findSimilar).toHaveBeenCalledWith('hey', 'conv-1');
+    });
+
+    it('does not call findSimilar when the conversation already has messages', async () => {
+      vi.mocked(getConversation).mockResolvedValue({ ...convData, messages: [makeMessage()] });
+      const { result } = renderHook(() => useChat('conv-1'), { wrapper: makeWrapper() });
+      await waitFor(() => expect(result.current.messages).toHaveLength(1));
+      await act(async () => {
+        await result.current.send('second message', makeMessage());
+      });
+      expect(findSimilar).not.toHaveBeenCalled();
+    });
+
+    it('does not call findSimilar a second time once firstMessageSent is marked', async () => {
+      useChatStore.setState({ firstMessageSent: new Set(['conv-1']) });
+      const { result } = renderHook(() => useChat('conv-1'), { wrapper: makeWrapper() });
+      await act(async () => {
+        await result.current.send('second send', makeMessage());
+      });
+      expect(findSimilar).not.toHaveBeenCalled();
+    });
+
+    it('sets nudges in the store when findSimilar returns matches', async () => {
+      const matches: SimilarMatch[] = [
+        { conversationId: 'c2', title: 'Old Convo', goal: 'Do stuff', date: '2026-01-01', resolved: false, score: 0.9, topics: ['react'] },
+      ];
+      vi.mocked(findSimilar).mockResolvedValue({ matches });
+      const { result } = renderHook(() => useChat('conv-1'), { wrapper: makeWrapper() });
+      await act(async () => {
+        await result.current.send('hey', makeMessage());
+      });
+      await waitFor(() => expect(useChatStore.getState().nudges).toHaveLength(1));
+      expect(useChatStore.getState().nudges[0].title).toBe('Old Convo');
+    });
+
+    it('does not set nudges when findSimilar returns empty matches', async () => {
+      vi.mocked(findSimilar).mockResolvedValue({ matches: [] });
+      const { result } = renderHook(() => useChat('conv-1'), { wrapper: makeWrapper() });
+      await act(async () => {
+        await result.current.send('hey', makeMessage());
+      });
+      await act(async () => { /* flush microtasks */ });
+      expect(useChatStore.getState().nudges).toHaveLength(0);
+    });
+
+    it('marks the conversation as having had its first message sent', async () => {
+      const { result } = renderHook(() => useChat('conv-1'), { wrapper: makeWrapper() });
+      await act(async () => {
+        await result.current.send('hey', makeMessage());
+      });
+      expect(useChatStore.getState().firstMessageSent.has('conv-1')).toBe(true);
+    });
+
+    it('does not throw when findSimilar rejects (fail silently)', async () => {
+      vi.mocked(findSimilar).mockRejectedValue(new Error('network error'));
+      const { result } = renderHook(() => useChat('conv-1'), { wrapper: makeWrapper() });
+      await expect(
+        act(async () => { await result.current.send('hey', makeMessage()); })
+      ).resolves.not.toThrow();
+      expect(useChatStore.getState().streamError).toBeNull();
+    });
   });
 });
