@@ -8,6 +8,8 @@ Thin fetch wrappers for each backend resource. All functions use `credentials: '
 | `chat.ts` | `sendMessage` — SSE generator that yields `SSEEvent` objects |
 | `conversations.ts` | `listConversations`, `getConversation`, `createConversation`, `deleteConversation`, `updateConversationTitle` |
 | `files.ts` | `uploadFile` (FormData POST), `deleteFile`, `getFileUrl` |
+| `projects.ts` | `listProjects`, `getProject`, `createProject`, `updateProject`, `deleteProject`, `getProjectContext`, `updateProjectContext`, `assignConversation` |
+| `search.ts` | `search(q, options)` — full-text search; `rebuildSearchIndex()` — triggers server index rebuild |
 
 ## SSE Streaming
 
@@ -16,6 +18,8 @@ Thin fetch wrappers for each backend resource. All functions use `credentials: '
 Event shapes:
 ```ts
 { type: 'token'; content: string }
-{ type: 'done'; model: string; conversationId: string }
+{ type: 'done'; model: string; conversationId: string; intent: Intent; downloads?: MessageDownload[] }
 { type: 'error'; message: string }
 ```
+
+When the AI used the `write_file` tool, the `done` event includes a `downloads` array so the client can display download chips immediately.
