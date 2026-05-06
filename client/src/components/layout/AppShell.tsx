@@ -99,6 +99,7 @@ export default function AppShell() {
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
   const [activeView, setActiveView] = useState<ActiveView>({ type: 'chat' });
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const { conversations, create, remove, refresh } = useConversations();
   const { projects, create: createProject } = useProjects();
@@ -147,9 +148,41 @@ export default function AppShell() {
     }
   }, [conversations, activeConversationId, setActiveConversation]);
 
+  // Global Cmd/Ctrl+K to open search
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  const handleSearchSelectConversation = (conversationId: string) => {
+    setActiveConversation(conversationId);
+    setActiveView({ type: 'chat' });
+    setMobileSidebarOpen(false);
+  };
+
+  const handleSearchSelectProject = (projectId: string) => {
+    setActiveView({ type: 'project', projectId });
+    setMobileSidebarOpen(false);
+  };
+
+  const activeProjectId =
+    activeView.type === 'project' ? activeView.projectId : undefined;
+
   return (
     <div className="flex h-[100dvh] bg-[#fdf6e3] dark:bg-slate-950 overflow-hidden">
-      <SearchPalette />
+      <SearchPalette
+        isOpen={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        projectId={activeProjectId}
+        onSelectConversation={handleSearchSelectConversation}
+        onSelectProject={handleSearchSelectProject}
+      />
       {showNewProjectModal && (
         <NewProjectModal
           onCreate={handleCreateProject}
@@ -190,6 +223,7 @@ export default function AppShell() {
           title={title}
           onMenuToggle={() => setMobileSidebarOpen((v) => !v)}
           onNewChat={() => handleNewChat()}
+          onOpenSearch={() => setSearchOpen(true)}
           desktopSidebarOpen={desktopSidebarOpen}
           onDesktopSidebarOpen={() => setDesktopSidebarOpen(true)}
         />
