@@ -17,24 +17,77 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-export async function sendWeeklyDigestEmail(params: {
+export interface DigestEmailParams {
   weekLabel: string;
   weekSummary: string;
   monthSummary: string;
-  insights: string;
+  projectSummaries: string;
+  digestNarrative: string;
+  personalInsights: string;
   patternReport: PatternReport;
   unresolvedThreads: UnresolvedThread[];
   date: string;
-}) {
-  const to = process.env.EMAIL_TO;
-  if (!to) {
-    logger.error('EMAIL_TO is not configured — cannot send digest email');
-    throw new Error('EMAIL_TO is not configured');
-  }
+}
 
-  const { weekLabel, weekSummary, monthSummary, insights, patternReport, unresolvedThreads, date } =
-    params;
+export function buildDigestEmailHtml(params: DigestEmailParams): string {
+  const {
+    weekLabel,
+    weekSummary,
+    monthSummary,
+    projectSummaries,
+    digestNarrative,
+    personalInsights,
+    patternReport,
+    unresolvedThreads,
+    date,
+  } = params;
 
+  // Week at a Glance stats
+  const thisWeekConversations = patternReport.last4Weeks.weeklyConversationCounts.slice(-1)[0]?.count ?? 0;
+  const glanceSection = `<div class="section">
+    <h2>Week at a Glance</h2>
+    <table style="width: 100%; border-collapse: collapse; font-size: 14px; line-height: 1.5;">
+      <tr><td style="padding: 6px 0; font-weight: 500; width: 40%;">Conversations this week:</td><td style="padding: 6px 0;">${thisWeekConversations}</td></tr>
+      <tr><td style="padding: 6px 0; font-weight: 500;">Total messages (all time):</td><td style="padding: 6px 0;">${patternReport.allTime.totalMessages}</td></tr>
+      <tr><td style="padding: 6px 0; font-weight: 500;">Most active project:</td><td style="padding: 6px 0;">${escapeHtml(patternReport.allTime.mostActiveProject ?? 'None')}</td></tr>
+    </table>
+  </div>`;
+
+  // Loose Threads
+  const unresolvedSection =
+    unresolvedThreads.length > 0
+      ? `<div class="section">
+    <h2>Loose Threads (${unresolvedThreads.length} unresolved)</h2>
+    <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; line-height: 1.6;">
+      ${unresolvedThreads
+        .map(
+          (t) => `
+        <li style="margin-bottom: 8px;">
+          • <strong>${escapeHtml(t.title)}</strong> — ${t.daysSinceCreated} days ago${
+            t.projectName ? ` (${escapeHtml(t.projectName)})` : ''
+          }
+        </li>`,
+        )
+        .join('')}
+    </ul>
+  </div>`
+      : '';
+
+  // Active Projects
+  const projectsSection = projectSummaries
+    ? `<div class="section">
+    <h2>Active Projects</h2>
+    <pre>${escapeHtml(projectSummaries)}</pre>
+  </div>`
+    : '';
+
+  // About You This Week
+  const aboutYouSection = `<div class="section">
+    <h2>About You This Week</h2>
+    <pre>${escapeHtml(personalInsights)}</pre>
+  </div>`;
+
+  // Your Numbers table rows
   const topTopicsRow = `<tr><td style="padding: 8px 0; font-weight: 500;">Top topics:</td><td style="padding: 8px 0;">${
     patternReport.last4Weeks.topTopics.map((t) => `${escapeHtml(t.topic)} (${t.count})`).join(', ') || 'None'
   }</td></tr>`;
@@ -55,26 +108,7 @@ export async function sendWeeklyDigestEmail(params: {
     patternReport.last4Weeks.weeklyConversationCounts.map((w) => `${escapeHtml(w.week)}: ${w.count}`).join(' · ') || 'None'
   }</td></tr>`;
 
-  const unresolvedSection =
-    unresolvedThreads.length > 0
-      ? `<div class="section">
-    <h2>Loose Threads (${unresolvedThreads.length} unresolved)</h2>
-    <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; line-height: 1.6;">
-      ${unresolvedThreads
-        .map(
-          (t) => `
-        <li style="margin-bottom: 8px;">
-          • <strong>${escapeHtml(t.title)}</strong> — ${t.daysSinceCreated} days ago${
-            t.projectName ? ` (${escapeHtml(t.projectName)})` : ''
-          }
-        </li>`,
-        )
-        .join('')}
-    </ul>
-  </div>`
-      : '';
-
-  const html = `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -97,19 +131,18 @@ export async function sendWeeklyDigestEmail(params: {
     <h1>Weekly AI Digest</h1>
     <p>${escapeHtml(weekLabel)}</p>
   </div>
+  ${glanceSection}
+  ${unresolvedSection}
   <div class="section">
-    <h2>This Week</h2>
-    <pre>${escapeHtml(weekSummary) || 'No conversations this week.'}</pre>
+    <h2>This Week's Summary</h2>
+    <pre>${escapeHtml(digestNarrative) || 'No summary available.'}</pre>
   </div>
+  ${projectsSection}
+  ${aboutYouSection}
   <div class="section">
     <h2>Monthly Themes</h2>
     <pre>${escapeHtml(monthSummary) || 'No monthly summary yet.'}</pre>
   </div>
-  <div class="section">
-    <h2>AI Insights &amp; Ideas</h2>
-    <pre>${escapeHtml(insights)}</pre>
-  </div>
-  ${unresolvedSection}
   <div class="section">
     <h2>Your Numbers (last 4 weeks)</h2>
     <table style="width: 100%; border-collapse: collapse; font-size: 14px; line-height: 1.5;">
@@ -124,11 +157,21 @@ export async function sendWeeklyDigestEmail(params: {
 </div>
 </body>
 </html>`;
+}
+
+export async function sendWeeklyDigestEmail(params: DigestEmailParams) {
+  const to = process.env.EMAIL_TO;
+  if (!to) {
+    logger.error('EMAIL_TO is not configured — cannot send digest email');
+    throw new Error('EMAIL_TO is not configured');
+  }
+
+  const html = buildDigestEmailHtml(params);
 
   const result = await getResend().emails.send({
     from: process.env.EMAIL_FROM ?? 'shoyu@holop.dev',
     to,
-    subject: `Weekly AI Digest — ${weekLabel}`,
+    subject: `Weekly AI Digest — ${params.weekLabel}`,
     html,
   });
 
