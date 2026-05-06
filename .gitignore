@@ -10,3 +10,7 @@ logs/
 .DS_Store
 *.tsbuildinfo
 seed-data.json
+*.log
+server/*.log
+client/*.log
+
