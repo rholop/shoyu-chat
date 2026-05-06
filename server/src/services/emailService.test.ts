@@ -19,6 +19,39 @@ const params = {
   weekSummary: '| 2026-05-01 | Chat | Did stuff |',
   monthSummary: 'You worked on things.',
   insights: 'Here are insights.',
+  patternReport: {
+    generatedAt: '2026-05-06T12:00:00Z',
+    allTime: {
+      topTopics: [],
+      topIntents: [],
+      totalConversations: 10,
+      totalMessages: 50,
+      mostActiveProject: 'Project X',
+      topicsWithoutProject: ['orphan'],
+    },
+    last4Weeks: {
+      topTopics: [{ topic: 'A', count: 5 }],
+      topIntents: [{ intent: 'CODING', count: 5, percentage: 50 }],
+      newTopics: ['new'],
+      returningTopics: ['returning'],
+      weeklyConversationCounts: [{ week: '2026-W18', count: 5 }],
+    },
+    recurring: {
+      topicsSeenMultipleWeeks: [],
+      longestRunningTopic: null,
+    },
+  },
+  unresolvedThreads: [
+    {
+      conversationId: 'c1',
+      title: 'Unresolved Thread',
+      goal: 'Goal stuff',
+      projectId: null,
+      projectName: null,
+      date: '2026-05-01',
+      daysSinceCreated: 5,
+    },
+  ],
   date: 'May 3, 2026',
 };
 
@@ -60,6 +93,20 @@ describe('sendWeeklyDigestEmail', () => {
     await sendWeeklyDigestEmail(params);
     const html = mockSend.mock.calls[0][0].html as string;
     expect(html).toContain('Here are insights.');
+  });
+
+  it('includes pattern report in html body', async () => {
+    await sendWeeklyDigestEmail(params);
+    const html = mockSend.mock.calls[0][0].html as string;
+    expect(html).toContain('Top topics:');
+    expect(html).toContain('A (5)');
+  });
+
+  it('includes unresolved threads in html body', async () => {
+    await sendWeeklyDigestEmail(params);
+    const html = mockSend.mock.calls[0][0].html as string;
+    expect(html).toContain('Loose Threads (1 unresolved)');
+    expect(html).toContain('Unresolved Thread');
   });
 
   it('shows fallback text when weekSummary is empty', async () => {
