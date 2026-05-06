@@ -2,8 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as insightsService from './insightsService';
 import * as ledgerService from './ledgerService';
 import { LedgerEntry } from '../types';
+import * as storage from '../storage';
 
 vi.mock('./ledgerService');
+vi.mock('../storage');
 
 describe('insightsService', () => {
   const mockEntries: LedgerEntry[] = [
@@ -142,6 +144,86 @@ describe('insightsService', () => {
 
     const totalPercentage = report.allTime.topIntents.reduce((sum, i) => sum + i.percentage, 0);
     expect(totalPercentage).toBeCloseTo(100, 0);
+  });
+
+  describe('getUnresolvedThreads', () => {
+    it('returns only conversations where resolved === false', async () => {
+      const mockConversations: any[] = [
+        { id: '1', title: 'Unresolved', resolved: false, created_at: '2024-01-20T10:00:00Z' },
+        { id: '2', title: 'Resolved', resolved: true, created_at: '2024-01-21T10:00:00Z' },
+        { id: '3', title: 'Null', resolved: null, created_at: '2024-01-22T10:00:00Z' },
+      ];
+      vi.mocked(storage.listConversations).mockReturnValue(mockConversations);
+      vi.mocked(ledgerService.readAll).mockResolvedValue([]);
+
+      const result = await insightsService.getUnresolvedThreads();
+      expect(result).toHaveLength(1);
+      expect(result[0].title).toBe('Unresolved');
+    });
+
+    it('returns results sorted by created_at desc', async () => {
+      const mockConversations: any[] = [
+        { id: '1', title: 'Old', resolved: false, created_at: '2024-01-10T10:00:00Z' },
+        { id: '2', title: 'New', resolved: false, created_at: '2024-01-20T10:00:00Z' },
+      ];
+      vi.mocked(storage.listConversations).mockReturnValue(mockConversations);
+      vi.mocked(ledgerService.readAll).mockResolvedValue([]);
+
+      const result = await insightsService.getUnresolvedThreads();
+      expect(result[0].title).toBe('New');
+      expect(result[1].title).toBe('Old');
+    });
+
+    it('returns max 10 results', async () => {
+      const mockConversations = Array.from({ length: 15 }, (_, i) => ({
+        id: `${i}`,
+        title: `Thread ${i}`,
+        resolved: false,
+        created_at: `2024-01-${10 + i}T10:00:00Z`,
+      }));
+      vi.mocked(storage.listConversations).mockReturnValue(mockConversations as any);
+      vi.mocked(ledgerService.readAll).mockResolvedValue([]);
+
+      const result = await insightsService.getUnresolvedThreads();
+      expect(result).toHaveLength(10);
+    });
+
+    it('correctly populates goal from ledger', async () => {
+      const mockConversations: any[] = [
+        { id: '1', title: 'Unresolved', resolved: false, created_at: '2024-01-20T10:00:00Z' },
+      ];
+      const mockLedger: LedgerEntry[] = [
+        {
+          conversationId: 'conversation-1',
+          goal: 'Expected Goal',
+          date: '2024-01-20',
+          topics: [],
+          intent: '',
+          projectId: null,
+          projectName: null,
+          model: '',
+          messageCount: 0,
+          resolved: false,
+        },
+      ];
+      vi.mocked(storage.listConversations).mockReturnValue(mockConversations);
+      vi.mocked(ledgerService.readAll).mockResolvedValue(mockLedger);
+
+      const result = await insightsService.getUnresolvedThreads();
+      expect(result[0].goal).toBe('Expected Goal');
+    });
+
+    it('correctly calculates daysSinceCreated', async () => {
+      vi.setSystemTime(new Date('2024-01-25T10:00:00Z'));
+      const mockConversations: any[] = [
+        { id: '1', title: '5 days ago', resolved: false, created_at: '2024-01-20T10:00:00Z' },
+      ];
+      vi.mocked(storage.listConversations).mockReturnValue(mockConversations);
+      vi.mocked(ledgerService.readAll).mockResolvedValue([]);
+
+      const result = await insightsService.getUnresolvedThreads();
+      expect(result[0].daysSinceCreated).toBe(5);
+    });
   });
 
   it('topicsWithoutProject excludes topics that appear even once with a projectId', async () => {

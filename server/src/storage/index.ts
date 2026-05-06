@@ -174,6 +174,9 @@ export interface ConversationMeta {
   title: string;
   projectId?: string | null;
   created_at: string;
+  resolved: boolean | null;
+  resolvedAt: string | null;
+  summarizedAt: string | null;
 }
 
 export interface ConversationSummary extends ConversationMeta {
@@ -271,7 +274,14 @@ export function getConversationMeta(id: string): ConversationMeta | null {
 export function createConversation(projectId?: string | null): string {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-  const meta: ConversationMeta = { id, title: 'New Conversation', created_at: now };
+  const meta: ConversationMeta = {
+    id,
+    title: 'New Conversation',
+    created_at: now,
+    resolved: null,
+    resolvedAt: null,
+    summarizedAt: null,
+  };
   if (projectId != null) meta.projectId = projectId;
 
   const dir = conversationDir(id);

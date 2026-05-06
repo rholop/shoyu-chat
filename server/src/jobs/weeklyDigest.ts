@@ -3,7 +3,7 @@ import { flushAllPending } from '../services/summaryService';
 import { readWeeklySummary, readMonthlySummary } from '../services/markdownService';
 import { summarize } from '../services/aiRouter';
 import { sendWeeklyDigestEmail } from '../services/emailService';
-import { buildPatternReport } from '../services/insightsService';
+import { buildPatternReport, getUnresolvedThreads } from '../services/insightsService';
 import { listProjects, getProjectSummary } from '../storage';
 import { getISOWeekKey, getMonthKey, getWeekRangeLabel } from '../utils/dateHelpers';
 import { logger } from '../utils/logger';
@@ -31,6 +31,23 @@ export async function sendWeeklyDigest(date?: Date) {
     .join('\n\n');
 
   const patternReport = await buildPatternReport();
+  const unresolvedThreads = await getUnresolvedThreads();
+
+  const unresolvedSection =
+    unresolvedThreads.length > 0
+      ? `## Loose Threads (unresolved conversations)
+${unresolvedThreads
+  .map(
+    (t) =>
+      `- "${t.title}" — ${t.goal} (${t.daysSinceCreated} days ago)${
+        t.projectName ? `, in project: ${t.projectName}` : ''
+      }`,
+  )
+  .join('\n')}
+
+When writing insights, acknowledge these loose threads. If any connect to
+recurring topics or current projects, call that out specifically.`
+      : '';
 
   const insightsPrompt = `You are generating a personal weekly digest for a solo developer.
 
@@ -66,6 +83,8 @@ ${
 Intent breakdown this month:
 ${patternReport.last4Weeks.topIntents.map((i) => `- ${i.intent}: ${i.percentage}% of conversations`).join('\n') || 'None'}
 
+${unresolvedSection}
+
 Based on all of the above, write a personal insights section that includes:
 1. What you seem to be genuinely interested in right now (back it up with the data)
 2. Any patterns worth naming — things you return to, avoid, or circle around
@@ -87,6 +106,7 @@ Be direct and specific. Use the data. Do not be generic.`;
     monthSummary,
     insights,
     patternReport,
+    unresolvedThreads,
     date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
   });
 

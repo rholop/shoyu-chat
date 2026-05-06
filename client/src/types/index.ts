@@ -41,6 +41,7 @@ export interface Conversation {
   updated_at: string;
   model_last_used: string | null;
   has_files?: boolean;
+  resolved?: boolean | null;
 }
 
 export interface Project {

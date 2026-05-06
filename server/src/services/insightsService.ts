@@ -3,10 +3,64 @@ import {
   PatternReport,
   TopicFrequency,
   IntentFrequency,
-  TopicSeries
+  TopicSeries,
 } from '../types';
 import * as ledgerService from './ledgerService';
 import { getISOWeekKey } from '../utils/dateHelpers';
+import { listConversations, getProjectMeta } from '../storage';
+
+export interface UnresolvedThread {
+  conversationId: string;
+  title: string;
+  goal: string; // from topic-ledger.jsonl one-liner
+  projectId: string | null;
+  projectName: string | null;
+  date: string;
+  daysSinceCreated: number;
+}
+
+export async function getUnresolvedThreads(): Promise<UnresolvedThread[]> {
+  const allConversations = listConversations();
+  const unresolved = allConversations.filter((c) => c.resolved === false);
+
+  const ledgerEntries = await ledgerService.readAll();
+  const ledgerMap = new Map<string, LedgerEntry>();
+  for (const entry of ledgerEntries) {
+    ledgerMap.set(entry.conversationId, entry);
+  }
+
+  const now = new Date();
+
+  const results: UnresolvedThread[] = unresolved
+    .map((c) => {
+      const entry = ledgerMap.get(`conversation-${c.id}`);
+      const created = new Date(c.created_at);
+      const daysSinceCreated = Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+
+      let projectName: string | null = null;
+      if (c.projectId) {
+        const projectMeta = getProjectMeta(c.projectId);
+        if (projectMeta) {
+          projectName = projectMeta.name;
+        }
+      }
+
+      return {
+        conversationId: c.id,
+        title: c.title,
+        goal: entry?.goal ?? '',
+        projectId: c.projectId ? `project-${c.projectId}` : null,
+        projectName,
+        date: c.created_at.slice(0, 10),
+        createdAt: c.created_at,
+        daysSinceCreated,
+      };
+    })
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 10);
+
+  return results;
+}
 
 export async function buildPatternReport(): Promise<PatternReport> {
   const allEntries = await ledgerService.readAll();

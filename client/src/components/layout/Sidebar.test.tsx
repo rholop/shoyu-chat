@@ -83,4 +83,24 @@ describe('Sidebar', () => {
     render(<Sidebar {...defaultProps} />);
     expect(screen.queryByRole('button', { name: /close sidebar/i })).not.toBeInTheDocument();
   });
+
+  describe('unresolved indicator', () => {
+    it('renders unresolved indicator for conversations where resolved === false', () => {
+      const conv: Conversation = { ...conv1, id: 'unresolved-1', resolved: false };
+      render(<Sidebar {...defaultProps} conversations={[conv]} />);
+      expect(screen.getByTitle('Unresolved')).toBeInTheDocument();
+    });
+
+    it('does not render indicator for resolved === true', () => {
+      const conv: Conversation = { ...conv1, id: 'resolved-1', resolved: true };
+      render(<Sidebar {...defaultProps} conversations={[conv]} />);
+      expect(screen.queryByTitle('Unresolved')).not.toBeInTheDocument();
+    });
+
+    it('does not render indicator for resolved === null', () => {
+      const conv: Conversation = { ...conv1, id: 'null-1', resolved: null };
+      render(<Sidebar {...defaultProps} conversations={[conv]} />);
+      expect(screen.queryByTitle('Unresolved')).not.toBeInTheDocument();
+    });
+  });
 });

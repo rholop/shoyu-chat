@@ -122,7 +122,7 @@ export async function append(conversationId: string): Promise<void> {
       projectName,
       model,
       messageCount,
-      resolved: null,
+      resolved: meta.resolved ?? null,
     };
 
     fs.mkdirSync(insightsDir(), { recursive: true });
