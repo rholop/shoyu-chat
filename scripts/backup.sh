@@ -16,6 +16,7 @@ tar -czf "$BACKUP_DIR/data-$DATE.tar.gz" \
   "$(basename "$DATA_DIR")/conversations" \
   "$(basename "$DATA_DIR")/summaries" \
   "$(basename "$DATA_DIR")/chats" \
+  "$(basename "$DATA_DIR")/insights" \
   2>/dev/null || true
 
 # Prune backups older than 30 days

@@ -1,3 +1,16 @@
+export interface LedgerEntry {
+  date: string;
+  conversationId: string;
+  topics: string[];
+  goal: string;
+  intent: string;
+  projectId: string | null;
+  projectName: string | null;
+  model: string;
+  messageCount: number;
+  resolved: boolean | null;
+}
+
 export enum Intent {
   WEB_SEARCH = 'WEB_SEARCH',
   CODING = 'CODING',
