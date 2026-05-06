@@ -298,6 +298,15 @@ router.post('/send', async (req, res) => {
         try {
           const title = content.slice(0, 60).replace(/\n/g, ' ').trim() || attachments[0]?.filename || 'Untitled';
           updateConversationTitle(conversationId, title);
+          // Re-index all messages now that the title is set
+          const reMeta = getConversationMeta(conversationId);
+          if (reMeta) {
+            SearchIndexService.removeRecordsBySourcePrefix(`data/conversation-${conversationId}/conversation.ndjson`);
+            getMessages(conversationId).forEach((msg, i) => {
+              SearchExtractor.fromMessage(conversationId, title, reMeta.projectId || undefined, undefined, msg, i)
+                .forEach(r => SearchIndexService.indexRecord(r));
+            });
+          }
         } catch (err) {
           logger.error('Failed to update conversation title:', err);
         }

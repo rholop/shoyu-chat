@@ -55,6 +55,7 @@ export async function rebuildIndexInternal() {
 
   // 1. Projects
   const projects = listProjects();
+  const projectNameById = new Map(projects.map(p => [p.id, p.name]));
   for (const project of projects) {
     const context = getProjectContext(project.id);
     const summary = getProjectSummary(project.id);
@@ -64,9 +65,10 @@ export async function rebuildIndexInternal() {
   // 2. Conversations and Files
   const conversations = listConversations();
   for (const conv of conversations) {
+    const projectName = conv.projectId ? projectNameById.get(conv.projectId) : undefined;
     const messages = getMessages(conv.id);
     messages.forEach((msg, i) => {
-      allRecords.push(...SearchExtractor.fromMessage(conv.id, conv.title, conv.projectId || undefined, undefined, msg, i));
+      allRecords.push(...SearchExtractor.fromMessage(conv.id, conv.title, conv.projectId || undefined, projectName, msg, i));
     });
 
     // Uploads
@@ -76,7 +78,7 @@ export async function rebuildIndexInternal() {
       for (const file of files) {
         const filePath = path.join(uploadsDir, file);
         if (fs.statSync(filePath).isFile()) {
-           allRecords.push(...await SearchExtractor.fromFile('upload', filePath, conv.id, conv.title, conv.projectId || undefined));
+           allRecords.push(...await SearchExtractor.fromFile('upload', filePath, conv.id, conv.title, conv.projectId || undefined, projectName));
         }
       }
     }
@@ -89,7 +91,7 @@ export async function rebuildIndexInternal() {
         if (file === '.versions') continue;
         const filePath = path.join(downloadsDir, file);
         if (fs.statSync(filePath).isFile()) {
-           allRecords.push(...await SearchExtractor.fromFile('download', filePath, conv.id, conv.title, conv.projectId || undefined));
+           allRecords.push(...await SearchExtractor.fromFile('download', filePath, conv.id, conv.title, conv.projectId || undefined, projectName));
         }
       }
     }
@@ -97,7 +99,9 @@ export async function rebuildIndexInternal() {
 
   // 3. Summaries (Weekly/Monthly)
   const dDir = dataDir();
-  const summaryFiles = fs.readdirSync(dDir).filter(f => f.startsWith('summary-') && f.endsWith('.md'));
+  const summaryFiles = fs.existsSync(dDir)
+    ? fs.readdirSync(dDir).filter(f => f.startsWith('summary-') && f.endsWith('.md'))
+    : [];
   for (const file of summaryFiles) {
     const filePath = path.join(dDir, file);
     const content = fs.readFileSync(filePath, 'utf8');
