@@ -28,7 +28,7 @@ export const NudgeBanner: React.FC = () => {
         {nudges.map((match) => (
           <div 
             key={match.conversationId}
-            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm"
+            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm"
           >
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 mb-1">
