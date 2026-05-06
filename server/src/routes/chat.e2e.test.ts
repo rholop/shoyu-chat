@@ -93,7 +93,13 @@ function buildApp() {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const CONV_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
-const CONV_META = { id: CONV_ID, title: 'New Conversation', created_at: '' };
+const CONV_META = { 
+  id: CONV_ID, 
+  title: 'New Conversation', 
+  created_at: '', 
+  resolved: false,
+  resolvedAt: null,
+  summarizedAt: null, };
 
 function makeAuthCookie(app: express.Application): Promise<string> {
   return Promise.resolve(
