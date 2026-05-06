@@ -17,6 +17,36 @@ vi.mock('../services/emailService', () => ({
   sendWeeklyDigestEmail: vi.fn().mockResolvedValue({ id: 'email-id' }),
 }));
 
+vi.mock('../services/insightsService', () => ({
+  buildPatternReport: vi.fn().mockResolvedValue({
+    generatedAt: '2026-05-06T12:00:00Z',
+    allTime: {
+      topTopics: [],
+      topIntents: [],
+      totalConversations: 10,
+      totalMessages: 50,
+      mostActiveProject: 'Project X',
+      topicsWithoutProject: ['orphan'],
+    },
+    last4Weeks: {
+      topTopics: [{ topic: 'A', count: 5 }],
+      topIntents: [{ intent: 'CODING', count: 5, percentage: 50 }],
+      newTopics: ['new'],
+      returningTopics: ['returning'],
+      weeklyConversationCounts: [{ week: '2026-W18', count: 5 }],
+    },
+    recurring: {
+      topicsSeenMultipleWeeks: [],
+      longestRunningTopic: null,
+    },
+  }),
+}));
+
+vi.mock('../storage', () => ({
+  listProjects: vi.fn().mockReturnValue([{ id: 'p1', name: 'Project 1' }]),
+  getProjectSummary: vi.fn().mockReturnValue('Project summary content.'),
+}));
+
 vi.mock('../utils/dateHelpers', () => ({
   getISOWeekKey: vi.fn().mockReturnValue('2026-W18'),
   getMonthKey: vi.fn().mockReturnValue('2026-05'),
@@ -46,7 +76,9 @@ describe('sendWeeklyDigest', () => {
 
   it('calls summarize to generate insights', async () => {
     await sendWeeklyDigest();
-    expect(summarize).toHaveBeenCalledWith(expect.stringContaining('Weekly summary'));
+    expect(summarize).toHaveBeenCalledWith(expect.stringContaining("This Week's Conversations"));
+    expect(summarize).toHaveBeenCalledWith(expect.stringContaining('Pattern Report'));
+    expect(summarize).toHaveBeenCalledWith(expect.stringContaining('Active Projects'));
   });
 
   it('sends the digest email with assembled content', async () => {

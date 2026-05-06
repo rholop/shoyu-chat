@@ -11,6 +11,50 @@ export interface LedgerEntry {
   resolved: boolean | null;
 }
 
+export interface TopicFrequency {
+  topic: string;
+  count: number;
+}
+
+export interface IntentFrequency {
+  intent: string;
+  count: number;
+  percentage: number;
+}
+
+export interface TopicSeries {
+  topic: string;
+  weekCount: number;
+  firstSeen: string;
+  lastSeen: string;
+}
+
+export interface PatternReport {
+  generatedAt: string; // ISO timestamp
+
+  allTime: {
+    topTopics: TopicFrequency[]; // top 10 topics by count, all time
+    topIntents: IntentFrequency[]; // intent distribution, all time
+    totalConversations: number;
+    totalMessages: number;
+    mostActiveProject: string | null; // projectName with most conversations
+    topicsWithoutProject: string[]; // top 5 topics never tied to a project
+  };
+
+  last4Weeks: {
+    topTopics: TopicFrequency[]; // top 10 topics in last 28 days
+    topIntents: IntentFrequency[]; // intent distribution in last 28 days
+    newTopics: string[]; // topics appearing for first time in last 4 weeks
+    returningTopics: string[]; // topics seen before + again in last 4 weeks
+    weeklyConversationCounts: { week: string; count: number }[]; // last 4 weeks
+  };
+
+  recurring: {
+    topicsSeenMultipleWeeks: TopicSeries[]; // topics appearing in 3+ different weeks
+    longestRunningTopic: string | null; // topic seen across most distinct weeks
+  };
+}
+
 export enum Intent {
   WEB_SEARCH = 'WEB_SEARCH',
   CODING = 'CODING',
