@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { SearchRecord } from './searchIndexService';
-import { StoredMessage, ProjectMeta } from '../storage';
+import { StoredMessage, ProjectMeta, dataDir } from '../storage';
 
 const CHUNK_SIZE = 2000;
 const MAX_FILE_SIZE_CHARS = 50000;
@@ -119,6 +119,10 @@ export class SearchExtractor {
 
     // Context
     if (context) {
+      const contextPath = path.join(dataDir(), `project-${project.id}`, 'context.md');
+      const contextMtime = fs.existsSync(contextPath)
+        ? fs.statSync(contextPath).mtime.toISOString()
+        : project.created_at;
       this.chunkText(context).forEach((chunk, i) => {
         records.push({
           id: `project-${project.id}-context-${i}`,
@@ -130,7 +134,7 @@ export class SearchExtractor {
           projectName: project.name,
           sourcePath: `data/project-${project.id}/context.md`,
           createdAt: project.created_at,
-          updatedAt: new Date().toISOString(), // Use current for updates
+          updatedAt: contextMtime,
           tokens: `${project.name} context ${chunk}`.toLowerCase(),
         });
       });
@@ -138,6 +142,10 @@ export class SearchExtractor {
 
     // Summary
     if (summary) {
+      const summaryPath = path.join(dataDir(), `project-${project.id}`, 'summary.md');
+      const summaryMtime = fs.existsSync(summaryPath)
+        ? fs.statSync(summaryPath).mtime.toISOString()
+        : project.created_at;
       this.chunkText(summary).forEach((chunk, i) => {
         records.push({
           id: `project-${project.id}-summary-${i}`,
@@ -149,7 +157,7 @@ export class SearchExtractor {
           projectName: project.name,
           sourcePath: `data/project-${project.id}/summary.md`,
           createdAt: project.created_at,
-          updatedAt: new Date().toISOString(),
+          updatedAt: summaryMtime,
           tokens: `${project.name} summary ${chunk}`.toLowerCase(),
         });
       });
@@ -189,6 +197,9 @@ export class SearchExtractor {
     const content = await this.extractFileContent(filePath);
     const stat = fs.existsSync(filePath) ? fs.statSync(filePath) : null;
 
+    // Store relative path so removeRecordsBySourcePrefix (which uses relative prefixes) works
+    const relativePath = path.join('data', path.relative(dataDir(), filePath));
+
     const baseRecord: Omit<SearchRecord, 'id' | 'content' | 'snippet' | 'tokens'> = {
       type,
       title: fileName,
@@ -196,7 +207,7 @@ export class SearchExtractor {
       conversationTitle,
       projectId,
       projectName,
-      sourcePath: filePath,
+      sourcePath: relativePath,
       createdAt: stat?.birthtime.toISOString() ?? new Date().toISOString(),
       updatedAt: stat?.mtime.toISOString() ?? new Date().toISOString(),
     };

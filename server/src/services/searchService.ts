@@ -62,10 +62,13 @@ export class SearchService {
     const content = record.content.toLowerCase();
     const tokens = record.tokens || '';
 
+    // Strip quotes for title comparison — phrase search shouldn't penalise title matches
+    const titleQuery = isPhraseSearch ? terms[0] : fullQuery;
+
     // 1. Exact title/filename matches (Highest boost)
-    if (title === fullQuery) {
+    if (title === titleQuery) {
       score += 100;
-    } else if (title.includes(fullQuery)) {
+    } else if (title.includes(titleQuery)) {
       score += 50;
     }
 

@@ -39,6 +39,7 @@ export class SearchIndexService {
 
   static indexRecord(record: SearchRecord): void {
     this.enqueue(async () => {
+      fs.mkdirSync(path.dirname(this.indexPath), { recursive: true });
       await this.removeRecordSync(record.id);
       fs.appendFileSync(this.indexPath, JSON.stringify(record) + '\n', 'utf8');
     });
