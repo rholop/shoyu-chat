@@ -40,6 +40,17 @@ vi.mock('../services/insightsService', () => ({
       longestRunningTopic: null,
     },
   }),
+  getUnresolvedThreads: vi.fn().mockResolvedValue([
+    {
+      conversationId: 'c1',
+      title: 'Unresolved Thread',
+      goal: 'Goal stuff',
+      projectId: null,
+      projectName: null,
+      date: '2026-05-01',
+      daysSinceCreated: 5,
+    },
+  ]),
 }));
 
 vi.mock('../storage', () => ({

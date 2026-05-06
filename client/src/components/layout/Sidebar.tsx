@@ -105,7 +105,12 @@ export default function Sidebar({
                 onClick={() => onSelect(conv.id)}
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-[#073642] dark:text-white truncate">{conv.title}</p>
+                  <p className="text-sm text-[#073642] dark:text-white truncate flex items-center gap-1.5">
+                    {conv.resolved === false && (
+                      <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-indigo-500" title="Unresolved" />
+                    )}
+                    {conv.title}
+                  </p>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <span className="text-xs text-[#93a1a1] dark:text-slate-500">{formatDate(conv.updated_at)}</span>
                     <ModelBadge model={conv.model_last_used} />

@@ -4,6 +4,13 @@ vi.mock('../storage', () => ({
   getConversationMeta: vi.fn(),
   getMessages: vi.fn(),
   getRecentlyActiveConversations: vi.fn(),
+  dataDir: vi.fn().mockReturnValue('/tmp'),
+}));
+
+vi.mock('fs', () => ({
+  default: {
+    writeFileSync: vi.fn(),
+  },
 }));
 
 vi.mock('./aiRouter', () => ({
@@ -34,7 +41,13 @@ import { getConversationMeta, getMessages, getRecentlyActiveConversations } from
 import { summarize } from './aiRouter';
 import { writeChatFile, upsertWeeklyEntry } from './markdownService';
 import { append as appendLedgerEntry } from './ledgerService';
-import { runSummary, schedule, recoverSummaryTimers, flushAllPending } from './summaryService';
+import {
+  runSummary,
+  schedule,
+  recoverSummaryTimers,
+  flushAllPending,
+  parseResolution,
+} from './summaryService';
 
 const CONV_ID = 'conv-abc';
 
@@ -53,6 +66,31 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllTimers();
+});
+
+describe('parseResolution', () => {
+  it('returns resolved: true for RESOLVED: yes', () => {
+    const { summary, resolved } = parseResolution('The summary\nRESOLVED: yes');
+    expect(summary).toBe('The summary');
+    expect(resolved).toBe(true);
+  });
+
+  it('returns resolved: false for RESOLVED: no', () => {
+    const { summary, resolved } = parseResolution('The summary\nRESOLVED: no');
+    expect(summary).toBe('The summary');
+    expect(resolved).toBe(false);
+  });
+
+  it('defaults to resolved: true when line is missing', () => {
+    const { summary, resolved } = parseResolution('The summary');
+    expect(summary).toBe('The summary');
+    expect(resolved).toBe(true);
+  });
+
+  it('strips the RESOLVED line from the returned summary text', () => {
+    const { summary } = parseResolution('Line 1\nRESOLVED: yes\nLine 2');
+    expect(summary).toBe('Line 1\nLine 2');
+  });
 });
 
 describe('runSummary', () => {

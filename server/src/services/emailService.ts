@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import { PatternReport } from '../types';
+import { UnresolvedThread } from './insightsService';
 import { logger } from '../utils/logger';
 
 let _resend: Resend | null = null;
@@ -14,9 +15,11 @@ export async function sendWeeklyDigestEmail(params: {
   monthSummary: string;
   insights: string;
   patternReport: PatternReport;
+  unresolvedThreads: UnresolvedThread[];
   date: string;
 }) {
-  const { weekLabel, weekSummary, monthSummary, insights, patternReport, date } = params;
+  const { weekLabel, weekSummary, monthSummary, insights, patternReport, unresolvedThreads, date } =
+    params;
 
   const topTopicsRow = `<tr><td style="padding: 8px 0; font-weight: 500;">Top topics:</td><td style="padding: 8px 0;">${
     patternReport.last4Weeks.topTopics.map((t) => `${t.topic} (${t.count})`).join(', ') || 'None'
@@ -37,6 +40,25 @@ export async function sendWeeklyDigestEmail(params: {
   const conversationsRow = `<tr><td style="padding: 8px 0; font-weight: 500;">Conversations:</td><td style="padding: 8px 0;">${
     patternReport.last4Weeks.weeklyConversationCounts.map((w) => `${w.week}: ${w.count}`).join(' · ') || 'None'
   }</td></tr>`;
+
+  const unresolvedSection =
+    unresolvedThreads.length > 0
+      ? `<div class="section">
+    <h2>Loose Threads (${unresolvedThreads.length} unresolved)</h2>
+    <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; line-height: 1.6;">
+      ${unresolvedThreads
+        .map(
+          (t) => `
+        <li style="margin-bottom: 8px;">
+          • <strong>${t.title}</strong> — ${t.daysSinceCreated} days ago${
+            t.projectName ? ` (${t.projectName})` : ''
+          }
+        </li>`,
+        )
+        .join('')}
+    </ul>
+  </div>`
+      : '';
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -73,6 +95,7 @@ export async function sendWeeklyDigestEmail(params: {
     <h2>AI Insights &amp; Ideas</h2>
     <pre>${insights}</pre>
   </div>
+  ${unresolvedSection}
   <div class="section">
     <h2>Your Numbers (last 4 weeks)</h2>
     <table style="width: 100%; border-collapse: collapse; font-size: 14px; line-height: 1.5;">

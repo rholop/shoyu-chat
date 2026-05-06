@@ -1,4 +1,7 @@
+import fs from 'fs';
+import path from 'path';
 import {
+  dataDir,
   getConversationMeta,
   getMessages,
   getRecentlyActiveConversations,
@@ -57,6 +60,17 @@ export async function flushAllPending() {
   }
 }
 
+export function parseResolution(response: string): { summary: string; resolved: boolean } {
+  const lines = response.trim().split('\n');
+  const resolvedLine = lines.find((l) => l.startsWith('RESOLVED:'));
+  const resolved = resolvedLine?.toLowerCase().includes('yes') ?? true; // default to resolved if missing
+  const summary = lines
+    .filter((l) => !l.startsWith('RESOLVED:'))
+    .join('\n')
+    .trim();
+  return { summary, resolved };
+}
+
 export async function runSummary(conversationId: string) {
   const meta = getConversationMeta(conversationId);
   if (!meta) throw new Error(`Conversation ${conversationId} not found`);
@@ -78,10 +92,42 @@ export async function runSummary(conversationId: string) {
 3. The outcome or resolution, if any
 Be specific. Avoid vague language like "the user discussed X."
 
+After your summary, on its own line, output exactly one of:
+RESOLVED: yes
+RESOLVED: no
+
+A conversation is unresolved if:
+- The user's original goal was not clearly achieved
+- A question was raised but not answered
+- Next steps or follow-up work was mentioned but the conversation ended before completing it
+- The user expressed uncertainty or confusion that was not resolved
+
+A conversation is resolved if:
+- The user's goal was met
+- A decision was reached
+- A working solution was found, even if imperfect
+- The conversation naturally concluded
+
 Conversation:
 ${transcript}`;
 
-  const summary = await summarize(summaryPrompt);
+  const summaryResponse = await summarize(summaryPrompt);
+  const { summary, resolved } = parseResolution(summaryResponse);
+
+  // Update meta.json with resolution status
+  const now = new Date().toISOString();
+  meta.resolved = resolved;
+  meta.summarizedAt = now;
+  if (resolved) {
+    if (meta.resolvedAt === null) {
+      meta.resolvedAt = now;
+    }
+  } else {
+    meta.resolvedAt = null;
+  }
+
+  const metaPath = path.join(dataDir(), `conversation-${conversationId}`, 'meta.json');
+  fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
 
   // 2. Topics
   const topicsPrompt = `List 3-6 specific topics or technologies from this conversation as short noun phrases. Focus on concrete subjects, not meta-descriptions. Return as a comma-separated list only, nothing else.
