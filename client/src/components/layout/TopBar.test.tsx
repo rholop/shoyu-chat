@@ -18,6 +18,7 @@ const defaultProps = {
   title: 'Shoyu Chat',
   onMenuToggle: vi.fn(),
   onNewChat: vi.fn(),
+  onOpenSearch: vi.fn(),
   desktopSidebarOpen: true,
   onDesktopSidebarOpen: vi.fn(),
 };
