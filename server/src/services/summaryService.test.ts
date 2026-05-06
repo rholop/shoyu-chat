@@ -26,9 +26,14 @@ vi.mock('../utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
+vi.mock('./ledgerService', () => ({
+  append: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { getConversationMeta, getMessages, getRecentlyActiveConversations } from '../storage';
 import { summarize } from './aiRouter';
 import { writeChatFile, upsertWeeklyEntry } from './markdownService';
+import { append as appendLedgerEntry } from './ledgerService';
 import { runSummary, schedule, recoverSummaryTimers, flushAllPending } from './summaryService';
 
 const CONV_ID = 'conv-abc';
@@ -79,6 +84,11 @@ describe('runSummary', () => {
     expect(upsertWeeklyEntry).toHaveBeenCalledWith(
       expect.objectContaining({ title: 'My Chat' }),
     );
+  });
+
+  it('calls ledgerService.append after summarization completes', async () => {
+    await runSummary(CONV_ID);
+    expect(appendLedgerEntry).toHaveBeenCalledWith(CONV_ID);
   });
 });
 

@@ -14,6 +14,7 @@ import {
 import { getISOWeekKey, getMonthKey } from '../utils/dateHelpers';
 import { logger } from '../utils/logger';
 import { updateMemoryFromConversation } from './memoryService';
+import { append as appendLedgerEntry } from './ledgerService';
 
 const INACTIVITY_MS = 4 * 60 * 60 * 1000; // 4 hours
 const pendingTimers = new Map<string, NodeJS.Timeout>();
@@ -130,6 +131,13 @@ ${transcript}`;
     } catch (err) {
       logger.error(`Project summary failed for project ${meta.projectId}:`, err);
     }
+  }
+
+  // 8. Append to topic ledger (piggybacks on this run, no extra AI call)
+  try {
+    await appendLedgerEntry(conversationId);
+  } catch (err) {
+    logger.error(`Ledger append failed for conversation ${conversationId}:`, err);
   }
 
   logger.info(`Summary complete for conversation ${conversationId}`);
