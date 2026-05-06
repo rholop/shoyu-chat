@@ -1,2 +1,0 @@
--- Storage has moved to filesystem (data/ directory).
--- See server/src/storage/index.ts for the new storage layer.
