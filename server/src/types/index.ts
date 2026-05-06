@@ -39,6 +39,14 @@ export interface SimilarMatch {
   topics: string[];
 }
 
+export interface RollingWeek {
+  week: string;           // e.g. "2026-W16"
+  conversationCount: number;
+  topTopics: string[];    // top 3
+  intents: string[];      // unique intents used
+  hadUnresolved: boolean;
+}
+
 export interface PatternReport {
   generatedAt: string; // ISO timestamp
 

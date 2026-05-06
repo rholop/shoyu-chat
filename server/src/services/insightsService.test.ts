@@ -351,6 +351,109 @@ describe('insightsService', () => {
     });
   });
 
+  describe('buildRollingHistory', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      // 2024-03-14 is a Thursday in 2024-W11
+      vi.setSystemTime(new Date('2024-03-14T12:00:00Z'));
+    });
+
+    it('returns empty array when ledger is empty', async () => {
+      vi.mocked(ledgerService.readAll).mockResolvedValue([]);
+      const result = await insightsService.buildRollingHistory(8);
+      expect(result).toEqual([]);
+    });
+
+    it('returns at most 8 weeks when ledger spans more than 8 weeks', async () => {
+      // Create 10 weeks of entries: from 2024-01-08 (W02) to 2024-03-11 (W11)
+      const entries: LedgerEntry[] = [
+        { date: '2024-01-08', conversationId: 'c1', topics: ['a'], goal: '', intent: 'CODING', projectId: null, projectName: null, model: '', messageCount: 1, resolved: null },
+        { date: '2024-01-15', conversationId: 'c2', topics: ['b'], goal: '', intent: 'CODING', projectId: null, projectName: null, model: '', messageCount: 1, resolved: null },
+        { date: '2024-01-22', conversationId: 'c3', topics: ['c'], goal: '', intent: 'CODING', projectId: null, projectName: null, model: '', messageCount: 1, resolved: null },
+        { date: '2024-01-29', conversationId: 'c4', topics: ['d'], goal: '', intent: 'CODING', projectId: null, projectName: null, model: '', messageCount: 1, resolved: null },
+        { date: '2024-02-05', conversationId: 'c5', topics: ['e'], goal: '', intent: 'CODING', projectId: null, projectName: null, model: '', messageCount: 1, resolved: null },
+        { date: '2024-02-12', conversationId: 'c6', topics: ['f'], goal: '', intent: 'CODING', projectId: null, projectName: null, model: '', messageCount: 1, resolved: null },
+        { date: '2024-02-19', conversationId: 'c7', topics: ['g'], goal: '', intent: 'CODING', projectId: null, projectName: null, model: '', messageCount: 1, resolved: null },
+        { date: '2024-02-26', conversationId: 'c8', topics: ['h'], goal: '', intent: 'CODING', projectId: null, projectName: null, model: '', messageCount: 1, resolved: null },
+        { date: '2024-03-04', conversationId: 'c9', topics: ['i'], goal: '', intent: 'CODING', projectId: null, projectName: null, model: '', messageCount: 1, resolved: null },
+        { date: '2024-03-11', conversationId: 'c10', topics: ['j'], goal: '', intent: 'CODING', projectId: null, projectName: null, model: '', messageCount: 1, resolved: null },
+      ];
+      vi.mocked(ledgerService.readAll).mockResolvedValue(entries);
+      const result = await insightsService.buildRollingHistory(8);
+      expect(result.length).toBeLessThanOrEqual(8);
+    });
+
+    it('returns fewer weeks when ledger is newer than requested range', async () => {
+      // Only 2 weeks of data (W10 and W11), requesting 8
+      const entries: LedgerEntry[] = [
+        { date: '2024-03-04', conversationId: 'c1', topics: ['react'], goal: '', intent: 'CODING', projectId: null, projectName: null, model: '', messageCount: 2, resolved: null },
+        { date: '2024-03-11', conversationId: 'c2', topics: ['node'], goal: '', intent: 'CODING', projectId: null, projectName: null, model: '', messageCount: 1, resolved: null },
+      ];
+      vi.mocked(ledgerService.readAll).mockResolvedValue(entries);
+      const result = await insightsService.buildRollingHistory(8);
+      expect(result.length).toBeLessThan(8);
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it('correctly counts conversations per week', async () => {
+      // 2024-03-04 and 2024-03-05 are both in W10; 2024-03-11 is W11
+      const entries: LedgerEntry[] = [
+        { date: '2024-03-04', conversationId: 'c1', topics: ['react'], goal: '', intent: 'CODING', projectId: null, projectName: null, model: '', messageCount: 1, resolved: null },
+        { date: '2024-03-05', conversationId: 'c2', topics: ['vue'], goal: '', intent: 'CODING', projectId: null, projectName: null, model: '', messageCount: 1, resolved: null },
+        { date: '2024-03-11', conversationId: 'c3', topics: ['node'], goal: '', intent: 'CODING', projectId: null, projectName: null, model: '', messageCount: 1, resolved: null },
+      ];
+      vi.mocked(ledgerService.readAll).mockResolvedValue(entries);
+      const result = await insightsService.buildRollingHistory(8);
+
+      const w10 = result.find(w => w.week === '2024-W10');
+      const w11 = result.find(w => w.week === '2024-W11');
+      expect(w10?.conversationCount).toBe(2);
+      expect(w11?.conversationCount).toBe(1);
+    });
+
+    it('correctly identifies top 3 topics per week', async () => {
+      const entries: LedgerEntry[] = [
+        { date: '2024-03-04', conversationId: 'c1', topics: ['react', 'typescript', 'css', 'html'], goal: '', intent: 'CODING', projectId: null, projectName: null, model: '', messageCount: 1, resolved: null },
+        { date: '2024-03-05', conversationId: 'c2', topics: ['react', 'typescript'], goal: '', intent: 'CODING', projectId: null, projectName: null, model: '', messageCount: 1, resolved: null },
+      ];
+      vi.mocked(ledgerService.readAll).mockResolvedValue(entries);
+      const result = await insightsService.buildRollingHistory(8);
+
+      const w10 = result.find(w => w.week === '2024-W10');
+      expect(w10?.topTopics).toHaveLength(3);
+      // react and typescript appear twice, should be in top 3
+      expect(w10?.topTopics).toContain('react');
+      expect(w10?.topTopics).toContain('typescript');
+    });
+
+    it('sets hadUnresolved: true when any entry in that week has resolved === false', async () => {
+      const entries: LedgerEntry[] = [
+        { date: '2024-03-04', conversationId: 'c1', topics: ['react'], goal: '', intent: 'CODING', projectId: null, projectName: null, model: '', messageCount: 1, resolved: false },
+        { date: '2024-03-11', conversationId: 'c2', topics: ['node'], goal: '', intent: 'CODING', projectId: null, projectName: null, model: '', messageCount: 1, resolved: null },
+      ];
+      vi.mocked(ledgerService.readAll).mockResolvedValue(entries);
+      const result = await insightsService.buildRollingHistory(8);
+
+      const w10 = result.find(w => w.week === '2024-W10');
+      const w11 = result.find(w => w.week === '2024-W11');
+      expect(w10?.hadUnresolved).toBe(true);
+      expect(w11?.hadUnresolved).toBe(false);
+    });
+
+    it('returns results in oldest-to-newest order', async () => {
+      const entries: LedgerEntry[] = [
+        { date: '2024-03-04', conversationId: 'c1', topics: ['a'], goal: '', intent: 'CODING', projectId: null, projectName: null, model: '', messageCount: 1, resolved: null },
+        { date: '2024-03-11', conversationId: 'c2', topics: ['b'], goal: '', intent: 'CODING', projectId: null, projectName: null, model: '', messageCount: 1, resolved: null },
+      ];
+      vi.mocked(ledgerService.readAll).mockResolvedValue(entries);
+      const result = await insightsService.buildRollingHistory(8);
+
+      for (let i = 1; i < result.length; i++) {
+        expect(result[i].week >= result[i - 1].week).toBe(true);
+      }
+    });
+  });
+
   it('topicsWithoutProject excludes topics that appear even once with a projectId', async () => {
      const entries: LedgerEntry[] = [
       {

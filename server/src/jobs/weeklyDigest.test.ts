@@ -51,6 +51,10 @@ vi.mock('../services/insightsService', () => ({
       daysSinceCreated: 5,
     },
   ]),
+  buildRollingHistory: vi.fn().mockResolvedValue([
+    { week: '2026-W17', conversationCount: 3, topTopics: ['react'], intents: ['CODING'], hadUnresolved: false },
+    { week: '2026-W18', conversationCount: 5, topTopics: ['typescript', 'node'], intents: ['CODING'], hadUnresolved: true },
+  ]),
 }));
 
 vi.mock('../storage', () => ({
@@ -75,6 +79,7 @@ vi.mock('node-cron', () => ({
 import { flushAllPending } from '../services/summaryService';
 import { summarize } from '../services/aiRouter';
 import { sendWeeklyDigestEmail } from '../services/emailService';
+import { buildRollingHistory } from '../services/insightsService';
 import { sendWeeklyDigest, scheduleWeeklyDigest } from './weeklyDigest';
 
 describe('sendWeeklyDigest', () => {
@@ -85,19 +90,80 @@ describe('sendWeeklyDigest', () => {
     expect(flushAllPending).toHaveBeenCalled();
   });
 
-  it('calls summarize to generate insights', async () => {
+  it('calls buildRollingHistory with 8 weeks', async () => {
     await sendWeeklyDigest();
-    expect(summarize).toHaveBeenCalledWith(expect.stringContaining("This Week's Conversations"));
-    expect(summarize).toHaveBeenCalledWith(expect.stringContaining('Pattern Report'));
-    expect(summarize).toHaveBeenCalledWith(expect.stringContaining('Active Projects'));
+    expect(buildRollingHistory).toHaveBeenCalledWith(8);
   });
 
-  it('sends the digest email with assembled content', async () => {
+  it('makes exactly 2 AI calls', async () => {
+    await sendWeeklyDigest();
+    expect(summarize).toHaveBeenCalledTimes(2);
+  });
+
+  it('initiates both AI calls before either resolves', async () => {
+    let firstCallDone = false;
+
+    vi.mocked(summarize)
+      .mockImplementationOnce(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+        firstCallDone = true;
+        return 'digest narrative';
+      })
+      .mockImplementationOnce(async () => {
+        // If this runs before first resolves, firstCallDone is still false
+        expect(firstCallDone).toBe(false);
+        return 'personal insights';
+      });
+
+    await sendWeeklyDigest();
+  });
+
+  it('digest prompt contains week summary and pattern report data', async () => {
+    await sendWeeklyDigest();
+    const digestCall = vi.mocked(summarize).mock.calls[0][0];
+    expect(digestCall).toContain("This Week's Conversations");
+    expect(digestCall).toContain('Pattern Report');
+    expect(digestCall).toContain('Active Projects');
+  });
+
+  it('insight prompt includes pattern report data', async () => {
+    await sendWeeklyDigest();
+    const insightCall = vi.mocked(summarize).mock.calls[1][0];
+    expect(insightCall).toContain('Pattern Data');
+    expect(insightCall).toContain('orphan'); // topicsWithoutProject from mock
+  });
+
+  it('insight prompt includes unresolved thread list', async () => {
+    await sendWeeklyDigest();
+    const insightCall = vi.mocked(summarize).mock.calls[1][0];
+    expect(insightCall).toContain('Unresolved Threads');
+    expect(insightCall).toContain('Unresolved Thread'); // title from mock
+  });
+
+  it('insight prompt includes rolling history', async () => {
+    await sendWeeklyDigest();
+    const insightCall = vi.mocked(summarize).mock.calls[1][0];
+    expect(insightCall).toContain('Rolling 8-Week Conversation History');
+    expect(insightCall).toContain('2026-W17');
+  });
+
+  it('insight prompt includes total conversation count for data-sparsity note', async () => {
+    await sendWeeklyDigest();
+    const insightCall = vi.mocked(summarize).mock.calls[1][0];
+    expect(insightCall).toContain('10 conversations'); // totalConversations from mock
+  });
+
+  it('sends the digest email with both narratives', async () => {
+    vi.mocked(summarize)
+      .mockResolvedValueOnce('narrative digest content')
+      .mockResolvedValueOnce('personal insights content');
+
     await sendWeeklyDigest();
     expect(sendWeeklyDigestEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         weekLabel: 'Apr 27 – May 3',
-        insights: 'AI insights here.',
+        digestNarrative: 'narrative digest content',
+        personalInsights: 'personal insights content',
       }),
     );
   });
@@ -106,8 +172,32 @@ describe('sendWeeklyDigest', () => {
     vi.mocked(summarize).mockRejectedValue(new Error('quota'));
     await sendWeeklyDigest();
     expect(sendWeeklyDigestEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ insights: expect.stringContaining('unavailable') }),
+      expect.objectContaining({ digestNarrative: expect.stringContaining('unavailable') }),
     );
+  });
+
+  it('completes successfully when pattern report has no topics (new install)', async () => {
+    const { buildPatternReport } = await import('../services/insightsService');
+    vi.mocked(buildPatternReport).mockResolvedValueOnce({
+      generatedAt: new Date().toISOString(),
+      allTime: { topTopics: [], topIntents: [], totalConversations: 0, totalMessages: 0, mostActiveProject: null, topicsWithoutProject: [] },
+      last4Weeks: { topTopics: [], topIntents: [], newTopics: [], returningTopics: [], weeklyConversationCounts: [] },
+      recurring: { topicsSeenMultipleWeeks: [], longestRunningTopic: null },
+    });
+    await expect(sendWeeklyDigest()).resolves.not.toThrow();
+  });
+
+  it('completes successfully when unresolved threads list is empty', async () => {
+    const { getUnresolvedThreads } = await import('../services/insightsService');
+    vi.mocked(getUnresolvedThreads).mockResolvedValueOnce([]);
+    await expect(sendWeeklyDigest()).resolves.not.toThrow();
+  });
+
+  it('completes successfully when rolling history has fewer than 8 weeks of data', async () => {
+    vi.mocked(buildRollingHistory).mockResolvedValueOnce([
+      { week: '2026-W18', conversationCount: 2, topTopics: ['react'], intents: ['CODING'], hadUnresolved: false },
+    ]);
+    await expect(sendWeeklyDigest()).resolves.not.toThrow();
   });
 });
 

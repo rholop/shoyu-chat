@@ -1,6 +1,7 @@
 import {
   LedgerEntry,
   PatternReport,
+  RollingWeek,
   TopicFrequency,
   IntentFrequency,
   TopicSeries,
@@ -297,4 +298,60 @@ function getTopIntents(entries: LedgerEntry[]): IntentFrequency[] {
       percentage: total > 0 ? Math.round((count / total) * 100) : 0,
     }))
     .sort((a, b) => b.count - a.count);
+}
+
+export async function buildRollingHistory(weeks: number): Promise<RollingWeek[]> {
+  const entries = await ledgerService.readAll();
+  if (entries.length === 0) return [];
+
+  const now = new Date();
+  const weekKeys: string[] = [];
+  const seen = new Set<string>();
+  for (let i = 0; weekKeys.length < weeks && i < weeks * 7 + 7; i++) {
+    const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    const key = getISOWeekKey(d);
+    if (!seen.has(key)) {
+      seen.add(key);
+      weekKeys.unshift(key); // oldest first
+    }
+  }
+
+  // Find the oldest week represented in the ledger
+  const oldestEntryWeek = entries.reduce((oldest, e) => {
+    const wk = getISOWeekKey(new Date(e.date));
+    return wk < oldest ? wk : oldest;
+  }, weekKeys[weekKeys.length - 1]);
+
+  // Only return weeks from the ledger's start date onwards
+  const filteredKeys = weekKeys.filter(k => k >= oldestEntryWeek);
+
+  // Group entries by their week key (only within the tracked range)
+  const weekMap = new Map<string, LedgerEntry[]>();
+  for (const entry of entries) {
+    const wk = getISOWeekKey(new Date(entry.date));
+    if (seen.has(wk)) {
+      if (!weekMap.has(wk)) weekMap.set(wk, []);
+      weekMap.get(wk)!.push(entry);
+    }
+  }
+
+  return filteredKeys.map(week => {
+    const weekEntries = weekMap.get(week) ?? [];
+
+    const topicCounts = new Map<string, number>();
+    for (const entry of weekEntries) {
+      for (const topic of entry.topics) {
+        topicCounts.set(topic, (topicCounts.get(topic) ?? 0) + 1);
+      }
+    }
+    const topTopics = Array.from(topicCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([t]) => t);
+
+    const intents = [...new Set(weekEntries.map(e => e.intent).filter(Boolean))];
+    const hadUnresolved = weekEntries.some(e => e.resolved === false);
+
+    return { week, conversationCount: weekEntries.length, topTopics, intents, hadUnresolved };
+  });
 }
