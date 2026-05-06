@@ -18,6 +18,11 @@
   .pb-safe {
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
   }
+
+  /* Safe area padding for status bar (PWA standalone mode) */
+  .pt-safe {
+    padding-top: max(0.75rem, env(safe-area-inset-top));
+  }
 }
 
 /* Syntax highlighting theme */

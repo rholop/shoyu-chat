@@ -14,7 +14,7 @@ export default function TopBar({ title, onMenuToggle, onNewChat, onOpenSearch, d
   const { logout } = useAuth();
 
   return (
-    <header className="flex items-center gap-2 px-3 py-3 border-b border-[#ccc5af] dark:border-slate-800 bg-[#fdf6e3] dark:bg-slate-950 shrink-0">
+    <header className="flex items-center gap-2 px-3 pb-3 pt-safe border-b border-[#ccc5af] dark:border-slate-800 bg-[#fdf6e3] dark:bg-slate-950 shrink-0">
       {/* Mobile: hamburger to open slide-over sidebar */}
       <button
         onClick={onMenuToggle}
