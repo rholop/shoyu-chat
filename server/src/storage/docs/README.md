@@ -22,7 +22,7 @@ Filesystem-only persistence layer. No database.
 
 | Export | Purpose |
 |---|---|
-| `listProjects` | Returns all `ProjectMeta[]` sorted by `created_at` |
+| `listProjects` | Scans `data/` for `project-*/` directories; returns `ProjectMeta[]` sorted by `created_at` |
 | `getProjectMeta` | Reads `project-{id}/meta.json` or returns `null` |
 | `createProject` | Creates `project-{id}/` with `meta.json`, empty `context.md`, empty `summary.md` |
 | `updateProject` | Rewrites `project-{id}/meta.json` atomically |
@@ -34,7 +34,7 @@ Filesystem-only persistence layer. No database.
 
 | Export | Purpose |
 |---|---|
-| `listConversations` | Scans `data/` for `conversation-*/` dirs and returns sorted `ConversationSummary[]` |
+| `listConversations` | Scans `data/` for `conversation-*/` directories; returns sorted `ConversationSummary[]` |
 | `listConversationsByProject` | Filtered list for a given `projectId` |
 | `getConversationMeta` | Reads `conversation-{id}/meta.json` |
 | `createConversation` | Creates `conversation-{id}/` with `meta.json`, empty `conversation.ndjson`, `uploads/`, and `downloads/` subdirs; optional `projectId` |
@@ -42,7 +42,8 @@ Filesystem-only persistence layer. No database.
 | `assignConversationProject` | Sets or clears `projectId` in `conversation-{id}/meta.json` |
 | `deleteConversation` | Removes the entire `conversation-{id}/` directory |
 | `getMessages / appendMessage` | Read/append to `conversation-{id}/conversation.ndjson` |
-| `conversationFilesDir` | Returns the `conversation-{id}/uploads/` path |
+| `conversationFilesDir` | Returns `conversation-{id}/uploads/` path |
+| `conversationDownloadsDir` | Returns `conversation-{id}/downloads/` path |
 | `getRecentlyActiveConversations` | IDs whose `conversation.ndjson` mtime is within a given window (used for summary timer recovery on boot) |
 
 ## File Layout
@@ -52,21 +53,25 @@ data/
 ├── user.json
 ├── usage.json
 ├── user-memory.md                        (gitignored)
+├── search-index.jsonl                    ← full-text search index (append-only NDJSON)
 │
 ├── conversation-{id}/
 │   ├── meta.json                         ← ConversationMeta (title, projectId, created_at)
-│   ├── conversation.ndjson               ← one StoredMessage per line
+│   ├── conversation.ndjson               ← one StoredMessage per line (append-only)
 │   ├── uploads/
 │   │   └── {fileId}-{filename}           ← user-uploaded files
 │   └── downloads/
-│       ├── {fileId}-{filename}           ← AI-generated / fetched files
+│       ├── {fileId}-{filename}           ← AI-generated files (WRITE_FILE tool)
 │       └── .versions/
-│           └── {fileId}-v{n}-{filename}  ← versioned history of downloads
+│           └── {fileId}-v{n}-{filename}  ← previous versions (last 3 kept)
 │
 ├── project-{id}/
 │   ├── meta.json                         ← ProjectMeta (id, name, description, created_at)
 │   ├── context.md                        ← free-form context document (injected into chat)
 │   └── summary.md                        ← AI-generated project summary
+│
+├── chats/
+│   └── YYYY-MM-DD-{uuid}.md             ← AI-generated chat summary (one per summarized conversation)
 │
 └── summaries/
     ├── YYYY-WXX.md                       ← weekly one-liner table
