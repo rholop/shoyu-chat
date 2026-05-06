@@ -14,6 +14,7 @@ vi.mock('../storage', () => ({
   getProjectSummary: vi.fn(),
   listConversationsByProject: vi.fn(),
   assignConversationProject: vi.fn(),
+  dataDir: vi.fn(() => '/tmp/shoyu-test'),
 }));
 
 vi.mock('../services/fileService', () => ({
