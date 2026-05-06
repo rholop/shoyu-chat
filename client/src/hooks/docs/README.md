@@ -8,6 +8,8 @@ Custom React hooks that encapsulate data fetching and side-effect logic.
 | `useChat.ts` | Fetches conversation messages; `send()` drives the SSE stream and updates Zustand chat store |
 | `useConversations.ts` | List, create, delete, rename conversations via TanStack Query mutations |
 | `useFileUpload.ts` | Manages pending attachment state; `upload(files)` calls `uploadFile` API; `remove(fileId)` calls `deleteFile` |
+| `useProjects.ts` | TanStack Query wrappers for projects — `useProjects()` and `useProject(id)` |
+| `useTheme.ts` | Applies dark/light class to `<html>` based on time of day; switches at 6 AM and 6 PM; rechecks every minute |
 
 ## useFileUpload
 
@@ -19,3 +21,16 @@ const { attachments, uploading, uploadError, upload, remove, clear } = useFileUp
 - `remove(fileId)` — removes optimistically from state, calls DELETE in background (errors ignored)
 - `clear()` — resets attachment list and error (called after message send)
 - No-ops when `conversationId` is `null`
+
+## useProjects / useProject
+
+```ts
+const { projects, isLoading, create, update, remove, refresh } = useProjects();
+const { project, isLoading, updateContext, assign, refresh } = useProject(id);
+```
+
+- `create({ name, description })` — POST /api/projects, invalidates projects list
+- `update(id, fields)` — PATCH /api/projects/:id
+- `remove(id)` — DELETE /api/projects/:id, also invalidates conversations list
+- `updateContext(content)` — PUT /api/projects/:id/context
+- `assign(conversationId, projectId | null)` — POST /api/conversations/:id/assign

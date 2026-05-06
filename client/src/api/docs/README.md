@@ -8,6 +8,7 @@ Thin fetch wrappers for each backend resource. All functions use `credentials: '
 | `chat.ts` | `sendMessage` — SSE generator that yields `SSEEvent` objects |
 | `conversations.ts` | `listConversations`, `getConversation`, `createConversation`, `deleteConversation`, `updateConversationTitle` |
 | `files.ts` | `uploadFile` (FormData POST), `deleteFile`, `getFileUrl` |
+| `projects.ts` | `listProjects`, `getProject`, `createProject`, `updateProject`, `deleteProject`, `getProjectContext`, `updateProjectContext`, `assignConversation` |
 
 ## SSE Streaming
 
@@ -16,6 +17,6 @@ Thin fetch wrappers for each backend resource. All functions use `credentials: '
 Event shapes:
 ```ts
 { type: 'token'; content: string }
-{ type: 'done'; model: string; conversationId: string }
+{ type: 'done'; model: string; conversationId: string; intent: Intent }
 { type: 'error'; message: string }
 ```
