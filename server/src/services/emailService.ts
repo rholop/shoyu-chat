@@ -57,7 +57,7 @@ export function buildDigestEmailHtml(params: DigestEmailParams): string {
 
   // Recurring Interests
   const suggestionSection =
-    projectSuggestions.length > 0
+    projectSuggestions?.length > 0
       ? `<div class="section">
     <h2>Recurring Interests (not yet a project)</h2>
     <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; line-height: 1.6;">
