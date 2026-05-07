@@ -193,7 +193,12 @@ export async function getTodos(conversationId: string): Promise<Todo[]> {
   if (!fs.existsSync(p)) return [];
   try {
     const content = fs.readFileSync(p, 'utf8');
-    return JSON.parse(content) as Todo[];
+    const parsed = JSON.parse(content);
+    if (!Array.isArray(parsed)) {
+      logger.warn(`todoService.getTodos: ${p} does not contain an array`);
+      return [];
+    }
+    return parsed as Todo[];
   } catch (err) {
     logger.warn(`todoService.getTodos: failed to parse ${p}`, err);
     return [];

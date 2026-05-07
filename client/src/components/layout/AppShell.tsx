@@ -68,7 +68,7 @@ export default function AppShell() {
   const { activeConversationId, setActiveConversation } = useChatStore();
 
   const getActiveId = () => {
-    if (location.pathname.startsWith('/todos')) return 'todos';
+    if (location.pathname.startsWith('/chat/todos')) return 'todos';
     if (location.pathname.startsWith('/chat/')) return location.pathname.split('/chat/')[1];
     if (location.pathname.startsWith('/projects/')) return location.pathname.split('/projects/')[1];
     return activeConversationId;
@@ -77,7 +77,7 @@ export default function AppShell() {
   const activeId = getActiveId();
 
   const getTitle = () => {
-    if (location.pathname.startsWith('/todos')) return 'To-Dos';
+    if (location.pathname.startsWith('/chat/todos')) return 'To-Dos';
     if (location.pathname.startsWith('/projects/')) {
       const id = location.pathname.split('/projects/')[1];
       return projects.find((p) => p.id === id)?.name ?? 'Project';
@@ -98,7 +98,7 @@ export default function AppShell() {
 
   const handleSelect = (id: string) => {
     if (id === 'todos') {
-      navigate('/todos');
+      navigate('/chat/todos');
     } else {
       setActiveConversation(id);
       navigate(`/chat/${id}`);

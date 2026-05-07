@@ -25,6 +25,7 @@ export function escapeIcsText(text: string): string {
     .replace(/\\/g, '\\\\')
     .replace(/;/g, '\\;')
     .replace(/,/g, '\\,')
+    .replace(/\r/g, '')   // strip CR — a bare \r can inject iCal fields
     .replace(/\n/g, '\\n');
 }
 

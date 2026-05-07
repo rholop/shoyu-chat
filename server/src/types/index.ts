@@ -132,6 +132,24 @@ export interface ProjectSuggestion {
   relatedConversationIds: string[];
 }
 
+export interface TodoDigestItem {
+  text: string;
+  priority: TodoPriority;
+  conversationTitle: string;
+  projectName: string | null;
+  createdAt: string;
+  updatedAt: string;
+  dueDate: string | null;
+}
+
+export interface TodoDigestReport {
+  createdThisWeek: TodoDigestItem[];
+  completedThisWeek: TodoDigestItem[];
+  overdue: TodoDigestItem[];
+  totalOpen: number;
+  totalDone: number;
+}
+
 export interface OpenLoop {
   conversationId: string;
   title: string;

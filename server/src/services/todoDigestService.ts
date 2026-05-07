@@ -2,26 +2,10 @@ import fs from 'fs/promises';
 import path from 'path';
 import * as todoService from './todoService';
 import { dataDir } from '../storage';
-import { TodoPriority } from '../types';
+import { TodoDigestReport, TodoDigestItem } from '../types';
 import { getDateDaysAgo } from '../utils/dateHelpers';
 
-export interface TodoDigestReport {
-  createdThisWeek: TodoDigestItem[];    // todos created in last 7 days
-  completedThisWeek: TodoDigestItem[];  // todos with status "done" and updatedAt in last 7 days
-  overdue: TodoDigestItem[];            // see overdue definition below
-  totalOpen: number;                    // count of all open todos
-  totalDone: number;                    // count of all done todos (all time)
-}
-
-export interface TodoDigestItem {
-  text: string;
-  priority: TodoPriority;
-  conversationTitle: string;
-  projectName: string | null;
-  createdAt: string;
-  updatedAt: string;
-  dueDate: string | null;
-}
+export type { TodoDigestReport, TodoDigestItem };
 
 /**
  * Assembles to-do statistics for weekly digest consumption.
