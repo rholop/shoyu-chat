@@ -3,6 +3,7 @@ import { Trash2, MessageSquare, PanelLeftClose, Plus, CheckSquare } from 'lucide
 import { Conversation, Project } from '../../types';
 import ModelBadge from '../chat/ModelBadge';
 import ProjectList from '../projects/ProjectList';
+import { ProjectSuggestionBanner } from '../suggestions/ProjectSuggestionBanner';
 import { useTodos } from '../../hooks/useTodos';
 import { useChatStore } from '../../store/chatStore';
 
@@ -92,6 +93,8 @@ export default function Sidebar({
             )}
           </button>
         </div>
+
+        <ProjectSuggestionBanner />
 
         <div className="flex items-center justify-between px-3 py-1.5">
           <span className="text-xs font-semibold text-[#93a1a1] dark:text-slate-500 uppercase tracking-wider">Projects</span>

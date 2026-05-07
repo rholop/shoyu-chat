@@ -1,5 +1,5 @@
 import { Resend } from 'resend';
-import { PatternReport } from '../types';
+import { PatternReport, ProjectSuggestion } from '../types';
 import { UnresolvedThread } from './insightsService';
 import { logger } from '../utils/logger';
 
@@ -26,6 +26,7 @@ export interface DigestEmailParams {
   personalInsights: string;
   patternReport: PatternReport;
   unresolvedThreads: UnresolvedThread[];
+  projectSuggestions: ProjectSuggestion[];
   date: string;
 }
 
@@ -39,6 +40,7 @@ export function buildDigestEmailHtml(params: DigestEmailParams): string {
     personalInsights,
     patternReport,
     unresolvedThreads,
+    projectSuggestions,
     date,
   } = params;
 
@@ -52,6 +54,26 @@ export function buildDigestEmailHtml(params: DigestEmailParams): string {
       <tr><td style="padding: 6px 0; font-weight: 500;">Most active project:</td><td style="padding: 6px 0;">${escapeHtml(patternReport.allTime.mostActiveProject ?? 'None')}</td></tr>
     </table>
   </div>`;
+
+  // Recurring Interests
+  const suggestionSection =
+    projectSuggestions.length > 0
+      ? `<div class="section">
+    <h2>Recurring Interests (not yet a project)</h2>
+    <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; line-height: 1.6;">
+      ${projectSuggestions
+        .map(
+          (s) => `
+        <li style="margin-bottom: 8px;">
+          • <strong>${escapeHtml(s.topic)}</strong> — ${s.conversationCount} conversations, ${
+            s.weekCount
+          } weeks. Recent: "${escapeHtml(s.relatedGoals[0] || '')}"
+        </li>`,
+        )
+        .join('')}
+    </ul>
+  </div>`
+      : '';
 
   // Loose Threads
   const unresolvedSection =
@@ -132,6 +154,7 @@ export function buildDigestEmailHtml(params: DigestEmailParams): string {
     <p>${escapeHtml(weekLabel)}</p>
   </div>
   ${glanceSection}
+  ${suggestionSection}
   ${unresolvedSection}
   <div class="section">
     <h2>This Week's Summary</h2>

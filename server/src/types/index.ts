@@ -121,3 +121,13 @@ export interface Todo {
   snoozedUntil: string | null;
   sourceMessageHint: string;
 }
+
+export interface ProjectSuggestion {
+  topic: string;
+  conversationCount: number;
+  weekCount: number;
+  firstSeen: string;
+  lastSeen: string;
+  relatedGoals: string[];
+  relatedConversationIds: string[];
+}
