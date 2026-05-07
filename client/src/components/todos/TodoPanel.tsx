@@ -3,7 +3,8 @@ import { useTodos, useUpdateTodo, useDeleteTodo } from '../../hooks/useTodos';
 import TodoItem from './TodoItem';
 import { Todo, TodoPriority } from '../../types';
 import { clsx } from 'clsx';
-import { Filter, CheckCircle2 } from 'lucide-react';
+import { Filter, CheckCircle2, Calendar } from 'lucide-react';
+import { getTodosExportUrl } from '../../api/todos';
 
 export default function TodoPanel() {
   const { data: todos = [], isLoading, isError } = useTodos();
@@ -49,6 +50,11 @@ export default function TodoPanel() {
 
   const hasAnyOpen = openTodos.length > 0;
 
+  const handleExportAll = () => {
+    if (!hasAnyOpen) return;
+    window.location.href = getTodosExportUrl();
+  };
+
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-[#fdf6e3] dark:bg-slate-950 overflow-hidden">
       <header className="px-6 py-4 border-b border-[#ccc5af] dark:border-slate-800">
@@ -68,6 +74,20 @@ export default function TodoPanel() {
           >
             <CheckCircle2 size={14} />
             Show completed
+          </button>
+          <button
+            onClick={handleExportAll}
+            disabled={!hasAnyOpen}
+            className={clsx(
+              "flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors border",
+              hasAnyOpen
+                ? "bg-[#eee8d5] dark:bg-slate-900 border-[#ccc5af] dark:border-slate-800 text-[#586e75] dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-600 dark:hover:border-indigo-400"
+                : "bg-transparent border-[#eee8d5] dark:border-slate-900 text-[#93a1a1] dark:text-slate-600 cursor-not-allowed"
+            )}
+            title={hasAnyOpen ? "Export all open to-dos to Calendar" : "No open to-dos to export"}
+          >
+            <Calendar size={14} />
+            {hasAnyOpen ? "Export to Calendar ↓" : "(none to export)"}
           </button>
         </div>
 

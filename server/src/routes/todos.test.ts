@@ -4,9 +4,11 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import todosRouter from './todos';
 import * as todoService from '../services/todoService';
+import * as storage from '../storage';
 import jwt from 'jsonwebtoken';
 
 vi.mock('../services/todoService');
+vi.mock('../storage');
 
 const JWT_SECRET = 'test-secret';
 process.env.JWT_SECRET = JWT_SECRET;
@@ -32,6 +34,72 @@ app.use('/api/todos', todosRouter);
 const authCookie = `token=${jwt.sign({ userId: 1 }, JWT_SECRET)}`;
 
 describe('todos routes', () => {
+  describe('GET /api/todos/export.ics', () => {
+    it('returns 200 with text/calendar content', async () => {
+      const mockTodos = [
+        { id: 't1', status: 'open', text: 'Task 1', conversationId: 'conversation-1', priority: 'now' },
+      ];
+      vi.mocked(todoService.getAllTodos).mockResolvedValue(mockTodos as any);
+      vi.mocked(storage.getConversationMeta).mockReturnValue({ title: 'Conv 1' } as any);
+
+      const res = await request(app)
+        .get('/api/todos/export.ics')
+        .set('Cookie', [authCookie]);
+
+      expect(res.status).toBe(200);
+      expect(res.header['content-type']).toContain('text/calendar');
+      expect(res.header['content-disposition']).toContain('attachment; filename="shoyu-todos.ics"');
+      expect(res.text).toContain('BEGIN:VCALENDAR');
+      expect(res.text).toContain('SUMMARY:Task 1');
+      expect(res.text).toContain('DESCRIPTION:Source: "Conv 1"');
+    });
+
+    it('returns 404 when no open todos exist', async () => {
+      vi.mocked(todoService.getAllTodos).mockResolvedValue([{ status: 'done' }] as any);
+
+      const res = await request(app)
+        .get('/api/todos/export.ics')
+        .set('Cookie', [authCookie]);
+
+      expect(res.status).toBe(404);
+    });
+
+    it('requires auth', async () => {
+      const res = await request(app).get('/api/todos/export.ics');
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe('GET /api/todos/:conversationId/:todoId/export.ics', () => {
+    it('returns 200 for a single todo export', async () => {
+      const mockTodos = [
+        { id: 't1', status: 'open', text: 'Task 1', conversationId: 'conversation-1', priority: 'now' },
+      ];
+      vi.mocked(todoService.getTodos).mockResolvedValue(mockTodos as any);
+      vi.mocked(storage.getConversationMeta).mockReturnValue({ title: 'Conv 1' } as any);
+
+      const res = await request(app)
+        .get('/api/todos/conversation-1/t1/export.ics')
+        .set('Cookie', [authCookie]);
+
+      expect(res.status).toBe(200);
+      expect(res.header['content-type']).toContain('text/calendar');
+      expect(res.header['content-disposition']).toContain('attachment; filename="task-1.ics"');
+      expect(res.text).toContain('BEGIN:VCALENDAR');
+      expect(res.text).toContain('UID:t1@holop.dev');
+    });
+
+    it('returns 404 when todo not found', async () => {
+      vi.mocked(todoService.getTodos).mockResolvedValue([]);
+
+      const res = await request(app)
+        .get('/api/todos/conversation-1/t-missing/export.ics')
+        .set('Cookie', [authCookie]);
+
+      expect(res.status).toBe(404);
+    });
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
   });

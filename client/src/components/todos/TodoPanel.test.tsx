@@ -91,4 +91,37 @@ describe('TodoPanel', () => {
     expect(screen.getByText('Completed')).toBeInTheDocument();
     expect(screen.getByText('Done Task')).toBeInTheDocument();
   });
+
+  it('clicking export button updates window.location.href', () => {
+    vi.mocked(useTodos).mockReturnValue({ data: mockTodos, isLoading: false } as any);
+    const originalLocation = window.location;
+    // @ts-ignore
+    delete (window as any).location;
+    (window as any).location = { ...originalLocation, href: '' };
+
+    render(
+      <BrowserRouter>
+        <TodoPanel />
+      </BrowserRouter>
+    );
+
+    const exportBtn = screen.getByText('Export to Calendar ↓');
+    fireEvent.click(exportBtn);
+
+    expect(window.location.href).toContain('/api/todos/export.ics');
+
+    (window as any).location = originalLocation;
+  });
+
+  it('export button is disabled when no open todos', () => {
+    vi.mocked(useTodos).mockReturnValue({ data: [{ status: 'done', text: 'Done' }], isLoading: false } as any);
+    render(
+      <BrowserRouter>
+        <TodoPanel />
+      </BrowserRouter>
+    );
+
+    const exportBtn = screen.getByText('(none to export)');
+    expect(exportBtn).toBeDisabled();
+  });
 });

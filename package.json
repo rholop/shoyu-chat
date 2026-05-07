@@ -21,5 +21,8 @@
   "homepage": "https://github.com/rholop/shoyu-chat#readme",
   "devDependencies": {
     "husky": "^8.0.0"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0"
   }
 }

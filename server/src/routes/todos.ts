@@ -1,7 +1,57 @@
 import { Router } from 'express';
 import * as todoService from '../services/todoService';
+import * as icsService from '../services/icsService';
+import { getConversationMeta } from '../storage';
 
 const router = Router();
+
+router.get('/export.ics', async (req, res) => {
+  const todos = await todoService.getAllTodos();
+  const openTodos = todos.filter(t => t.status === 'open');
+
+  if (openTodos.length === 0) {
+    return res.status(404).json({ error: 'No open todos to export' });
+  }
+
+  // Enrich todos with conversation title
+  const todosWithTitle: icsService.TodoWithTitle[] = await Promise.all(
+    openTodos.map(async todo => {
+      const convId = todo.conversationId.replace(/^conversation-/, '');
+      const meta = getConversationMeta(convId);
+      return { ...todo, conversationTitle: meta?.title ?? 'Untitled conversation' };
+    })
+  );
+
+  const icsContent = icsService.generateIcs(todosWithTitle);
+
+  res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="shoyu-todos.ics"');
+  res.send(icsContent);
+});
+
+router.get('/:conversationId/:todoId/export.ics', async (req, res) => {
+  const { conversationId, todoId } = req.params;
+  const todos = await todoService.getTodos(conversationId);
+  const todo = todos.find(t => t.id === todoId);
+
+  if (!todo) {
+    return res.status(404).json({ error: 'Todo not found' });
+  }
+
+  const convId = conversationId.replace(/^conversation-/, '');
+  const meta = getConversationMeta(convId);
+  const todoWithTitle: icsService.TodoWithTitle = {
+    ...todo,
+    conversationTitle: meta?.title ?? 'Untitled conversation'
+  };
+
+  const icsContent = icsService.generateIcs([todoWithTitle]);
+  const safeName = todo.text.slice(0, 30).replace(/[^a-z0-9]/gi, '-').toLowerCase();
+
+  res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${safeName}.ics"`);
+  res.send(icsContent);
+});
 
 router.get('/', async (req, res) => {
   const todos = await todoService.getAllTodos();

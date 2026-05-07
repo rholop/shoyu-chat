@@ -73,3 +73,27 @@ Permanently deletes a to-do from storage.
   "ok": true
 }
 ```
+
+## GET /api/todos/export.ics
+
+Exports all open to-dos as a single `.ics` (iCalendar) file.
+
+**Response:**
+- `Content-Type: text/calendar; charset=utf-8`
+- `Content-Disposition: attachment; filename="shoyu-todos.ics"`
+- Body: Valid iCalendar content.
+
+**Error:**
+- Returns 404 if there are no open to-dos to export.
+
+## GET /api/todos/:conversationId/:todoId/export.ics
+
+Exports a single to-do as an `.ics` file.
+
+**Response:**
+- `Content-Type: text/calendar; charset=utf-8`
+- `Content-Disposition: attachment; filename="{safe-todo-text}.ics"`
+- Body: Valid iCalendar content containing one event.
+
+**Error:**
+- Returns 404 if the to-do is not found.

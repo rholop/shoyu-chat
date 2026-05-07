@@ -94,4 +94,24 @@ describe('TodoItem', () => {
     );
     expect(screen.getByText('Test Todo')).toHaveClass('line-through');
   });
+
+  it('clicking export icon updates window.location.href', () => {
+    const originalLocation = window.location;
+    // @ts-ignore
+    delete (window as any).location;
+    (window as any).location = { ...originalLocation, href: '' };
+
+    render(
+      <BrowserRouter>
+        <TodoItem todo={mockTodo} onUpdate={vi.fn()} onDelete={vi.fn()} />
+      </BrowserRouter>
+    );
+
+    const exportBtn = screen.getByTitle('Export to Calendar');
+    fireEvent.click(exportBtn);
+
+    expect(window.location.href).toContain('/api/todos/c1/t1/export.ics');
+
+    (window as any).location = originalLocation;
+  });
 });

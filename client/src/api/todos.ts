@@ -39,3 +39,11 @@ export async function deleteTodo(conversationId: string, todoId: string): Promis
   });
   if (!res.ok) throw new Error('Failed to delete todo');
 }
+
+export function getTodosExportUrl(): string {
+  return `${BASE}/export.ics`;
+}
+
+export function getSingleTodoExportUrl(conversationId: string, todoId: string): string {
+  return `${BASE}/${conversationId}/${todoId}/export.ics`;
+}
