@@ -165,11 +165,14 @@ After every AI response, `summaryService.schedule(conversationId)` resets a 4-ho
 ### Summary Run Steps
 
 1. Read all messages from `conversation-{id}/conversation.ndjson`
-2. Generate a **full summary** (2–4 sentences) + parse `RESOLVED: yes/no` line → write `data/chats/YYYY-MM-DD-{id}.md`, update `resolved` + `summarizedAt` in `meta.json`
+2. Generate a **full summary** (2–4 sentences) + parse `RESOLVED: yes/no` line → write `data/chats/YYYY-MM-DD-{id}.md`, update `resolved` + `summarizedAt` in `meta.json` (atomic write)
 3. Generate a **topics list** (3–6 noun phrases) → included in the chat file
 4. Generate a **one-liner** → upsert a row in `data/summaries/YYYY-WXX.md`
 5. Regenerate the **monthly overview** → rewrite `data/summaries/YYYY-MM.md`
-6. Append a **ledger entry** → `data/insights/topic-ledger.jsonl` via `ledgerService.append()`
+6. Update **user memory** → `data/user-memory.md`
+7. Regenerate **project summary** → `data/project-{id}/summary.md` (if conversation is linked to a project)
+8. Append a **ledger entry** → `data/insights/topic-ledger.jsonl` via `ledgerService.append()`
+9. Extract **todos** → `todoService.extractAndSave(conversationId)` — errors are caught and do not interrupt the run
 
 Summarization uses `aiRouter.summarize()` (nvidia → gemini → groq-chat → openrouter).
 
@@ -181,9 +184,22 @@ A passive pipeline that accumulates structured data from every summarization run
 
 ### Topic Ledger (`data/insights/topic-ledger.jsonl`)
 
-Append-only NDJSON. One entry written per summarized conversation by `ledgerService.append()` at the end of every summary run. Fields: `date`, `conversationId`, `topics`, `goal`, `intent`, `projectId`, `projectName`, `model`, `messageCount`, `resolved`.
+Append-only NDJSON. One entry written per summarized conversation by `ledgerService.append()` at the end of every summary run. Never rewritten — only appended. Parsed in memory when needed.
 
-Never rewritten — only appended. Parsed in memory when needed.
+| Field | Type | Source |
+|---|---|---|
+| `date` | `string` | `meta.json` → `created_at` (YYYY-MM-DD) |
+| `conversationId` | `string` | `conversation-{id}` |
+| `topics` | `string[]` | Parsed from `## Topics` section of the chat markdown |
+| `goal` | `string` | First sentence of `## Summary` section |
+| `intent` | `string` | Most common intent found in internal messages |
+| `projectId` | `string\|null` | `project-{id}` or null |
+| `projectName` | `string\|null` | From `project-{id}/meta.json` |
+| `model` | `string` | Most common model label across non-internal messages |
+| `messageCount` | `number` | Count of non-internal messages |
+| `resolved` | `boolean\|null` | Populated from the RESOLVED line in the summary |
+
+`ledgerService` exports: `append(conversationId)`, `readAll()`, `readSince(date)`, `getTopicFrequency(entries)`, `getByProject(entries, projectId)`.
 
 ### Resolution Detection
 
@@ -213,6 +229,96 @@ The Sunday digest job runs two concurrent AI calls:
 
 The email also includes a raw **Your Numbers** table (topic frequencies, intent split, conversation counts) rendered directly from the pattern report with no AI involvement.
 
+### Open Loops (`insightsService.getUnresolvedThreads / snoozeLoop / resolveLoop`)
+
+`getUnresolvedThreads()` returns all conversations where `resolved === false`, sorted by `created_at` descending. Conversations where `snoozedUntil >= today` (UTC date) are excluded. Each result is enriched with `daysSinceCreated` (computed at query time), and `goal`/`intent`/`topics` from the topic ledger.
+
+`snoozeLoop(conversationId, snoozedUntil)` sets `snoozedUntil: YYYY-MM-DD` in `meta.json` via `atomicWrite`. Throws `'Conversation not found'` if the file is missing.
+
+`resolveLoop(conversationId)` sets `resolved: true`, clears `snoozedUntil` to `null`, and writes `resolvedAt` (ISO timestamp) via `atomicWrite`. Throws `'Conversation not found'` if the file is missing.
+
+### Project Suggestions (`projectSuggestionService`)
+
+Detects "orphan" topics — recurring subjects the user keeps exploring without a dedicated project. A topic qualifies if it:
+
+1. Appears in **≥ 5 distinct conversations**
+2. Spans **≥ 2 calendar weeks**
+3. Has **never** been linked to any `projectId`
+4. Was last seen **within 30 days**
+
+`getProjectSuggestions()` reads the topic ledger and returns up to 3 matching topics sorted by conversation count, excluding any previously dismissed. No AI call.
+
+`generateProjectContext(suggestion)` is called only when a user accepts a suggestion. It produces a 150–300-word markdown starter context document via `aiRouter.summarize()`.
+
+`dismissSuggestion(topic)` permanently ignores a topic. Dismissals are stored in `data/insights/dismissed-suggestions.json` (lowercase, atomic write).
+
+---
+
+## To-Do System
+
+### Storage
+
+Each conversation stores its todos at `data/conversation-{id}/todos.json` — a JSON array written atomically after each summarization run. An empty array `[]` is written if no actionable items are found.
+
+### `todoService` — Key Functions
+
+| Function | Description |
+|---|---|
+| `extractAndSave(conversationId)` | Calls AI with conversation history to extract 0–3 todos; writes `todos.json` atomically. Wrapped in try/catch — failures write `[]` to ensure the file exists. |
+| `getTodos(conversationId)` | Reads and parses `todos.json`; returns `[]` on ENOENT or if content is not a JSON array. |
+| `getAllTodos()` | Aggregates across all conversations; filters out `status: "done"`. |
+| `getAllTodosWithStatus()` | Same as above but includes all statuses. Sorted by `createdAt` desc. |
+| `updateTodo(convId, todoId, updates)` | Updates `status`, `priority`, `text`, `dueDate`, or `snoozedUntil`; sets `updatedAt`; writes atomically. Throws `'Todo not found'` if id is absent. |
+| `deleteTodo(convId, todoId)` | Removes one todo; writes atomically. Throws `'Todo not found'` if id is absent. |
+| `createTodoFromLoop(loop)` | Creates a todo from an open loop without calling the AI. Sets `text` to `loop.goal` (fallback: `"Follow up on: <title>"`), `priority` to `"soon"`. Appends to existing todos. |
+
+### AI Prompt Behavior
+
+`extractAndSave` routes through the `SUMMARIZING` intent path. The prompt instructs the model to return a raw JSON array (no markdown fences). `parseTodoResponse` strips fences defensively, validates each item, and enforces a maximum of 3 items and 120 characters per `text`.
+
+### Todo Types
+
+Defined in `server/src/types/index.ts`:
+
+- `TodoPriority` — `"now" | "soon" | "someday"`
+- `TodoStatus` — `"open" | "done" | "snoozed"`
+- `Todo` — full record including `id`, `conversationId`, `projectId`, `projectName`, `intent`, `dueDate`, `snoozedUntil`, `sourceMessageHint`
+
+### ICS Export (`icsService`)
+
+Generates RFC 5545-compliant iCalendar files for todo export to Apple Calendar, Google Calendar, etc.
+
+- Each todo becomes a `VEVENT` with `DTSTART;VALUE=DATE` (all-day event).
+- `DTEND` is always `DTSTART + 1 day` as required by the spec.
+- `SUMMARY` = escaped todo text; `DESCRIPTION` = source conversation title + `sourceMessageHint`.
+- `escapeIcsText()` escapes `\`, `;`, `,`, and strips bare `\r` (which could inject iCal fields) before escaping `\n` to `\\n`.
+- `generateIcs()` throws if passed an empty array.
+- Line folding (RFC 5545 §3.1 — max 75 octets per line) is not implemented; long property values are written as-is.
+
+---
+
+## Todo Digest (`todoDigestService`)
+
+`buildTodoDigestReport()` aggregates todo statistics for the weekly digest. No AI calls — pure data aggregation.
+
+### Overdue Definition
+
+A todo is **overdue** if its `status` is `"open"` and either:
+1. It has a `dueDate` set and `dueDate < today` (strict), **or**
+2. Its `priority` is `"now"` and it was created more than 7 days ago.
+
+### `TodoDigestReport` Fields
+
+| Field | Description |
+|---|---|
+| `createdThisWeek` | Todos with `createdAt` in the last 7 days; sorted newest first |
+| `completedThisWeek` | Todos with `status: "done"` and `updatedAt` in the last 7 days; sorted newest first |
+| `overdue` | Todos matching the overdue criteria; sorted oldest first |
+| `totalOpen` | Count of all open todos across all conversations |
+| `totalDone` | Count of all done todos (all time) |
+
+Each item resolves `conversationTitle` from the conversation's `meta.json`.
+
 ---
 
 ## Weekly Digest
@@ -227,8 +333,9 @@ The email also includes a raw **Your Numbers** table (topic frequencies, intent 
 4. `insightsService.buildPatternReport()` — compute pattern data from ledger
 5. `insightsService.getUnresolvedThreads()` — list open loose threads
 6. `insightsService.buildRollingHistory(8)` — 8-week conversation history
-7. Run Call 1 (narrative digest) and Call 2 (personal insights) concurrently
-8. Render and send the HTML email via Resend
+7. `todoDigestService.buildTodoDigestReport()` — todo stats (no AI call)
+8. Run Call 1 (narrative digest) and Call 2 (personal insights) concurrently; both prompts include the todo digest data
+9. Render and send the HTML email via Resend
 
 ### Email Sections
 
@@ -301,6 +408,38 @@ All routes except auth are protected by the `requireAuth` middleware.
 
 The index is auto-seeded on startup if `data/search-index.jsonl` is missing. Manual rebuild: `npm run search:reindex`.
 
+#### To-Dos
+
+| Method | Path | Action |
+|---|---|---|
+| `GET` | `/api/todos` | All open todos sorted by priority (now→soon→someday) then `createdAt` desc |
+| `GET` | `/api/todos/export.ics` | All open todos as a single `.ics` calendar file |
+| `GET` | `/api/todos/conversation/:id` | Todos for one conversation |
+| `GET` | `/api/todos/:convId/:todoId/export.ics` | Single todo as `.ics` |
+| `PATCH` | `/api/todos/:convId/:todoId` | Update `status`, `priority`, `text`, `dueDate`, `snoozedUntil` |
+| `DELETE` | `/api/todos/:convId/:todoId` | Delete a todo |
+
+Route params `convId` and `todoId` are validated against `[a-zA-Z0-9_-]+`. `status` must be `open|done|snoozed`; `priority` must be `now|soon|someday`; `dueDate`/`snoozedUntil` must be `YYYY-MM-DD` or `null`.
+
+#### Open Loops
+
+| Method | Path | Action |
+|---|---|---|
+| `GET` | `/api/loops` | Unresolved conversations; filter by `projectId`, `intent`, `age` (min days) |
+| `POST` | `/api/loops/:id/snooze` | Snooze loop until `snoozedUntil` (YYYY-MM-DD) |
+| `POST` | `/api/loops/:id/resolve` | Mark conversation resolved |
+| `POST` | `/api/loops/:id/todo` | Create a todo from the loop's goal |
+
+#### Project Suggestions
+
+| Method | Path | Action |
+|---|---|---|
+| `GET` | `/api/suggestions/projects` | Up to 3 suggested projects from recurring orphan topics |
+| `POST` | `/api/suggestions/projects/create` | Accept suggestion: create project + context doc + dismiss topic |
+| `POST` | `/api/suggestions/projects/dismiss` | Dismiss a suggestion permanently |
+
+`topic` body param is validated to ≤ 200 characters on both mutating routes.
+
 ### Services
 
 | File | Purpose |
@@ -311,13 +450,17 @@ The index is auto-seeded on startup if `data/search-index.jsonl` is missing. Man
 | `nvidiaService.ts` | NVIDIA NIM API — `streamChatNvidia`, `streamChatNvidiaWithTools`, `summarizeNvidia` |
 | `openrouterService.ts` | OpenRouter free-tier — `streamChatOpenRouter`, `streamChatOpenRouterWithTools`, `summarizeOpenRouter` |
 | `fileService.ts` | Upload context extraction; `writeDownload` / `getConversationDownloads` / `getProjectDownloads` |
-| `summaryService.ts` | 4-hour inactivity debounce → AI summarization; parses `RESOLVED` status; calls `ledgerService.append()` |
+| `summaryService.ts` | 4-hour inactivity debounce → AI summarization; parses `RESOLVED` status; calls `ledgerService.append()` and `todoService.extractAndSave()` |
 | `markdownService.ts` | Read/write `chats/` and `summaries/` files; indexes each write |
 | `emailService.ts` | Weekly digest HTML email via Resend |
 | `memoryService.ts` | Read/write `data/user-memory.md`; `updateMemoryFromConversation` merges new facts |
 | `projectService.ts` | `regenerateProjectSummary` — AI summary synthesized from all conversations in a project |
 | `ledgerService.ts` | Append-only `data/insights/topic-ledger.jsonl`; `readAll`, `readSince`, `getTopicFrequency`, `getByProject` |
-| `insightsService.ts` | `buildPatternReport`, `getUnresolvedThreads`, `buildRollingHistory`, `findSimilar` |
+| `insightsService.ts` | `buildPatternReport`, `getUnresolvedThreads`, `snoozeLoop`, `resolveLoop`, `buildRollingHistory`, `findSimilar` |
+| `todoService.ts` | AI extraction of actionable todos from conversations; CRUD helpers; `createTodoFromLoop` |
+| `icsService.ts` | RFC 5545 iCalendar generation for todos; `generateIcs`, `escapeIcsText` |
+| `projectSuggestionService.ts` | Detects recurring orphan topics and surfaces up to 3 project suggestions; `dismissSuggestion` |
+| `todoDigestService.ts` | Aggregates todo stats for weekly digest; `buildTodoDigestReport` |
 | `searchExtractor.ts` | Converts messages, projects, files, and summaries into `SearchRecord[]` |
 | `searchIndexService.ts` | Append-only NDJSON index at `data/search-index.jsonl`; serialized write queue |
 | `searchService.ts` | Full-text search — phrase/multi-term matching, fuzzy fallback, recency + project-relevance scoring |
@@ -369,6 +512,7 @@ Filesystem-only persistence. No database.
 | | `getMonthKey()` | Returns `YYYY-MM` |
 | | `getWeekRangeLabel()` | Returns `"Apr 27 – May 3"` |
 | | `getMonthLabel(date)` | Returns `"May 2026"` |
+| | `getDateDaysAgo(n)` | Returns `YYYY-MM-DD` for `n` days before today |
 | `logger.ts` | `logger.info/warn/error/debug` | Console wrapper with ISO timestamps; `debug` is a no-op in production |
 
 ---
