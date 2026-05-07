@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Check, Square, Trash2, Link as LinkIcon, Clock, MoreHorizontal } from 'lucide-react';
+import { Check, Square, Trash2, Link as LinkIcon, Clock, Calendar } from 'lucide-react';
 import { Todo, TodoPriority } from '../../types';
 import { clsx } from 'clsx';
 import { Link } from 'react-router-dom';
+import { getSingleTodoExportUrl } from '../../api/todos';
 
 interface TodoItemProps {
   todo: Todo;
@@ -48,6 +49,14 @@ export default function TodoItem({ todo, onUpdate, onDelete }: TodoItemProps) {
     const until = new Date();
     until.setDate(until.getDate() + 1);
     onUpdate({ status: 'snoozed', snoozedUntil: until.toISOString() });
+  };
+
+  const handleExport = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    window.location.href = getSingleTodoExportUrl(
+      todo.conversationId.replace(/^conversation-/, ''),
+      todo.id
+    );
   };
 
   const handleEditSubmit = () => {
@@ -151,6 +160,13 @@ export default function TodoItem({ todo, onUpdate, onDelete }: TodoItemProps) {
         >
           <LinkIcon size={14} />
         </Link>
+        <button
+          onClick={handleExport}
+          className="p-1.5 rounded-lg hover:bg-[#e0d8c4] dark:hover:bg-slate-800 text-[#93a1a1] dark:text-slate-500 hover:text-[#073642] dark:hover:text-white transition-colors"
+          title="Export to Calendar"
+        >
+          <Calendar size={14} />
+        </button>
         {!isDone && !isSnoozed && (
           <button
             onClick={handleSnooze}
