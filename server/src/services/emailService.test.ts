@@ -59,6 +59,13 @@ const params: DigestEmailParams = {
     },
   ],
   projectSuggestions: [],
+  todoDigest: {
+    createdThisWeek: [],
+    completedThisWeek: [],
+    overdue: [],
+    totalOpen: 3,
+    totalDone: 1,
+  },
   date: 'May 3, 2026',
 };
 
