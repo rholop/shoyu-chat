@@ -28,6 +28,8 @@ interface ChatState {
   setNudges: (nudges: SimilarMatch[]) => void;
   clearNudges: () => void;
   markFirstMessageSent: (conversationId: string) => void;
+  todoCount: number;
+  setTodoCount: (count: number) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -82,4 +84,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
     next.add(conversationId);
     set({ firstMessageSent: next });
   },
+  todoCount: 0,
+  setTodoCount: (count) => set({ todoCount: count }),
 }));

@@ -1,9 +1,11 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Sidebar from './Sidebar';
 import { Conversation } from '../../types';
+import { useTodos } from '../../hooks/useTodos';
 
+vi.mock('../../hooks/useTodos');
 vi.mock('../chat/ModelBadge', () => ({
   default: ({ model }: { model: string | null }) => model ? <span>{model}</span> : null,
 }));
@@ -25,6 +27,10 @@ const conv2: Conversation = {
 };
 
 describe('Sidebar', () => {
+  beforeEach(() => {
+    vi.mocked(useTodos).mockReturnValue({ data: [] } as any);
+  });
+
   const defaultProps = {
     conversations: [],
     projects: [],
@@ -82,6 +88,37 @@ describe('Sidebar', () => {
   it('does not render close button when onClose is absent', () => {
     render(<Sidebar {...defaultProps} />);
     expect(screen.queryByRole('button', { name: /close sidebar/i })).not.toBeInTheDocument();
+  });
+
+  describe('To-Dos', () => {
+    it('renders To-Dos navigation link', () => {
+      render(<Sidebar {...defaultProps} />);
+      expect(screen.getByText('To-Dos')).toBeInTheDocument();
+    });
+
+    it('shows badge when there are now-priority open todos', () => {
+      vi.mocked(useTodos).mockReturnValue({
+        data: [{ status: 'open', priority: 'now' }]
+      } as any);
+      render(<Sidebar {...defaultProps} />);
+      expect(screen.getByText('1')).toBeInTheDocument();
+    });
+
+    it('badge shows "9+" when count >= 10', () => {
+      vi.mocked(useTodos).mockReturnValue({
+        data: Array(12).fill({ status: 'open', priority: 'now' })
+      } as any);
+      render(<Sidebar {...defaultProps} />);
+      expect(screen.getByText('9+')).toBeInTheDocument();
+    });
+
+    it('does not show badge when count is 0', () => {
+      vi.mocked(useTodos).mockReturnValue({
+        data: [{ status: 'open', priority: 'soon' }]
+      } as any);
+      render(<Sidebar {...defaultProps} />);
+      expect(screen.queryByText('1')).not.toBeInTheDocument();
+    });
   });
 
   describe('unresolved indicator', () => {

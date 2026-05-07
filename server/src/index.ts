@@ -12,6 +12,7 @@ import filesRouter from './routes/files';
 import projectsRouter from './routes/projects';
 import searchRouter, { rebuildIndexInternal } from './routes/search';
 import insightsRouter from './routes/insights';
+import todosRouter from './routes/todos';
 import { requireAuth } from './middleware/authMiddleware';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
@@ -46,6 +47,7 @@ app.use('/api/files', requireAuth, filesRouter);
 app.use('/api/projects', requireAuth, projectsRouter);
 app.use('/api/search', requireAuth, searchRouter);
 app.use('/api/insights', requireAuth, insightsRouter);
+app.use('/api/todos', requireAuth, todosRouter);
 
 app.post('/api/admin/digest/trigger', requireAuth, async (_req, res) => {
   await sendWeeklyDigest();

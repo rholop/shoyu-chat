@@ -2,13 +2,10 @@ import { useState, useEffect } from 'react';
 import { useConversations } from '../../hooks/useConversations';
 import { useProjects, useProject } from '../../hooks/useProjects';
 import { useChatStore } from '../../store/chatStore';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
-import ChatView from '../chat/ChatView';
-import ProjectDetail from '../projects/ProjectDetail';
 import { SearchPalette } from '../search/SearchPalette';
-
-type ActiveView = { type: 'chat' } | { type: 'project'; projectId: string };
 
 function NewProjectModal({ onCreate, onClose }: { onCreate: (name: string, desc: string) => void; onClose: () => void }) {
   const [name, setName] = useState('');
@@ -56,72 +53,56 @@ function NewProjectModal({ onCreate, onClose }: { onCreate: (name: string, desc:
   );
 }
 
-function ProjectDetailView({
-  projectId,
-  onBack,
-  onSelectConversation,
-  onNewChat,
-}: {
-  projectId: string;
-  onBack: () => void;
-  onSelectConversation: (id: string) => void;
-  onNewChat: (projectId: string) => void;
-}) {
-  const { project, updateContext } = useProject(projectId);
-  const { update } = useProjects();
-
-  if (!project) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex-1 overflow-hidden">
-      <ProjectDetail
-        project={project}
-        onBack={onBack}
-        onDelete={() => { onBack(); }}
-        onSelectConversation={(id) => { onSelectConversation(id); onBack(); }}
-        onNewChat={onNewChat}
-        onUpdateName={(name) => update(projectId, { name })}
-        onUpdateDescription={(description) => update(projectId, { description })}
-        onUpdateContext={updateContext}
-      />
-    </div>
-  );
-}
 
 export default function AppShell() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
-  const [activeView, setActiveView] = useState<ActiveView>({ type: 'chat' });
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const { conversations, create, remove, refresh } = useConversations();
   const { projects, create: createProject } = useProjects();
   const { activeConversationId, setActiveConversation } = useChatStore();
 
-  const activeConversation = conversations.find((c) => c.id === activeConversationId);
-  const title =
-    activeView.type === 'project'
-      ? (projects.find((p) => p.id === activeView.projectId)?.name ?? 'Project')
-      : (activeConversation?.title ?? 'Shoyu Chat');
+  const getActiveId = () => {
+    if (location.pathname.startsWith('/todos')) return 'todos';
+    if (location.pathname.startsWith('/chat/')) return location.pathname.split('/chat/')[1];
+    if (location.pathname.startsWith('/projects/')) return location.pathname.split('/projects/')[1];
+    return activeConversationId;
+  };
+
+  const activeId = getActiveId();
+
+  const getTitle = () => {
+    if (location.pathname.startsWith('/todos')) return 'To-Dos';
+    if (location.pathname.startsWith('/projects/')) {
+      const id = location.pathname.split('/projects/')[1];
+      return projects.find((p) => p.id === id)?.name ?? 'Project';
+    }
+    const conv = conversations.find((c) => c.id === activeConversationId);
+    return conv?.title ?? 'Shoyu Chat';
+  };
+
+  const title = getTitle();
 
   const handleNewChat = async (projectId?: string) => {
     const { id } = await create(projectId ? { projectId } : undefined);
     setActiveConversation(id);
-    setActiveView({ type: 'chat' });
+    navigate(`/chat/${id}`);
     setMobileSidebarOpen(false);
     refresh();
   };
 
   const handleSelect = (id: string) => {
-    setActiveConversation(id);
-    setActiveView({ type: 'chat' });
+    if (id === 'todos') {
+      navigate('/todos');
+    } else {
+      setActiveConversation(id);
+      navigate(`/chat/${id}`);
+    }
     setMobileSidebarOpen(false);
   };
 
@@ -131,14 +112,15 @@ export default function AppShell() {
   };
 
   const handleSelectProject = (id: string) => {
-    setActiveView({ type: 'project', projectId: id });
+    navigate(`/projects/${id}`);
     setMobileSidebarOpen(false);
   };
 
   const handleCreateProject = async (name: string, desc: string) => {
-    const { id } = await createProject({ name, description: desc });
+    const res = await createProject({ name, description: desc });
+    const id = res.id;
     setShowNewProjectModal(false);
-    setActiveView({ type: 'project', projectId: id });
+    navigate(`/projects/${id}`);
   };
 
   // Auto-select first conversation on first load
@@ -162,17 +144,18 @@ export default function AppShell() {
 
   const handleSearchSelectConversation = (conversationId: string) => {
     setActiveConversation(conversationId);
-    setActiveView({ type: 'chat' });
+    navigate(`/chat/${conversationId}`);
     setMobileSidebarOpen(false);
   };
 
   const handleSearchSelectProject = (projectId: string) => {
-    setActiveView({ type: 'project', projectId });
+    navigate(`/projects/${projectId}`);
     setMobileSidebarOpen(false);
   };
 
-  const activeProjectId =
-    activeView.type === 'project' ? activeView.projectId : undefined;
+  const activeProjectId = location.pathname.startsWith('/projects/')
+    ? location.pathname.split('/projects/')[1]
+    : undefined;
 
   return (
     <div className="flex h-[100dvh] bg-[#fdf6e3] dark:bg-slate-950 overflow-hidden">
@@ -207,7 +190,7 @@ export default function AppShell() {
         <Sidebar
           conversations={conversations}
           projects={projects}
-          activeId={activeConversationId}
+          activeId={activeId}
           onSelect={handleSelect}
           onDelete={handleDelete}
           onNewChat={() => handleNewChat()}
@@ -228,32 +211,7 @@ export default function AppShell() {
           onDesktopSidebarOpen={() => setDesktopSidebarOpen(true)}
         />
 
-        {activeView.type === 'project' ? (
-          <ProjectDetailView
-            projectId={activeView.projectId}
-            onBack={() => setActiveView({ type: 'chat' })}
-            onSelectConversation={handleSelect}
-            onNewChat={(projectId) => handleNewChat(projectId)}
-          />
-        ) : activeConversationId ? (
-          <ChatView
-            conversationId={activeConversationId}
-            title={title}
-            onMenuToggle={() => setMobileSidebarOpen((v) => !v)}
-            onNewChat={() => handleNewChat()}
-          />
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-            <p className="text-[#586e75] dark:text-slate-400 text-lg mb-2">Welcome to Shoyu Chat</p>
-            <p className="text-[#93a1a1] dark:text-slate-600 text-sm mb-6">Start a new conversation to begin</p>
-            <button
-              onClick={() => handleNewChat()}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors"
-            >
-              New Chat
-            </button>
-          </div>
-        )}
+        <Outlet context={{ onMenuToggle: () => setMobileSidebarOpen(v => !v), onNewChat: handleNewChat }} />
       </div>
     </div>
   );
