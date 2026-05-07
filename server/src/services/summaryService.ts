@@ -5,6 +5,7 @@ import {
   getConversationMeta,
   getMessages,
   getRecentlyActiveConversations,
+  atomicWrite,
 } from '../storage';
 import { summarize } from './aiRouter';
 import { regenerateProjectSummary } from './projectService';
@@ -128,7 +129,7 @@ ${transcript}`;
   }
 
   const metaPath = path.join(dataDir(), `conversation-${conversationId}`, 'meta.json');
-  fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
+  atomicWrite(metaPath, JSON.stringify(meta, null, 2));
 
   // 2. Topics
   const topicsPrompt = `List 3-6 specific topics or technologies from this conversation as short noun phrases. Focus on concrete subjects, not meta-descriptions. Return as a comma-separated list only, nothing else.

@@ -3,9 +3,11 @@ import * as insightsService from './insightsService';
 import * as ledgerService from './ledgerService';
 import { LedgerEntry } from '../types';
 import * as storage from '../storage';
+import fs from 'fs';
 
 vi.mock('./ledgerService');
 vi.mock('../storage');
+vi.mock('fs');
 
 describe('insightsService', () => {
   const mockEntries: LedgerEntry[] = [
@@ -438,6 +440,81 @@ describe('insightsService', () => {
       for (let i = 1; i < result.length; i++) {
         expect(result[i].week >= result[i - 1].week).toBe(true);
       }
+    });
+  });
+
+  describe('snoozeLoop', () => {
+    it('writes snoozedUntil into meta.json via atomicWrite', async () => {
+      vi.mocked(storage.dataDir).mockReturnValue('/mock/data');
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ title: 'Test', resolved: false }));
+      const atomicWriteSpy = vi.mocked(storage.atomicWrite).mockImplementation(() => {});
+
+      await insightsService.snoozeLoop('abc123', '2026-06-01');
+
+      expect(atomicWriteSpy).toHaveBeenCalledOnce();
+      const written = JSON.parse(atomicWriteSpy.mock.calls[0][1] as string);
+      expect(written.snoozedUntil).toBe('2026-06-01');
+    });
+
+    it('throws when meta.json does not exist', async () => {
+      vi.mocked(storage.dataDir).mockReturnValue('/mock/data');
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+
+      await expect(insightsService.snoozeLoop('nope', '2026-06-01')).rejects.toThrow('Conversation not found');
+    });
+  });
+
+  describe('resolveLoop', () => {
+    it('sets resolved: true and clears snoozedUntil', async () => {
+      vi.mocked(storage.dataDir).mockReturnValue('/mock/data');
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ title: 'Test', resolved: false, snoozedUntil: '2026-06-01' }));
+      const atomicWriteSpy = vi.mocked(storage.atomicWrite).mockImplementation(() => {});
+
+      await insightsService.resolveLoop('abc123');
+
+      expect(atomicWriteSpy).toHaveBeenCalledOnce();
+      const written = JSON.parse(atomicWriteSpy.mock.calls[0][1] as string);
+      expect(written.resolved).toBe(true);
+      expect(written.snoozedUntil).toBeNull();
+      expect(written.resolvedAt).toBeDefined();
+    });
+
+    it('throws when meta.json does not exist', async () => {
+      vi.mocked(storage.dataDir).mockReturnValue('/mock/data');
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+
+      await expect(insightsService.resolveLoop('nope')).rejects.toThrow('Conversation not found');
+    });
+  });
+
+  describe('getUnresolvedThreads — snooze filtering', () => {
+    it('excludes snoozed conversations where snoozedUntil >= today', async () => {
+      vi.setSystemTime(new Date('2026-05-07T12:00:00Z'));
+      const mockConversations: any[] = [
+        { id: '1', title: 'Active', resolved: false, created_at: '2026-05-01T10:00:00Z', snoozedUntil: null },
+        { id: '2', title: 'Snoozed', resolved: false, created_at: '2026-05-01T10:00:00Z', snoozedUntil: '2026-05-10' },
+      ];
+      vi.mocked(storage.listConversations).mockReturnValue(mockConversations);
+      vi.mocked(ledgerService.readAll).mockResolvedValue([]);
+
+      const result = await insightsService.getUnresolvedThreads();
+      expect(result).toHaveLength(1);
+      expect(result[0].title).toBe('Active');
+    });
+
+    it('includes conversations where snoozedUntil is in the past', async () => {
+      vi.setSystemTime(new Date('2026-05-07T12:00:00Z'));
+      const mockConversations: any[] = [
+        { id: '1', title: 'Past Snooze', resolved: false, created_at: '2026-05-01T10:00:00Z', snoozedUntil: '2026-05-06' },
+      ];
+      vi.mocked(storage.listConversations).mockReturnValue(mockConversations);
+      vi.mocked(ledgerService.readAll).mockResolvedValue([]);
+
+      const result = await insightsService.getUnresolvedThreads();
+      expect(result).toHaveLength(1);
+      expect(result[0].title).toBe('Past Snooze');
     });
   });
 

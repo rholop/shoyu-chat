@@ -42,6 +42,17 @@ This file is created or overwritten each time a conversation is summarized. If n
 - Sets `updatedAt` to the current time.
 - Performs an atomic write back to the file.
 
+### `deleteTodo(conversationId, todoId): Promise<void>`
+- Removes a single to-do item from the conversation's `todos.json`.
+- Throws `Error('Todo not found')` if the id is not present.
+- Uses an atomic write (`.tmp` + rename) to avoid partial file corruption.
+
+### `createTodoFromLoop(loop: OpenLoop): Promise<Todo>`
+- Creates a to-do item directly from an open loop (unresolved conversation) without calling the AI.
+- Sets `text` to the loop's `goal`, or falls back to `"Follow up on: <title>"`.
+- Sets `priority` to `"soon"` and `sourceMessageHint` to a generated label referencing the loop title.
+- Appends the new todo to any existing todos in the conversation's `todos.json`.
+
 ## AI Prompt Behavior
 - Routes through the `SUMMARIZING` intent path in `aiRouter`.
 - Instructed to return strictly JSON.

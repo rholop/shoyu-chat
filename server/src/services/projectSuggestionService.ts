@@ -4,13 +4,15 @@ import * as ledgerService from './ledgerService';
 import * as aiRouter from './aiRouter';
 import { dataDir } from '../storage';
 import { getISOWeekKey } from '../utils/dateHelpers';
-import { ProjectSuggestion } from '../types';
+import { LedgerEntry, ProjectSuggestion } from '../types';
 
-const DISMISSED_PATH = path.join(dataDir(), 'insights', 'dismissed-suggestions.json');
+function dismissedPath(): string {
+  return path.join(dataDir(), 'insights', 'dismissed-suggestions.json');
+}
 
 async function getDismissed(): Promise<string[]> {
   try {
-    const raw = await fs.readFile(DISMISSED_PATH, 'utf8');
+    const raw = await fs.readFile(dismissedPath(), 'utf8');
     return JSON.parse(raw);
   } catch {
     return [];
@@ -22,11 +24,12 @@ export async function dismissSuggestion(topic: string): Promise<void> {
   const normalized = topic.toLowerCase().trim();
   if (!dismissed.includes(normalized)) {
     dismissed.push(normalized);
-    const dir = path.dirname(DISMISSED_PATH);
+    const p = dismissedPath();
+    const dir = path.dirname(p);
     await fs.mkdir(dir, { recursive: true });
-    const tmp = DISMISSED_PATH + '.' + Math.random().toString(36).slice(2) + '.tmp';
+    const tmp = p + '.' + Math.random().toString(36).slice(2) + '.tmp';
     await fs.writeFile(tmp, JSON.stringify(dismissed, null, 2), 'utf8');
-    await fs.rename(tmp, DISMISSED_PATH);
+    await fs.rename(tmp, p);
   }
 }
 
@@ -37,7 +40,7 @@ export async function getProjectSuggestions(): Promise<ProjectSuggestion[]> {
   const cutoff = thirtyDaysAgo.toISOString().slice(0, 10);
 
   // Collect all unique topics
-  const topicMap = new Map<string, any[]>();
+  const topicMap = new Map<string, LedgerEntry[]>();
   for (const entry of entries) {
     for (const topic of entry.topics) {
       const key = topic.toLowerCase().trim();

@@ -26,9 +26,9 @@ export default function App() {
         <Route index element={<Navigate to="/chat" replace />} />
         <Route path="chat" element={<ChatViewWrapper />} />
         <Route path="chat/loops" element={<LoopsPanel />} />
+        <Route path="chat/todos" element={<TodoPanel />} />
         <Route path="chat/:id" element={<ChatViewWrapper />} />
         <Route path="projects/:id" element={<ProjectDetailWrapper />} />
-        <Route path="todos" element={<TodoPanel />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

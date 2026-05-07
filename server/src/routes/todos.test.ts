@@ -212,5 +212,17 @@ describe('todos routes', () => {
 
       expect(res.status).toBe(404);
     });
+
+    it('requires auth', async () => {
+      const res = await request(app).delete('/api/todos/conv-1/t1');
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe('PATCH /api/todos/:convId/:todoId — auth', () => {
+    it('requires auth', async () => {
+      const res = await request(app).patch('/api/todos/conv-1/t1').send({ status: 'done' });
+      expect(res.status).toBe(401);
+    });
   });
 });

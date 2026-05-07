@@ -22,6 +22,9 @@ router.post('/projects/create', async (req, res) => {
   if (!topic || typeof topic !== 'string') {
     return res.status(400).json({ error: 'topic is required' });
   }
+  if (topic.length > 200) {
+    return res.status(400).json({ error: 'topic must be 200 characters or fewer' });
+  }
 
   try {
     const suggestions = await projectSuggestionService.getProjectSuggestions();
@@ -61,6 +64,9 @@ router.post('/projects/dismiss', async (req, res) => {
   const { topic } = req.body;
   if (!topic || typeof topic !== 'string') {
     return res.status(400).json({ error: 'topic is required' });
+  }
+  if (topic.length > 200) {
+    return res.status(400).json({ error: 'topic must be 200 characters or fewer' });
   }
 
   try {

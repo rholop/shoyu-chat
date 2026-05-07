@@ -40,6 +40,20 @@ A topic is considered an "orphan interest" if it appears in at least one ledger 
 ### Performance
 The service uses plain array operations for all computations, ensuring it is fast and deterministic without requiring additional AI calls. It reads the full ledger file once per report generation.
 
+## Open Loops
+
+### `getUnresolvedThreads(): Promise<OpenLoop[]>`
+Returns all conversations where `resolved === false`, sorted by `created_at` descending. Conversations where `snoozedUntil >= today` (UTC date) are excluded from the result. Each result is enriched with:
+- `daysSinceCreated` — computed at query time
+- `goal`, `intent`, `topics` — pulled from the topic ledger, defaulting to empty values if no ledger entry exists
+- `projectName` — resolved from project metadata
+
+### `snoozeLoop(conversationId: string, snoozedUntil: string): Promise<void>`
+Sets the `snoozedUntil` field on a conversation's `meta.json` to the given `YYYY-MM-DD` date. The loop will be excluded from `getUnresolvedThreads()` until that date passes. Throws `Error('Conversation not found')` if the meta file does not exist. Uses `atomicWrite` to persist the change.
+
+### `resolveLoop(conversationId: string): Promise<void>`
+Sets `resolved: true`, clears `snoozedUntil` to `null`, and records `resolvedAt` (ISO timestamp) in a conversation's `meta.json`. Throws `Error('Conversation not found')` if the meta file does not exist. Uses `atomicWrite` to persist the change.
+
 ## Related Services
 
 - **`projectSuggestionService`**: Uses the same ledger data to generate actionable suggestions for new projects. While `insightsService` provides a broad overview, the suggestion service applies specific thresholds to trigger proactive UI banners and weekly digest recommendations.

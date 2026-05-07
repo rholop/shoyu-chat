@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
+import cookieParser from 'cookie-parser';
+import jwt from 'jsonwebtoken';
 import suggestionsRouter from './suggestions';
 import * as projectSuggestionService from '../services/projectSuggestionService';
 import * as storage from '../storage';
@@ -26,9 +28,23 @@ vi.mock('../middleware/authMiddleware', () => ({
   requireAuth: (req: any, res: any, next: any) => next(),
 }));
 
+const JWT_SECRET = 'test-suggestions-secret';
+process.env.JWT_SECRET = JWT_SECRET;
+const authCookie = `token=${jwt.sign({ userId: 1 }, JWT_SECRET)}`;
+
 const app = express();
 app.use(express.json());
 app.use('/api/suggestions', suggestionsRouter);
+
+const authApp = express();
+authApp.use(express.json());
+authApp.use(cookieParser());
+authApp.use((req: any, res: any, next: any) => {
+  const token = req.cookies.token;
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  try { jwt.verify(token, JWT_SECRET); next(); } catch { res.status(401).json({ error: 'Unauthorized' }); }
+});
+authApp.use('/api/suggestions', suggestionsRouter);
 
 describe('suggestions routes', () => {
   beforeEach(() => {
@@ -87,6 +103,29 @@ describe('suggestions routes', () => {
     it('returns 400 when topic missing', async () => {
       const res = await request(app).post('/api/suggestions/projects/dismiss').send({});
       expect(res.status).toBe(400);
+    });
+  });
+
+  describe('auth enforcement', () => {
+    it('GET /projects returns 401 without token', async () => {
+      const res = await request(authApp).get('/api/suggestions/projects');
+      expect(res.status).toBe(401);
+    });
+
+    it('GET /projects returns 200 with valid token', async () => {
+      vi.mocked(projectSuggestionService.getProjectSuggestions).mockResolvedValue([]);
+      const res = await request(authApp).get('/api/suggestions/projects').set('Cookie', [authCookie]);
+      expect(res.status).toBe(200);
+    });
+
+    it('POST /projects/create returns 401 without token', async () => {
+      const res = await request(authApp).post('/api/suggestions/projects/create').send({ topic: 'Auth' });
+      expect(res.status).toBe(401);
+    });
+
+    it('POST /projects/dismiss returns 401 without token', async () => {
+      const res = await request(authApp).post('/api/suggestions/projects/dismiss').send({ topic: 'Auth' });
+      expect(res.status).toBe(401);
     });
   });
 });

@@ -4,6 +4,11 @@ import * as todoService from '../services/todoService';
 
 const router = Router();
 
+const SAFE_ID_RE = /^[a-zA-Z0-9_-]+$/;
+function isSafeId(id: string): boolean {
+  return SAFE_ID_RE.test(id);
+}
+
 router.get('/', async (req, res) => {
   let loops = await insightsService.getUnresolvedThreads();
 
@@ -24,6 +29,9 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/:conversationId/snooze', async (req, res) => {
+  if (!isSafeId(req.params.conversationId)) {
+    return res.status(400).json({ error: 'Invalid id' });
+  }
   const { snoozedUntil } = req.body;
   if (!snoozedUntil || !/^\d{4}-\d{2}-\d{2}$/.test(snoozedUntil)) {
     return res.status(400).json({ error: 'snoozedUntil must be YYYY-MM-DD' });
@@ -37,6 +45,9 @@ router.post('/:conversationId/snooze', async (req, res) => {
 });
 
 router.post('/:conversationId/resolve', async (req, res) => {
+  if (!isSafeId(req.params.conversationId)) {
+    return res.status(400).json({ error: 'Invalid id' });
+  }
   try {
     await insightsService.resolveLoop(req.params.conversationId);
     res.json({ ok: true });
@@ -46,6 +57,9 @@ router.post('/:conversationId/resolve', async (req, res) => {
 });
 
 router.post('/:conversationId/todo', async (req, res) => {
+  if (!isSafeId(req.params.conversationId)) {
+    return res.status(400).json({ error: 'Invalid id' });
+  }
   const loops = await insightsService.getUnresolvedThreads();
   const loop = loops.find(l => l.conversationId === req.params.conversationId);
   if (!loop) {

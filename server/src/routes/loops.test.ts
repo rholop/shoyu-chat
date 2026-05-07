@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
+import cookieParser from 'cookie-parser';
+import jwt from 'jsonwebtoken';
 import loopsRouter from './loops';
 import * as insightsService from '../services/insightsService';
 import * as todoService from '../services/todoService';
@@ -14,10 +16,28 @@ vi.mock('../services/todoService', () => ({
   createTodoFromLoop: vi.fn(),
 }));
 
+const JWT_SECRET = 'test-loops-secret';
+process.env.JWT_SECRET = JWT_SECRET;
+const authCookie = `token=${jwt.sign({ userId: 1 }, JWT_SECRET)}`;
+
+function makeApp(withAuth = false) {
+  const a = express();
+  a.use(express.json());
+  a.use(cookieParser());
+  if (withAuth) {
+    a.use((req, res, next) => {
+      const token = req.cookies.token;
+      if (!token) return res.status(401).json({ error: 'Unauthorized' });
+      try { jwt.verify(token, JWT_SECRET); next(); } catch { res.status(401).json({ error: 'Unauthorized' }); }
+    });
+  }
+  a.use('/api/loops', loopsRouter);
+  return a;
+}
+
 describe('Loops Routes', () => {
-  const app = express();
-  app.use(express.json());
-  app.use('/api/loops', loopsRouter);
+  const app = makeApp();
+  const authApp = makeApp(true);
 
   beforeEach(() => {
     vi.resetAllMocks();
@@ -115,6 +135,34 @@ describe('Loops Routes', () => {
       vi.mocked(insightsService.getUnresolvedThreads).mockResolvedValue([]);
       const res = await request(app).post('/api/loops/1/todo');
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe('auth enforcement', () => {
+    it('GET / returns 401 without token', async () => {
+      const res = await request(authApp).get('/api/loops');
+      expect(res.status).toBe(401);
+    });
+
+    it('GET / returns 200 with valid token', async () => {
+      vi.mocked(insightsService.getUnresolvedThreads).mockResolvedValue([]);
+      const res = await request(authApp).get('/api/loops').set('Cookie', [authCookie]);
+      expect(res.status).toBe(200);
+    });
+
+    it('POST /1/snooze returns 401 without token', async () => {
+      const res = await request(authApp).post('/api/loops/1/snooze').send({ snoozedUntil: '2026-06-01' });
+      expect(res.status).toBe(401);
+    });
+
+    it('POST /1/resolve returns 401 without token', async () => {
+      const res = await request(authApp).post('/api/loops/1/resolve');
+      expect(res.status).toBe(401);
+    });
+
+    it('POST /1/todo returns 401 without token', async () => {
+      const res = await request(authApp).post('/api/loops/1/todo');
+      expect(res.status).toBe(401);
     });
   });
 });
