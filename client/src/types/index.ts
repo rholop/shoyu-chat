@@ -152,3 +152,22 @@ export type SSEEvent =
   | { type: 'token'; content: string }
   | { type: 'done'; model: string; conversationId: string; intent: Intent; downloads?: MessageDownload[] }
   | { type: 'error'; message: string };
+
+export type TodoPriority = 'now' | 'soon' | 'someday';
+export type TodoStatus = 'open' | 'done' | 'snoozed';
+
+export interface Todo {
+  id: string;
+  conversationId: string;
+  text: string;
+  priority: TodoPriority;
+  status: TodoStatus;
+  projectId: string | null;
+  projectName: string | null;
+  intent: string;
+  createdAt: string;
+  updatedAt: string;
+  dueDate: string | null;
+  snoozedUntil: string | null;
+  sourceMessageHint: string;
+}

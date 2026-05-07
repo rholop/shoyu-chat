@@ -241,3 +241,13 @@ export async function updateTodo(
   atomicWrite(todoPath(conversationId), JSON.stringify(todos, null, 2));
   return updatedTodo;
 }
+
+export async function deleteTodo(conversationId: string, todoId: string): Promise<void> {
+  const todos = await getTodos(conversationId);
+  const filtered = todos.filter(t => t.id !== todoId);
+  if (filtered.length === todos.length) throw new Error('Todo not found');
+  const filePath = todoPath(conversationId);
+  const tmp = filePath + '.tmp';
+  await fs.promises.writeFile(tmp, JSON.stringify(filtered, null, 2), 'utf8');
+  await fs.promises.rename(tmp, filePath);
+}

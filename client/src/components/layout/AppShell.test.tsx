@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import AppShell from './AppShell';
 
 vi.mock('../../hooks/useConversations', () => ({
@@ -90,7 +90,15 @@ describe('AppShell', () => {
       refresh: vi.fn(),
     } as ReturnType<typeof useConversations>);
 
-    render(<MemoryRouter><AppShell /></MemoryRouter>);
+    render(
+      <MemoryRouter initialEntries={['/chat']}>
+        <Routes>
+          <Route path="/" element={<AppShell />}>
+            <Route path="chat" element={<div>Welcome to Shoyu Chat</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
     expect(screen.getByText(/welcome to shoyu chat/i)).toBeInTheDocument();
   });
 
@@ -109,7 +117,15 @@ describe('AppShell', () => {
       refresh: vi.fn(),
     } as ReturnType<typeof useConversations>);
 
-    render(<MemoryRouter><AppShell /></MemoryRouter>);
+    render(
+      <MemoryRouter initialEntries={['/chat/conv-1']}>
+        <Routes>
+          <Route path="/" element={<AppShell />}>
+            <Route path="chat/:id" element={<div>ChatView:conv-1</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
     expect(screen.getByText('ChatView:conv-1')).toBeInTheDocument();
   });
 

@@ -1,7 +1,10 @@
-import { Trash2, MessageSquare, PanelLeftClose, Plus } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Trash2, MessageSquare, PanelLeftClose, Plus, CheckSquare } from 'lucide-react';
 import { Conversation, Project } from '../../types';
 import ModelBadge from '../chat/ModelBadge';
 import ProjectList from '../projects/ProjectList';
+import { useTodos } from '../../hooks/useTodos';
+import { useChatStore } from '../../store/chatStore';
 
 interface Props {
   conversations: Conversation[];
@@ -39,6 +42,13 @@ export default function Sidebar({
   onCreateProject,
 }: Props) {
   const ungrouped = conversations.filter((c) => !c.projectId);
+  const { data: todos = [] } = useTodos();
+  const nowCount = todos.filter(t => t.status === 'open' && t.priority === 'now').length;
+  const setTodoCount = useChatStore((state) => state.setTodoCount);
+
+  useEffect(() => {
+    setTodoCount(nowCount);
+  }, [nowCount, setTodoCount]);
 
   return (
     <aside className="flex flex-col h-full w-72 bg-[#eee8d5] dark:bg-slate-900 border-r border-[#ccc5af] dark:border-slate-800">
@@ -62,6 +72,27 @@ export default function Sidebar({
       </div>
 
       <nav className="flex-1 overflow-y-auto pt-2 pb-safe">
+        <div className="px-2 mb-4">
+          <button
+            onClick={() => onSelect('todos')}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors ${
+              activeId === 'todos'
+                ? 'bg-[#d1c9b5] dark:bg-slate-700 text-[#073642] dark:text-white'
+                : 'hover:bg-[#e0d8c4] dark:hover:bg-slate-800 text-[#586e75] dark:text-slate-400'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <CheckSquare size={18} />
+              <span className="text-sm font-medium">To-Dos</span>
+            </div>
+            {nowCount > 0 && (
+              <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                {nowCount > 9 ? '9+' : nowCount}
+              </span>
+            )}
+          </button>
+        </div>
+
         <div className="flex items-center justify-between px-3 py-1.5">
           <span className="text-xs font-semibold text-[#93a1a1] dark:text-slate-500 uppercase tracking-wider">Projects</span>
           <button

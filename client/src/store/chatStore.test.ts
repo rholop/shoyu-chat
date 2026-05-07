@@ -22,6 +22,14 @@ describe('chatStore', () => {
       streamError: null,
       nudges: [],
       firstMessageSent: new Set(),
+      todoCount: 0,
+    });
+  });
+
+  describe('todoCount', () => {
+    it('sets the todo count', () => {
+      useChatStore.getState().setTodoCount(5);
+      expect(useChatStore.getState().todoCount).toBe(5);
     });
   });
 

@@ -31,6 +31,10 @@ vi.mock('fs', () => ({
     readdirSync: vi.fn(),
     statSync: vi.fn(),
     mkdirSync: vi.fn(),
+    promises: {
+      writeFile: vi.fn(),
+      rename: vi.fn(),
+    },
   },
 }));
 
@@ -240,6 +244,35 @@ describe('todoService', () => {
       vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify([]));
 
       await expect(todoService.updateTodo(CONV_ID, 'todo-absent', { status: 'done' }))
+        .rejects.toThrow('Todo not found');
+    });
+  });
+
+  describe('deleteTodo()', () => {
+    it('removes the correct todo by id', async () => {
+      const todos = [
+        { id: 't1', text: 'T1' },
+        { id: 't2', text: 'T2' }
+      ];
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(todos));
+      vi.mocked(fs.promises.writeFile).mockResolvedValue(undefined);
+      vi.mocked(fs.promises.rename).mockResolvedValue(undefined);
+
+      await todoService.deleteTodo(CONV_ID, 't1');
+
+      const writeFileCall = vi.mocked(fs.promises.writeFile).mock.calls[0];
+      const savedTodos = JSON.parse(writeFileCall[1] as string);
+      expect(savedTodos).toHaveLength(1);
+      expect(savedTodos[0].id).toBe('t2');
+      expect(vi.mocked(fs.promises.rename)).toHaveBeenCalled();
+    });
+
+    it('throws "Todo not found" when id does not exist', async () => {
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify([]));
+
+      await expect(todoService.deleteTodo(CONV_ID, 't1'))
         .rejects.toThrow('Todo not found');
     });
   });
