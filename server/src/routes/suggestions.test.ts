@@ -3,18 +3,24 @@ import request from 'supertest';
 import express from 'express';
 import suggestionsRouter from './suggestions';
 import * as projectSuggestionService from '../services/projectSuggestionService';
-import { createProject } from '../services/projectService';
 import * as storage from '../storage';
 
 vi.mock('../services/projectSuggestionService');
-vi.mock('../services/projectService', () => ({
-  createProject: vi.fn(),
-}));
 vi.mock('../storage', () => ({
   dataDir: () => '/mock/data',
   writeProjectContext: vi.fn(),
   createProject: vi.fn(),
   getProjectMeta: vi.fn(),
+}));
+vi.mock('../services/searchExtractor', () => ({
+  SearchExtractor: {
+    fromProject: vi.fn().mockReturnValue([]),
+  },
+}));
+vi.mock('../services/searchIndexService', () => ({
+  SearchIndexService: {
+    indexRecord: vi.fn(),
+  },
 }));
 vi.mock('../middleware/authMiddleware', () => ({
   requireAuth: (req: any, res: any, next: any) => next(),
