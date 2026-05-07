@@ -5,6 +5,7 @@ import {
   getMonthKey,
   getWeekRangeLabel,
   getMonthLabel,
+  getDateDaysAgo,
 } from './dateHelpers';
 
 describe('dateHelpers', () => {
@@ -121,6 +122,36 @@ describe('dateHelpers', () => {
       vi.setSystemTime(new Date('2026-04-26T12:00:00.000Z'));
       const label = getMonthLabel();
       expect(label).toContain('2026');
+    });
+  });
+
+  describe('getDateDaysAgo', () => {
+    it('returns a string in YYYY-MM-DD format', () => {
+      expect(getDateDaysAgo(7)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+
+    it('returns a date 7 days before today', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-04-26T12:00:00.000Z'));
+      expect(getDateDaysAgo(7)).toBe('2026-04-19');
+    });
+
+    it('returns today date string for 0 days ago', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-04-26T12:00:00.000Z'));
+      expect(getDateDaysAgo(0)).toBe('2026-04-26');
+    });
+
+    it('handles year boundaries', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-01-05T12:00:00.000Z'));
+      expect(getDateDaysAgo(7)).toBe('2025-12-29');
+    });
+
+    it('handles leap years', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2024-03-01T12:00:00.000Z'));
+      expect(getDateDaysAgo(1)).toBe('2024-02-29');
     });
   });
 });

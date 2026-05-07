@@ -45,3 +45,10 @@ export function getMonthLabel(date: Date = new Date()): string {
     year: 'numeric',
   });
 }
+
+/** Returns YYYY-MM-DD string for N days ago */
+export function getDateDaysAgo(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}

@@ -31,6 +31,11 @@ This file is created or overwritten each time a conversation is summarized. If n
 - Aggregates all to-dos across all conversations.
 - Filters out items with `status: "done"`.
 - Sorts by `createdAt` descending.
+- Uses `getAllTodosWithStatus()` internally.
+
+### `getAllTodosWithStatus(): Promise<Todo[]>`
+- Aggregates all to-dos across all conversations regardless of their status (`open`, `done`, `snoozed`).
+- Sorts by `createdAt` descending.
 
 ### `updateTodo(conversationId, todoId, updates): Promise<Todo>`
 - Updates fields like `status`, `priority`, `text`, `dueDate`, or `snoozedUntil`.

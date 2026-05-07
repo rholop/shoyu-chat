@@ -83,6 +83,16 @@ vi.mock('../services/projectSuggestionService', () => ({
   ]),
 }));
 
+vi.mock('../services/todoDigestService', () => ({
+  buildTodoDigestReport: vi.fn().mockResolvedValue({
+    createdThisWeek: [{ text: 'New Todo', priority: 'now', conversationTitle: 'C1', projectName: null, createdAt: '2026-05-01', updatedAt: '2026-05-01', dueDate: null }],
+    completedThisWeek: [{ text: 'Done Todo', priority: 'soon', conversationTitle: 'C1', projectName: null, createdAt: '2026-04-20', updatedAt: '2026-05-01', dueDate: null }],
+    overdue: [{ text: 'Late Todo', priority: 'now', conversationTitle: 'C1', projectName: null, createdAt: '2026-04-01', updatedAt: '2026-04-01', dueDate: '2026-04-15' }],
+    totalOpen: 10,
+    totalDone: 5
+  }),
+}));
+
 import { flushAllPending } from '../services/summaryService';
 import { summarize } from '../services/aiRouter';
 import { sendWeeklyDigestEmail } from '../services/emailService';
@@ -125,12 +135,25 @@ describe('sendWeeklyDigest', () => {
     await sendWeeklyDigest();
   });
 
-  it('digest prompt contains week summary and pattern report data', async () => {
+  it('digest prompt contains week summary, pattern report data, and to-do activity', async () => {
     await sendWeeklyDigest();
     const digestCall = vi.mocked(summarize).mock.calls[0][0];
     expect(digestCall).toContain("This Week's Conversations");
     expect(digestCall).toContain('Pattern Report');
     expect(digestCall).toContain('Active Projects');
+    expect(digestCall).toContain('Your To-Do Activity This Week');
+    expect(digestCall).toContain('Created this week (1)');
+    expect(digestCall).toContain('Late Todo');
+  });
+
+  it('insight prompt includes pattern report data and to-do patterns', async () => {
+    await sendWeeklyDigest();
+    const insightCall = vi.mocked(summarize).mock.calls[1][0];
+    expect(insightCall).toContain('Pattern Data');
+    expect(insightCall).toContain('orphan'); // topicsWithoutProject from mock
+    expect(insightCall).toContain('To-Do Patterns');
+    expect(insightCall).toContain('Currently overdue: 1');
+    expect(insightCall).toContain('Overdue items: Late Todo');
   });
 
   it('insight prompt includes pattern report data', async () => {
