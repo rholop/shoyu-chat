@@ -13,7 +13,8 @@ tar -czf "$BACKUP_DIR/data-$DATE.tar.gz" \
   --ignore-failed-read \
   "$(basename "$DATA_DIR")/user.json" \
   "$(basename "$DATA_DIR")/usage.json" \
-  "$(basename "$DATA_DIR")/conversations" \
+  "$(basename "$DATA_DIR")"/conversation-* \
+  "$(basename "$DATA_DIR")"/project-* \
   "$(basename "$DATA_DIR")/summaries" \
   "$(basename "$DATA_DIR")/chats" \
   "$(basename "$DATA_DIR")/insights" \

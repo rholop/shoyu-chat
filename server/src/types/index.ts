@@ -102,3 +102,22 @@ export const INTENT_ICONS: Record<Intent, string> = {
   [Intent.SUMMARIZING]: '📝',
   [Intent.IMAGE_ANALYSIS]: '👁️',
 };
+
+export type TodoPriority = 'now' | 'soon' | 'someday';
+export type TodoStatus = 'open' | 'done' | 'snoozed';
+
+export interface Todo {
+  id: string;
+  conversationId: string;
+  text: string;
+  priority: TodoPriority;
+  status: TodoStatus;
+  projectId: string | null;
+  projectName: string | null;
+  intent: string;
+  createdAt: string;
+  updatedAt: string;
+  dueDate: string | null;
+  snoozedUntil: string | null;
+  sourceMessageHint: string;
+}

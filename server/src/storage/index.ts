@@ -5,7 +5,7 @@ export function dataDir(): string {
   return process.env.DATA_DIR ?? path.join(__dirname, '../../../data');
 }
 
-function atomicWrite(filePath: string, content: string) {
+export function atomicWrite(filePath: string, content: string) {
   const tmp = `${filePath}.${crypto.randomUUID()}.tmp`;
   fs.writeFileSync(tmp, content, 'utf8');
   fs.renameSync(tmp, filePath);

@@ -37,10 +37,18 @@ vi.mock('./ledgerService', () => ({
   append: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('./todoService', () => ({
+  extractAndSave: vi.fn().mockResolvedValue([]),
+  getTodos: vi.fn().mockResolvedValue([]),
+  getAllTodos: vi.fn().mockResolvedValue([]),
+  updateTodo: vi.fn(),
+}));
+
 import { getConversationMeta, getMessages, getRecentlyActiveConversations } from '../storage';
 import { summarize } from './aiRouter';
 import { writeChatFile, upsertWeeklyEntry } from './markdownService';
 import { append as appendLedgerEntry } from './ledgerService';
+import * as todoService from './todoService';
 import {
   runSummary,
   schedule,
@@ -127,6 +135,17 @@ describe('runSummary', () => {
   it('calls ledgerService.append after summarization completes', async () => {
     await runSummary(CONV_ID);
     expect(appendLedgerEntry).toHaveBeenCalledWith(CONV_ID);
+  });
+
+  it('calls todoService.extractAndSave after ledger append', async () => {
+    await runSummary(CONV_ID);
+    expect(todoService.extractAndSave).toHaveBeenCalledWith(CONV_ID);
+  });
+
+  it('does not throw when todoService.extractAndSave fails', async () => {
+    vi.mocked(todoService.extractAndSave).mockRejectedValue(new Error('Todo fail'));
+    await expect(runSummary(CONV_ID)).resolves.not.toThrow();
+    expect(todoService.extractAndSave).toHaveBeenCalledWith(CONV_ID);
   });
 });
 
