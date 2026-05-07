@@ -8,6 +8,8 @@ import {
   getUnresolvedThreads,
   buildRollingHistory,
 } from '../services/insightsService';
+import * as todoDigestService from '../services/todoDigestService';
+import { TodoDigestReport } from '../services/todoDigestService';
 import { PatternReport, RollingWeek, ProjectSuggestion, OpenLoop } from '../types';
 import { listProjects, getProjectSummary } from '../storage';
 import * as projectSuggestionService from '../services/projectSuggestionService';
@@ -21,6 +23,7 @@ function buildDigestPrompt(
   patternReport: PatternReport,
   unresolvedThreads: OpenLoop[],
   projectSuggestions: ProjectSuggestion[],
+  todoDigest: TodoDigestReport,
 ): string {
   const suggestionSection =
     projectSuggestions.length > 0
@@ -51,7 +54,28 @@ When writing insights, acknowledge these loose threads. If any connect to
 recurring topics or current projects, call that out specifically.`
       : '';
 
+  const todoSection = `## Your To-Do Activity This Week
+
+Created this week (${todoDigest.createdThisWeek.length}):
+${todoDigest.createdThisWeek.map(t => `- [${t.priority.toUpperCase()}] ${t.text}${t.projectName ? ` (${t.projectName})` : ''}`).join('\n') || '(none)'}
+
+Completed this week (${todoDigest.completedThisWeek.length}):
+${todoDigest.completedThisWeek.map(t => `- ${t.text}`).join('\n') || '(none)'}
+
+Overdue (${todoDigest.overdue.length}):
+${todoDigest.overdue.map(t => `- [${t.priority.toUpperCase()}] ${t.text} — created ${t.createdAt.slice(0, 10)}`).join('\n') || '(none)'}
+
+Total open: ${todoDigest.totalOpen}
+Total completed all time: ${todoDigest.totalDone}
+
+When writing insights, note:
+- Whether the user is creating more todos than completing (accumulating debt)
+- Whether overdue todos have a pattern (same project, same intent)
+- Whether any completed todos represent meaningful progress`;
+
   return `You are generating a personal weekly digest for a solo developer.
+
+${todoSection}
 
 ## This Week's Conversations
 ${weekSummary || 'No conversations this week.'}
@@ -101,6 +125,7 @@ function buildInsightPrompt(
   patternReport: PatternReport,
   unresolvedThreads: OpenLoop[],
   rollingHistory: RollingWeek[],
+  todoDigest: TodoDigestReport,
 ): string {
   const totalConversations = patternReport.allTime.totalConversations;
 
@@ -141,6 +166,18 @@ function buildInsightPrompt(
           .join('\n')
       : 'No history available.';
 
+  const todoPatterns = `## To-Do Patterns
+Created this week: ${todoDigest.createdThisWeek.length}
+Completed this week: ${todoDigest.completedThisWeek.length}
+Currently overdue: ${todoDigest.overdue.length}
+Total open: ${todoDigest.totalOpen}
+
+${todoDigest.overdue.length > 0 ? `Overdue items: ${todoDigest.overdue.map(t => t.text).join('; ')}` : ''}
+
+In the "Patterns Worth Naming" section, include one observation about the user's follow-through
+on action items if the data is meaningful. For example: if many todos are created but few completed,
+name that pattern. If overdue items cluster around one topic, note it.`;
+
   return `You are analyzing a solo developer's AI usage patterns to give them honest, specific personal insights. This is private data about their own behavior — be direct, not generic.
 
 Note: This user has ${totalConversations} conversations in the ledger. If there is insufficient data to identify meaningful patterns, say so briefly and focus on what you can observe from what exists. Do not fabricate patterns.
@@ -164,6 +201,8 @@ ${unresolvedList}
 
 ## Rolling 8-Week Conversation History
 ${rollingHistoryText}
+
+${todoPatterns}
 
 ---
 
@@ -205,11 +244,12 @@ export async function sendWeeklyDigest(date?: Date) {
     .join('\n\n');
 
   // Step 2: Read all source data concurrently
-  const [patternReport, unresolvedThreads, rollingHistory, projectSuggestions] = await Promise.all([
+  const [patternReport, unresolvedThreads, rollingHistory, projectSuggestions, todoDigest] = await Promise.all([
     buildPatternReport(),
     getUnresolvedThreads(),
     buildRollingHistory(8),
     projectSuggestionService.getProjectSuggestions(),
+    todoDigestService.buildTodoDigestReport(),
   ]);
 
   const digestPrompt = buildDigestPrompt(
@@ -219,8 +259,9 @@ export async function sendWeeklyDigest(date?: Date) {
     patternReport,
     unresolvedThreads,
     projectSuggestions,
+    todoDigest,
   );
-  const insightPrompt = buildInsightPrompt(patternReport, unresolvedThreads, rollingHistory);
+  const insightPrompt = buildInsightPrompt(patternReport, unresolvedThreads, rollingHistory, todoDigest);
 
   // Step 3: Run both AI calls concurrently
   const [digestResult, insightResult] = await Promise.allSettled([
@@ -255,6 +296,7 @@ export async function sendWeeklyDigest(date?: Date) {
     patternReport,
     unresolvedThreads,
     projectSuggestions,
+    todoDigest,
     date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
   });
 

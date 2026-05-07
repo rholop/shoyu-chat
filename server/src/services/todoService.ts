@@ -201,6 +201,11 @@ export async function getTodos(conversationId: string): Promise<Todo[]> {
 }
 
 export async function getAllTodos(): Promise<Todo[]> {
+  const all = await getAllTodosWithStatus();
+  return all.filter(t => t.status !== 'done');
+}
+
+export async function getAllTodosWithStatus(): Promise<Todo[]> {
   const base = dataDir();
   if (!fs.existsSync(base)) return [];
 
@@ -214,7 +219,7 @@ export async function getAllTodos(): Promise<Todo[]> {
 
     const id = name.slice('conversation-'.length);
     const todos = await getTodos(id);
-    results.push(...todos.filter(t => t.status !== 'done'));
+    results.push(...todos);
   }
 
   return results.sort((a, b) => b.createdAt.localeCompare(a.createdAt));

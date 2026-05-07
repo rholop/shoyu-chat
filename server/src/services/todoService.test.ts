@@ -218,6 +218,32 @@ describe('todoService', () => {
     });
   });
 
+  describe('getAllTodosWithStatus()', () => {
+    it('returns all todos regardless of status', async () => {
+      vi.mocked(fs.readdirSync).mockReturnValue(['conversation-c1'] as any);
+      vi.mocked(fs.statSync).mockReturnValue({ isDirectory: () => true } as any);
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify([
+        { id: 't1', status: 'open', createdAt: '2026-05-01T12:00:00Z' },
+        { id: 't2', status: 'done', createdAt: '2026-05-01T11:00:00Z' },
+        { id: 't3', status: 'snoozed', createdAt: '2026-05-01T13:00:00Z' }
+      ]));
+
+      const todos = await todoService.getAllTodosWithStatus();
+
+      expect(todos).toHaveLength(3);
+      expect(todos.map(t => t.status)).toContain('open');
+      expect(todos.map(t => t.status)).toContain('done');
+      expect(todos.map(t => t.status)).toContain('snoozed');
+    });
+
+    it('returns empty array when dataDir does not exist', async () => {
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      const todos = await todoService.getAllTodosWithStatus();
+      expect(todos).toEqual([]);
+    });
+  });
+
   describe('updateTodo()', () => {
     it('updates todo fields and updatedAt', async () => {
       const initialTodo = {

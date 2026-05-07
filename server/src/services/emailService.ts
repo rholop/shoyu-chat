@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import { PatternReport, ProjectSuggestion, OpenLoop } from '../types';
+import { TodoDigestReport } from './todoDigestService';
 import { logger } from '../utils/logger';
 
 let _resend: Resend | null = null;
@@ -26,6 +27,7 @@ export interface DigestEmailParams {
   patternReport: PatternReport;
   unresolvedThreads: OpenLoop[];
   projectSuggestions: ProjectSuggestion[];
+  todoDigest: TodoDigestReport;
   date: string;
 }
 
@@ -40,6 +42,7 @@ export function buildDigestEmailHtml(params: DigestEmailParams): string {
     patternReport,
     unresolvedThreads,
     projectSuggestions,
+    todoDigest,
     date,
   } = params;
 
@@ -73,6 +76,67 @@ export function buildDigestEmailHtml(params: DigestEmailParams): string {
     </ul>
   </div>`
       : '';
+
+  // Your Commitments
+  const priorityColors = {
+    now: '#DC2626',
+    soon: '#D97706',
+    someday: '#6B7280',
+  };
+
+  const renderPriorityBadge = (priority: 'now' | 'soon' | 'someday') => {
+    const color = priorityColors[priority];
+    return `<span style="background-color: ${color}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 8px; text-transform: uppercase;">${priority}</span>`;
+  };
+
+  const todoSection = (todoDigest.totalOpen > 0 || todoDigest.totalDone > 0)
+    ? `<div class="section">
+    <h2>Your Commitments</h2>
+
+    <h3 style="font-size: 14px; margin-bottom: 8px;">Created This Week (${todoDigest.createdThisWeek.length})</h3>
+    <ul style="list-style: none; padding: 0; margin: 0 0 16px 0; font-size: 14px; line-height: 1.6;">
+      ${todoDigest.createdThisWeek.length > 0
+        ? todoDigest.createdThisWeek.map(t => `
+        <li style="margin-bottom: 8px;">
+          ${renderPriorityBadge(t.priority)}
+          ${escapeHtml(t.text)}
+          <div style="font-size: 12px; color: #64748b; margin-left: 0; margin-top: 2px;">
+            from "${escapeHtml(t.conversationTitle)}"${t.projectName ? ` · ${escapeHtml(t.projectName)}` : ''}
+          </div>
+        </li>`).join('')
+        : '<p style="color: #64748b; font-style: italic; margin: 0;">No to-dos created this week.</p>'
+      }
+    </ul>
+
+    <h3 style="font-size: 14px; margin-bottom: 8px;">Completed This Week (${todoDigest.completedThisWeek.length})</h3>
+    <ul style="list-style: none; padding: 0; margin: 0 0 16px 0; font-size: 14px; line-height: 1.6;">
+      ${todoDigest.completedThisWeek.length > 0
+        ? todoDigest.completedThisWeek.map(t => `
+        <li style="margin-bottom: 8px;">
+          <span style="color: #10b981; margin-right: 8px;">✓</span> ${escapeHtml(t.text)}
+        </li>`).join('')
+        : '<p style="color: #64748b; font-style: italic; margin: 0;">No to-dos completed this week.</p>'
+      }
+    </ul>
+
+    ${todoDigest.overdue.length > 0 ? `
+    <h3 style="font-size: 14px; margin-bottom: 8px; color: #dc2626;">⚠ Overdue (${todoDigest.overdue.length})</h3>
+    <ul style="list-style: none; padding: 0; margin: 0 0 16px 0; font-size: 14px; line-height: 1.6;">
+      ${todoDigest.overdue.map(t => `
+        <li style="margin-bottom: 8px;">
+          ${renderPriorityBadge(t.priority)}
+          ${escapeHtml(t.text)}
+          <div style="font-size: 12px; color: #64748b; margin-top: 2px;">
+            created ${t.createdAt.slice(0, 10)}${t.dueDate ? ` · due ${t.dueDate}` : ''}
+          </div>
+        </li>`).join('')}
+    </ul>` : ''}
+
+    <p style="font-size: 12px; color: #64748b; border-top: 1px dashed #e2e8f0; padding-top: 8px; margin-top: 12px;">
+      ${todoDigest.totalOpen} open · ${todoDigest.totalDone} completed all time
+    </p>
+  </div>`
+    : '';
 
   // Loose Threads
   const unresolvedSection =
@@ -154,6 +218,7 @@ export function buildDigestEmailHtml(params: DigestEmailParams): string {
   </div>
   ${glanceSection}
   ${suggestionSection}
+  ${todoSection}
   ${unresolvedSection}
   <div class="section">
     <h2>This Week's Summary</h2>
