@@ -1,6 +1,5 @@
 import { Resend } from 'resend';
-import { PatternReport, ProjectSuggestion } from '../types';
-import { UnresolvedThread } from './insightsService';
+import { PatternReport, ProjectSuggestion, OpenLoop } from '../types';
 import { logger } from '../utils/logger';
 
 let _resend: Resend | null = null;
@@ -25,7 +24,7 @@ export interface DigestEmailParams {
   digestNarrative: string;
   personalInsights: string;
   patternReport: PatternReport;
-  unresolvedThreads: UnresolvedThread[];
+  unresolvedThreads: OpenLoop[];
   projectSuggestions: ProjectSuggestion[];
   date: string;
 }

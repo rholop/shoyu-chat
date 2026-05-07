@@ -4,9 +4,13 @@ import userEvent from '@testing-library/user-event';
 import Sidebar from './Sidebar';
 import { Conversation } from '../../types';
 import { useTodos } from '../../hooks/useTodos';
+import { useLoops } from '../../hooks/useLoops';
 import { BrowserRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import React from 'react';
 
 vi.mock('../../hooks/useTodos');
+vi.mock('../../hooks/useLoops');
 vi.mock('../../hooks/useProjectSuggestions', () => ({
   useProjectSuggestions: () => ({ data: [], isLoading: false }),
   useCreateProjectFromSuggestion: () => ({ isPending: false, isError: false }),
@@ -33,8 +37,14 @@ const conv2: Conversation = {
 };
 
 describe('Sidebar', () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } }
+  });
+
   beforeEach(() => {
+    vi.resetAllMocks();
     vi.mocked(useTodos).mockReturnValue({ data: [] } as any);
+    vi.mocked(useLoops).mockReturnValue({ data: { total: 0 } } as any);
   });
 
   const defaultProps = {
@@ -51,9 +61,11 @@ describe('Sidebar', () => {
 
   const renderSidebar = (props: any = defaultProps) => {
     return render(
-      <BrowserRouter>
-        <Sidebar {...props} />
-      </BrowserRouter>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <Sidebar {...props} />
+        </BrowserRouter>
+      </QueryClientProvider>
     );
   };
 
@@ -132,6 +144,29 @@ describe('Sidebar', () => {
       } as any);
       renderSidebar();
       expect(screen.queryByText('1')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Open Loops', () => {
+    it('renders Open Loops navigation link', () => {
+      renderSidebar();
+      expect(screen.getByText('Open Loops')).toBeInTheDocument();
+    });
+
+    it('shows badge with total loop count', () => {
+      vi.mocked(useLoops).mockReturnValue({
+        data: { total: 5 }
+      } as any);
+      renderSidebar();
+      expect(screen.getByText('5')).toBeInTheDocument();
+    });
+
+    it('shows no badge when total is 0', () => {
+      vi.mocked(useLoops).mockReturnValue({
+        data: { total: 0 }
+      } as any);
+      renderSidebar();
+      expect(screen.queryByText('0')).not.toBeInTheDocument();
     });
   });
 

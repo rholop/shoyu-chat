@@ -181,3 +181,17 @@ export interface ProjectSuggestion {
   relatedGoals: string[];
   relatedConversationIds: string[];
 }
+
+export interface OpenLoop {
+  conversationId: string;
+  title: string;
+  goal: string;                  // one-liner from topic ledger
+  projectId: string | null;
+  projectName: string | null;
+  intent: string;
+  topics: string[];
+  createdAt: string;
+  summarizedAt: string;          // when the summary system last ran
+  daysSinceCreated: number;      // computed at query time
+  snoozedUntil: string | null;   // stored in meta.json
+}

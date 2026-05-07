@@ -177,6 +177,7 @@ export interface ConversationMeta {
   resolved: boolean | null;
   resolvedAt: string | null;
   summarizedAt: string | null;
+  snoozedUntil: string | null;
 }
 
 export interface ConversationSummary extends ConversationMeta {
@@ -281,6 +282,7 @@ export function createConversation(projectId?: string | null): string {
     resolved: null,
     resolvedAt: null,
     summarizedAt: null,
+    snoozedUntil: null,
   };
   if (projectId != null) meta.projectId = projectId;
 

@@ -7,9 +7,8 @@ import {
   buildPatternReport,
   getUnresolvedThreads,
   buildRollingHistory,
-  UnresolvedThread,
 } from '../services/insightsService';
-import { PatternReport, RollingWeek, ProjectSuggestion } from '../types';
+import { PatternReport, RollingWeek, ProjectSuggestion, OpenLoop } from '../types';
 import { listProjects, getProjectSummary } from '../storage';
 import * as projectSuggestionService from '../services/projectSuggestionService';
 import { getISOWeekKey, getMonthKey, getWeekRangeLabel } from '../utils/dateHelpers';
@@ -20,7 +19,7 @@ function buildDigestPrompt(
   monthSummary: string,
   projectSummaries: string,
   patternReport: PatternReport,
-  unresolvedThreads: UnresolvedThread[],
+  unresolvedThreads: OpenLoop[],
   projectSuggestions: ProjectSuggestion[],
 ): string {
   const suggestionSection =
@@ -100,7 +99,7 @@ Be direct and specific. Use the data. Do not be generic.`;
 
 function buildInsightPrompt(
   patternReport: PatternReport,
-  unresolvedThreads: UnresolvedThread[],
+  unresolvedThreads: OpenLoop[],
   rollingHistory: RollingWeek[],
 ): string {
   const totalConversations = patternReport.allTime.totalConversations;
