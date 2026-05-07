@@ -18,6 +18,7 @@ import { getISOWeekKey, getMonthKey } from '../utils/dateHelpers';
 import { logger } from '../utils/logger';
 import { updateMemoryFromConversation } from './memoryService';
 import { append as appendLedgerEntry } from './ledgerService';
+import * as todoService from './todoService';
 
 const INACTIVITY_MS = 4 * 60 * 60 * 1000; // 4 hours
 const pendingTimers = new Map<string, NodeJS.Timeout>();
@@ -184,6 +185,14 @@ ${transcript}`;
     await appendLedgerEntry(conversationId);
   } catch (err) {
     logger.error(`Ledger append failed for conversation ${conversationId}:`, err);
+  }
+
+  // 9. Extract to-dos
+  try {
+    await todoService.extractAndSave(conversationId);
+  } catch (err) {
+    logger.warn(`todoService.extractAndSave failed for ${conversationId}:`, err);
+    // Never let todo extraction failure break the summary run
   }
 
   logger.info(`Summary complete for conversation ${conversationId}`);
