@@ -276,4 +276,61 @@ describe('todoService', () => {
         .rejects.toThrow('Todo not found');
     });
   });
+
+  describe('createTodoFromLoop()', () => {
+    const loop = {
+      conversationId: 'conv-123',
+      title: 'Loop Title',
+      goal: 'Loop Goal',
+      projectId: 'project-1',
+      projectName: 'Project 1',
+      intent: 'CODING',
+      topics: ['t1'],
+      createdAt: '2026-05-01T10:00:00Z',
+      summarizedAt: '2026-05-01T14:00:00Z',
+      daysSinceCreated: 5,
+      snoozedUntil: null
+    };
+
+    it('creates a todo from an open loop', async () => {
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+
+      const todo = await todoService.createTodoFromLoop(loop as any);
+
+      expect(todo.conversationId).toBe('conversation-conv-123');
+      expect(todo.text).toBe('Loop Goal');
+      expect(todo.priority).toBe('soon');
+      expect(todo.status).toBe('open');
+      expect(todo.projectId).toBe('project-1');
+      expect(todo.projectName).toBe('Project 1');
+      expect(todo.intent).toBe('CODING');
+      expect(vi.mocked(atomicWrite)).toHaveBeenCalledWith(
+        TODO_FILE,
+        expect.stringContaining('Loop Goal')
+      );
+    });
+
+    it('falls back to title when goal is missing', async () => {
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      const loopNoGoal = { ...loop, goal: '' };
+
+      const todo = await todoService.createTodoFromLoop(loopNoGoal as any);
+
+      expect(todo.text).toBe('Follow up on: Loop Title');
+    });
+
+    it('appends to existing todos without overwriting', async () => {
+      const existing = [{ id: 'existing-1', text: 'Existing' }];
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(existing));
+
+      await todoService.createTodoFromLoop(loop as any);
+
+      const call = vi.mocked(atomicWrite).mock.calls[0];
+      const saved = JSON.parse(call[1] as string);
+      expect(saved).toHaveLength(2);
+      expect(saved[0].id).toBe('existing-1');
+      expect(saved[1].text).toBe('Loop Goal');
+    });
+  });
 });

@@ -4,6 +4,7 @@ import { useTheme } from './hooks/useTheme';
 import LoginScreen from './components/auth/LoginScreen';
 import AppShell from './components/layout/AppShell';
 import TodoPanel from './components/todos/TodoPanel';
+import LoopsPanel from './components/loops/LoopsPanel';
 import ChatViewWrapper from './components/chat/ChatViewWrapper';
 import ProjectDetailWrapper from './components/projects/ProjectDetailWrapper';
 
@@ -24,6 +25,7 @@ export default function App() {
       <Route path="/" element={<AppShell />}>
         <Route index element={<Navigate to="/chat" replace />} />
         <Route path="chat" element={<ChatViewWrapper />} />
+        <Route path="chat/loops" element={<LoopsPanel />} />
         <Route path="chat/:id" element={<ChatViewWrapper />} />
         <Route path="projects/:id" element={<ProjectDetailWrapper />} />
         <Route path="todos" element={<TodoPanel />} />

@@ -174,19 +174,6 @@ describe('insightsService', () => {
       expect(result[1].title).toBe('Old');
     });
 
-    it('returns max 10 results', async () => {
-      const mockConversations = Array.from({ length: 15 }, (_, i) => ({
-        id: `${i}`,
-        title: `Thread ${i}`,
-        resolved: false,
-        created_at: `2024-01-${10 + i}T10:00:00Z`,
-      }));
-      vi.mocked(storage.listConversations).mockReturnValue(mockConversations as any);
-      vi.mocked(ledgerService.readAll).mockResolvedValue([]);
-
-      const result = await insightsService.getUnresolvedThreads();
-      expect(result).toHaveLength(10);
-    });
 
     it('correctly populates goal from ledger', async () => {
       const mockConversations: any[] = [

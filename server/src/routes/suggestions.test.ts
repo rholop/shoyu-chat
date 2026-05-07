@@ -13,6 +13,8 @@ vi.mock('../services/projectService', () => ({
 vi.mock('../storage', () => ({
   dataDir: () => '/mock/data',
   writeProjectContext: vi.fn(),
+  createProject: vi.fn(),
+  getProjectMeta: vi.fn(),
 }));
 vi.mock('../middleware/authMiddleware', () => ({
   requireAuth: (req: any, res: any, next: any) => next(),
@@ -45,7 +47,7 @@ describe('suggestions routes', () => {
       const mockSuggestion = { topic: 'Auth', conversationCount: 5, weekCount: 2, firstSeen: '2024-01-01', lastSeen: '2024-01-15', relatedGoals: [], relatedConversationIds: [] };
       vi.mocked(projectSuggestionService.getProjectSuggestions).mockResolvedValue([mockSuggestion] as any);
       vi.mocked(projectSuggestionService.generateProjectContext).mockResolvedValue('Mock Context');
-      vi.mocked(createProject).mockReturnValue('new-p-id');
+      vi.mocked(storage.createProject).mockReturnValue('new-p-id');
 
       const res = await request(app)
         .post('/api/suggestions/projects/create')

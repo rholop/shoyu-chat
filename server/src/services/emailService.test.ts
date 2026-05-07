@@ -50,10 +50,15 @@ const params: DigestEmailParams = {
       goal: 'Goal stuff',
       projectId: null,
       projectName: null,
-      date: '2026-05-01',
+      intent: 'CODING',
+      topics: ['A'],
+      createdAt: '2026-05-01T12:00:00Z',
+      summarizedAt: '2026-05-01T12:00:00Z',
       daysSinceCreated: 5,
+      snoozedUntil: null,
     },
   ],
+  projectSuggestions: [],
   date: 'May 3, 2026',
 };
 
@@ -132,6 +137,7 @@ describe('buildDigestEmailHtml', () => {
       unresolvedThreads: [
         { ...params.unresolvedThreads[0], title: '<b>Injected</b>' },
       ],
+      projectSuggestions: [],
     });
     expect(html).not.toContain('<script>');
     expect(html).toContain('&lt;script&gt;');
@@ -214,6 +220,7 @@ describe('sendWeeklyDigestEmail', () => {
       unresolvedThreads: [
         { ...params.unresolvedThreads[0], title: '<b>Injected</b>' },
       ],
+      projectSuggestions: [],
     };
     await sendWeeklyDigestEmail(xssParams);
     const html = mockSend.mock.calls[0][0].html as string;

@@ -9,7 +9,7 @@ import {
   atomicWrite,
   StoredMessage,
 } from '../storage';
-import { Todo, TodoPriority, Intent } from '../types';
+import { Todo, TodoPriority, Intent, OpenLoop } from '../types';
 import { summarize } from './aiRouter';
 import { logger } from '../utils/logger';
 
@@ -250,4 +250,28 @@ export async function deleteTodo(conversationId: string, todoId: string): Promis
   const tmp = filePath + '.tmp';
   await fs.promises.writeFile(tmp, JSON.stringify(filtered, null, 2), 'utf8');
   await fs.promises.rename(tmp, filePath);
+}
+
+export async function createTodoFromLoop(loop: OpenLoop): Promise<Todo> {
+  const conversationId = loop.conversationId.replace(/^conversation-/, '');
+  const existing = await getTodos(conversationId);
+  const todo: Todo = {
+    id: 'todo-' + crypto.randomUUID(),
+    conversationId: `conversation-${conversationId}`,
+    text: loop.goal || `Follow up on: ${loop.title}`,
+    priority: 'soon',
+    status: 'open',
+    projectId: loop.projectId,
+    projectName: loop.projectName,
+    intent: loop.intent,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    dueDate: null,
+    snoozedUntil: null,
+    sourceMessageHint: `Created from open loop: "${loop.title}"`
+  };
+
+  const updated = [...existing, todo];
+  atomicWrite(todoPath(conversationId), JSON.stringify(updated, null, 2));
+  return todo;
 }

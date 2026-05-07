@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import {
   LedgerEntry,
   PatternReport,
@@ -6,10 +8,11 @@ import {
   IntentFrequency,
   TopicSeries,
   SimilarMatch,
+  OpenLoop,
 } from '../types';
 import * as ledgerService from './ledgerService';
 import { getISOWeekKey } from '../utils/dateHelpers';
-import { listConversations, getProjectMeta, getConversationMeta } from '../storage';
+import { listConversations, getProjectMeta, getConversationMeta, dataDir, atomicWrite } from '../storage';
 
 export const SIMILARITY_THRESHOLD = 0.15;
 
@@ -64,19 +67,15 @@ export function tokenize(text: string): string[] {
     .filter(w => w.length > 2 && !STOPWORDS.has(w));
 }
 
-export interface UnresolvedThread {
-  conversationId: string;
-  title: string;
-  goal: string; // from topic-ledger.jsonl one-liner
-  projectId: string | null;
-  projectName: string | null;
-  date: string;
-  daysSinceCreated: number;
-}
-
-export async function getUnresolvedThreads(): Promise<UnresolvedThread[]> {
+export async function getUnresolvedThreads(): Promise<OpenLoop[]> {
   const allConversations = listConversations();
-  const unresolved = allConversations.filter((c) => c.resolved === false);
+  const today = new Date().toISOString().slice(0, 10);
+
+  const unresolved = allConversations.filter((c) => {
+    if (c.resolved !== false) return false;
+    if (c.snoozedUntil && c.snoozedUntil >= today) return false;
+    return true;
+  });
 
   const ledgerEntries = await ledgerService.readAll();
   const ledgerMap = new Map<string, LedgerEntry>();
@@ -86,9 +85,8 @@ export async function getUnresolvedThreads(): Promise<UnresolvedThread[]> {
 
   const now = new Date();
 
-  const results: UnresolvedThread[] = unresolved
+  const results: OpenLoop[] = unresolved
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
-    .slice(0, 10)
     .map((c) => {
       const entry = ledgerMap.get(`conversation-${c.id}`);
       const created = new Date(c.created_at);
@@ -108,12 +106,34 @@ export async function getUnresolvedThreads(): Promise<UnresolvedThread[]> {
         goal: entry?.goal ?? '',
         projectId: c.projectId ? `project-${c.projectId}` : null,
         projectName,
-        date: c.created_at.slice(0, 10),
+        intent: entry?.intent ?? '',
+        topics: entry?.topics ?? [],
+        createdAt: c.created_at,
+        summarizedAt: c.summarizedAt ?? c.created_at,
         daysSinceCreated,
+        snoozedUntil: c.snoozedUntil ?? null,
       };
     });
 
   return results;
+}
+
+export async function snoozeLoop(conversationId: string, snoozedUntil: string): Promise<void> {
+  const metaPath = path.join(dataDir(), `conversation-${conversationId}`, 'meta.json');
+  if (!fs.existsSync(metaPath)) throw new Error('Conversation not found');
+  const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+  meta.snoozedUntil = snoozedUntil;
+  atomicWrite(metaPath, JSON.stringify(meta, null, 2));
+}
+
+export async function resolveLoop(conversationId: string): Promise<void> {
+  const metaPath = path.join(dataDir(), `conversation-${conversationId}`, 'meta.json');
+  if (!fs.existsSync(metaPath)) throw new Error('Conversation not found');
+  const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+  meta.resolved = true;
+  meta.resolvedAt = new Date().toISOString();
+  meta.snoozedUntil = null;
+  atomicWrite(metaPath, JSON.stringify(meta, null, 2));
 }
 
 export async function buildPatternReport(): Promise<PatternReport> {
