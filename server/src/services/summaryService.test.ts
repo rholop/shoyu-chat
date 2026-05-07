@@ -5,6 +5,7 @@ vi.mock('../storage', () => ({
   getMessages: vi.fn(),
   getRecentlyActiveConversations: vi.fn(),
   dataDir: vi.fn().mockReturnValue('/tmp'),
+  atomicWrite: vi.fn(),
 }));
 
 vi.mock('fs', () => ({
