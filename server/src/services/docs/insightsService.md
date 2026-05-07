@@ -39,3 +39,7 @@ A topic is considered an "orphan interest" if it appears in at least one ledger 
 
 ### Performance
 The service uses plain array operations for all computations, ensuring it is fast and deterministic without requiring additional AI calls. It reads the full ledger file once per report generation.
+
+## Related Services
+
+- **`projectSuggestionService`**: Uses the same ledger data to generate actionable suggestions for new projects. While `insightsService` provides a broad overview, the suggestion service applies specific thresholds to trigger proactive UI banners and weekly digest recommendations.

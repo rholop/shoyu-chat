@@ -9,8 +9,9 @@ import {
   buildRollingHistory,
   UnresolvedThread,
 } from '../services/insightsService';
-import { PatternReport, RollingWeek } from '../types';
+import { PatternReport, RollingWeek, ProjectSuggestion } from '../types';
 import { listProjects, getProjectSummary } from '../storage';
+import * as projectSuggestionService from '../services/projectSuggestionService';
 import { getISOWeekKey, getMonthKey, getWeekRangeLabel } from '../utils/dateHelpers';
 import { logger } from '../utils/logger';
 
@@ -20,7 +21,21 @@ function buildDigestPrompt(
   projectSummaries: string,
   patternReport: PatternReport,
   unresolvedThreads: UnresolvedThread[],
+  projectSuggestions: ProjectSuggestion[],
 ): string {
+  const suggestionSection =
+    projectSuggestions.length > 0
+      ? `## Recurring Topics Without a Project
+${projectSuggestions
+  .map(
+    (s) =>
+      `- "${s.topic}": ${s.conversationCount} conversations across ${s.weekCount} weeks. Recent goals: ${s.relatedGoals.join('; ')}`,
+  )
+  .join('\n')}
+
+When writing project ideas, consider whether any of these recurring interests deserve to become a formal project.`
+      : '(No recurring orphan topics this week)';
+
   const unresolvedSection =
     unresolvedThreads.length > 0
       ? `## Loose Threads (unresolved conversations)
@@ -70,6 +85,8 @@ ${
 
 Intent breakdown this month:
 ${patternReport.last4Weeks.topIntents.map((i) => `- ${i.intent}: ${i.percentage}% of conversations`).join('\n') || 'None'}
+
+${suggestionSection}
 
 ${unresolvedSection}
 
@@ -189,13 +206,21 @@ export async function sendWeeklyDigest(date?: Date) {
     .join('\n\n');
 
   // Step 2: Read all source data concurrently
-  const [patternReport, unresolvedThreads, rollingHistory] = await Promise.all([
+  const [patternReport, unresolvedThreads, rollingHistory, projectSuggestions] = await Promise.all([
     buildPatternReport(),
     getUnresolvedThreads(),
     buildRollingHistory(8),
+    projectSuggestionService.getProjectSuggestions(),
   ]);
 
-  const digestPrompt = buildDigestPrompt(weekSummary, monthSummary, projectSummaries, patternReport, unresolvedThreads);
+  const digestPrompt = buildDigestPrompt(
+    weekSummary,
+    monthSummary,
+    projectSummaries,
+    patternReport,
+    unresolvedThreads,
+    projectSuggestions,
+  );
   const insightPrompt = buildInsightPrompt(patternReport, unresolvedThreads, rollingHistory);
 
   // Step 3: Run both AI calls concurrently
@@ -230,6 +255,7 @@ export async function sendWeeklyDigest(date?: Date) {
     personalInsights,
     patternReport,
     unresolvedThreads,
+    projectSuggestions,
     date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
   });
 

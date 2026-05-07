@@ -58,6 +58,7 @@ vi.mock('../services/insightsService', () => ({
 }));
 
 vi.mock('../storage', () => ({
+  dataDir: () => '/mock/data',
   listProjects: vi.fn().mockReturnValue([{ id: 'p1', name: 'Project 1' }]),
   getProjectSummary: vi.fn().mockReturnValue('Project summary content.'),
 }));
@@ -74,6 +75,12 @@ vi.mock('../utils/logger', () => ({
 
 vi.mock('node-cron', () => ({
   default: { schedule: vi.fn() },
+}));
+
+vi.mock('../services/projectSuggestionService', () => ({
+  getProjectSuggestions: vi.fn().mockResolvedValue([
+    { topic: 'Auth', conversationCount: 5, weekCount: 2, relatedGoals: ['Goal 1'] }
+  ]),
 }));
 
 import { flushAllPending } from '../services/summaryService';
