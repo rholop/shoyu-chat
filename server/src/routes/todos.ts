@@ -107,9 +107,8 @@ router.get('/', async (req, res) => {
 });
 
 router.get('/calendar-token', (req, res) => {
-  const userId = req.user!.userId;
-  const token = calendarToken(userId);
-  res.json({ token, userId });
+  const token = calendarToken(req.user!.userId);
+  res.json({ token });
 });
 
 router.get('/download-token', (_req, res) => {

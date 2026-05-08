@@ -46,13 +46,8 @@ app.use(cors({ origin: false }));
 
 app.use('/api/auth', authRouter);
 
-app.get('/api/calendar/:userId/:token/subscribe.ics', async (req, res) => {
-  const userId = parseInt(req.params.userId, 10);
-  if (!Number.isFinite(userId)) {
-    res.status(400).send('Bad Request');
-    return;
-  }
-  const expectedToken = calendarToken(userId);
+app.get('/api/calendar/:token/subscribe.ics', async (req, res) => {
+  const expectedToken = calendarToken(1);
   if (req.params.token !== expectedToken) {
     res.status(401).send('Unauthorized');
     return;
