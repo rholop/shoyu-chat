@@ -111,7 +111,7 @@ describe('todos routes', () => {
         { id: 't2', priority: 'now', createdAt: '2026-05-01T11:00:00Z' },
         { id: 't3', priority: 'now', createdAt: '2026-05-01T12:00:00Z' },
       ];
-      vi.mocked(todoService.getAllTodos).mockResolvedValue(mockTodos as any);
+      vi.mocked(todoService.getAllTodosWithStatus).mockResolvedValue(mockTodos as any);
 
       const res = await request(app)
         .get('/api/todos')
