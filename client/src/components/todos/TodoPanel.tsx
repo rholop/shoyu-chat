@@ -59,8 +59,8 @@ export default function TodoPanel() {
   const handleSubscribeCalendar = async () => {
     setIsSubscribing(true);
     try {
-      const token = await getCalendarToken();
-      const webcalUrl = `webcal://${window.location.host}/api/calendar/${token}/subscribe.ics`;
+      const { token, userId } = await getCalendarToken();
+      const webcalUrl = `webcal://${window.location.host}/api/calendar/${userId}/${token}/subscribe.ics`;
       window.location.href = webcalUrl;
     } catch {
       // ignore

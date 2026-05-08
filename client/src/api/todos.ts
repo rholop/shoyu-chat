@@ -64,9 +64,9 @@ export async function exportSingleTodoIcs(conversationId: string, todoId: string
   window.location.href = `/api/download/${token}/${expires}/todos/${conversationId}/${todoId}.ics`;
 }
 
-export async function getCalendarToken(): Promise<string> {
+export async function getCalendarToken(): Promise<{ token: string; userId: number }> {
   const res = await fetch(`${BASE}/calendar-token`, { credentials: 'include' });
   if (!res.ok) throw new Error('Failed to get calendar token');
   const data = await res.json();
-  return data.token;
+  return { token: data.token, userId: data.userId };
 }
