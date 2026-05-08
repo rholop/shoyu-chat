@@ -2,10 +2,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import TodoPanel from './TodoPanel';
 import { useTodos, useUpdateTodo, useDeleteTodo } from '../../hooks/useTodos';
+import { downloadIcs } from '../../api/todos';
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 
 vi.mock('../../hooks/useTodos');
+vi.mock('../../api/todos', () => ({
+  getTodosExportUrl: vi.fn().mockReturnValue('/api/todos/export.ics'),
+  downloadIcs: vi.fn().mockResolvedValue(undefined),
+  getCalendarToken: vi.fn().mockResolvedValue('test-token'),
+}));
 
 const mockTodos = [
   { id: 't1', conversationId: 'c1', text: 'Now Task', priority: 'now', status: 'open', createdAt: '2026-05-01', sourceMessageHint: 'H1' },
@@ -92,12 +98,8 @@ describe('TodoPanel', () => {
     expect(screen.getByText('Done Task')).toBeInTheDocument();
   });
 
-  it('clicking export button updates window.location.href', () => {
+  it('clicking export button calls downloadIcs', () => {
     vi.mocked(useTodos).mockReturnValue({ data: mockTodos, isLoading: false } as any);
-    const originalLocation = window.location;
-    // @ts-ignore
-    delete (window as any).location;
-    (window as any).location = { ...originalLocation, href: '' };
 
     render(
       <BrowserRouter>
@@ -105,12 +107,10 @@ describe('TodoPanel', () => {
       </BrowserRouter>
     );
 
-    const exportBtn = screen.getByText('Export to Calendar ↓');
+    const exportBtn = screen.getByTitle('Export all open to-dos to Calendar');
     fireEvent.click(exportBtn);
 
-    expect(window.location.href).toContain('/api/todos/export.ics');
-
-    (window as any).location = originalLocation;
+    expect(downloadIcs).toHaveBeenCalledWith('/api/todos/export.ics', 'shoyu-todos.ics');
   });
 
   it('export button is disabled when no open todos', () => {
@@ -121,7 +121,7 @@ describe('TodoPanel', () => {
       </BrowserRouter>
     );
 
-    const exportBtn = screen.getByText('(none to export)');
+    const exportBtn = screen.getByTitle('No open to-dos to export');
     expect(exportBtn).toBeDisabled();
   });
 });
