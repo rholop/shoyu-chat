@@ -68,7 +68,7 @@ export function generateIcs(todos: TodoWithTitle[]): string {
       `SUMMARY:${summary}`,
       `DESCRIPTION:${description}`,
       `CATEGORIES:shoyu-chat,${todo.priority}`,
-      'STATUS:NEEDS-ACTION',
+      'STATUS:CONFIRMED',
       'END:VEVENT'
     ].join('\r\n');
   });
