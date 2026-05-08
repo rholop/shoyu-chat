@@ -9,6 +9,7 @@ interface TodoItemProps {
   todo: Todo;
   onUpdate: (updates: Partial<Pick<Todo, 'status' | 'priority' | 'dueDate' | 'snoozedUntil' | 'text'>>) => void;
   onDelete: () => void;
+  onOpenEditor?: () => void;
 }
 
 const priorityColors: Record<TodoPriority, string> = {
@@ -23,7 +24,7 @@ const nextPriority: Record<TodoPriority, TodoPriority> = {
   someday: 'now',
 };
 
-export default function TodoItem({ todo, onUpdate, onDelete }: TodoItemProps) {
+export default function TodoItem({ todo, onUpdate, onDelete, onOpenEditor }: TodoItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(todo.text);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -97,7 +98,10 @@ export default function TodoItem({ todo, onUpdate, onDelete }: TodoItemProps) {
         {isDone ? <Check size={18} className="text-indigo-600" /> : <Square size={18} />}
       </button>
 
-      <div className="flex-1 min-w-0">
+      <div
+        className="flex-1 min-w-0 cursor-pointer"
+        onClick={() => { if (!isEditing && onOpenEditor) onOpenEditor(); }}
+      >
         <div className="flex items-center gap-2 mb-0.5">
           {isEditing ? (
             <input
@@ -106,17 +110,26 @@ export default function TodoItem({ todo, onUpdate, onDelete }: TodoItemProps) {
               onChange={(e) => setEditText(e.target.value)}
               onBlur={handleEditSubmit}
               onKeyDown={handleKeyDown}
+              onClick={e => e.stopPropagation()}
               className="flex-1 bg-white dark:bg-slate-800 border border-indigo-500 rounded px-1 text-sm text-[#073642] dark:text-white focus:outline-none"
             />
           ) : (
             <span
-              onClick={() => !isDone && setIsEditing(true)}
               className={clsx(
-                "text-sm font-medium text-[#073642] dark:text-white cursor-text",
+                "text-sm font-medium text-[#073642] dark:text-white",
                 isDone && "line-through"
               )}
             >
               {todo.text}
+            </span>
+          )}
+
+          {todo.calendarStatus === 'pending' && (
+            <span
+              className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
+              title="Not yet in calendar — set a date to publish"
+            >
+              Pending
             </span>
           )}
 

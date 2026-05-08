@@ -9,7 +9,7 @@ import {
   atomicWrite,
   StoredMessage,
 } from '../storage';
-import { Todo, TodoPriority, Intent, OpenLoop } from '../types';
+import { Todo, TodoPriority, TodoUpdateFields, Intent, OpenLoop } from '../types';
 import { summarize } from './aiRouter';
 import { logger } from '../utils/logger';
 
@@ -210,7 +210,16 @@ export async function extractAndSave(conversationId: string): Promise<Todo[]> {
       updatedAt: now,
       dueDate: item.dueDate,
       snoozedUntil: null,
-      sourceMessageHint: item.sourceMessageHint
+      sourceMessageHint: item.sourceMessageHint,
+      calendarStatus: item.dueDate ? 'published' : 'pending',
+      startTime: null,
+      endTime: null,
+      location: null,
+      url: null,
+      notes: null,
+      alarms: [],
+      recurrence: null,
+      allDay: true,
     }));
 
     atomicWrite(todoPath(conversationId), JSON.stringify(todos, null, 2));
@@ -273,7 +282,7 @@ export async function getAllTodosWithStatus(): Promise<Todo[]> {
 export async function updateTodo(
   conversationId: string,
   todoId: string,
-  updates: Partial<Pick<Todo, 'status' | 'priority' | 'dueDate' | 'snoozedUntil' | 'text'>>
+  updates: TodoUpdateFields
 ): Promise<Todo> {
   const todos = await getTodos(conversationId);
   const idx = todos.findIndex(t => t.id === todoId);
@@ -281,15 +290,20 @@ export async function updateTodo(
     throw new Error('Todo not found');
   }
 
-  const updatedTodo = {
-    ...todos[idx],
-    ...updates,
-    updatedAt: new Date().toISOString()
-  };
+  const merged = { ...todos[idx], ...updates, updatedAt: new Date().toISOString() };
 
-  todos[idx] = updatedTodo;
+  // Auto-publish when dueDate is set
+  if (merged.dueDate && merged.calendarStatus === 'pending') {
+    merged.calendarStatus = 'published';
+  }
+  // Auto-unpublish when dueDate is cleared
+  if (!merged.dueDate && merged.calendarStatus === 'published') {
+    merged.calendarStatus = 'pending';
+  }
+
+  todos[idx] = merged;
   atomicWrite(todoPath(conversationId), JSON.stringify(todos, null, 2));
-  return updatedTodo;
+  return merged;
 }
 
 export async function deleteTodo(conversationId: string, todoId: string): Promise<void> {
@@ -318,7 +332,16 @@ export async function createTodoFromLoop(loop: OpenLoop): Promise<Todo> {
     updatedAt: new Date().toISOString(),
     dueDate: null,
     snoozedUntil: null,
-    sourceMessageHint: `Created from open loop: "${loop.title}"`
+    sourceMessageHint: `Created from open loop: "${loop.title}"`,
+    calendarStatus: 'pending',
+    startTime: null,
+    endTime: null,
+    location: null,
+    url: null,
+    notes: null,
+    alarms: [],
+    recurrence: null,
+    allDay: true,
   };
 
   const updated = [...existing, todo];

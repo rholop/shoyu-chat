@@ -1,4 +1,4 @@
-import type { Todo } from '../types';
+import type { Todo, TodoUpdateFields } from '../types';
 
 const BASE = '/api/todos';
 
@@ -19,7 +19,7 @@ export async function listConversationTodos(conversationId: string): Promise<Tod
 export async function updateTodo(
   conversationId: string,
   todoId: string,
-  updates: Partial<Pick<Todo, 'status' | 'priority' | 'dueDate' | 'snoozedUntil' | 'text'>>
+  updates: TodoUpdateFields & { snoozedUntil?: string | null }
 ): Promise<Todo> {
   const res = await fetch(`${BASE}/${conversationId}/${todoId}`, {
     method: 'PATCH',
