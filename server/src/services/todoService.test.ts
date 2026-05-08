@@ -169,6 +169,209 @@ describe('todoService', () => {
       const todos = await todoService.extractAndSave(CONV_ID);
       expect(todos[0].intent).toBe('DEBUGGING');
     });
+
+    it('uses created_at of last non-internal message as anchor date', async () => {
+      vi.mocked(getConversationMeta).mockReturnValue(meta as any);
+      vi.mocked(getMessages).mockReturnValue(messages as any);
+      vi.mocked(summarize).mockResolvedValue('[]');
+
+      await todoService.extractAndSave(CONV_ID);
+
+      const promptCall = vi.mocked(summarize).mock.calls[0][0];
+      expect(promptCall).toContain('2026-05-01');
+    });
+
+    it('skips internal messages when finding the last message for anchor date', async () => {
+      const messagesWithLaterInternal = [
+        ...messages,
+        { role: 'internal', content: '{"intent":"CODING"}', created_at: '2026-05-10T12:00:00Z' },
+      ];
+      vi.mocked(getConversationMeta).mockReturnValue(meta as any);
+      vi.mocked(getMessages).mockReturnValue(messagesWithLaterInternal as any);
+      vi.mocked(summarize).mockResolvedValue('[]');
+
+      await todoService.extractAndSave(CONV_ID);
+
+      const promptCall = vi.mocked(summarize).mock.calls[0][0];
+      // anchor date should be from last non-internal (assistant at 10:00:05), not internal (2026-05-10)
+      expect(promptCall).toContain('Conversation date: 2026-05-01');
+      expect(promptCall).not.toContain('Conversation date: 2026-05-10');
+    });
+
+    it('falls back to today when no messages have created_at', async () => {
+      const messagesNoTimestamp = [
+        { role: 'user', content: 'Do something' },
+        { role: 'assistant', content: 'OK' },
+      ];
+      vi.mocked(getConversationMeta).mockReturnValue(meta as any);
+      vi.mocked(getMessages).mockReturnValue(messagesNoTimestamp as any);
+      vi.mocked(summarize).mockResolvedValue('[]');
+
+      await todoService.extractAndSave(CONV_ID);
+
+      const promptCall = vi.mocked(summarize).mock.calls[0][0];
+      const todayStr = new Date().toISOString().slice(0, 10);
+      expect(promptCall).toContain(todayStr);
+    });
+
+    it('saves todo with dueDate from AI response', async () => {
+      vi.mocked(getConversationMeta).mockReturnValue(meta as any);
+      vi.mocked(getMessages).mockReturnValue(messages as any);
+      vi.mocked(summarize).mockResolvedValue(JSON.stringify([
+        { text: 'Deploy to prod', priority: 'now', dueDate: '2026-05-15', sourceMessageHint: 'Deadline mentioned' }
+      ]));
+
+      const todos = await todoService.extractAndSave(CONV_ID);
+
+      expect(todos[0].dueDate).toBe('2026-05-15');
+    });
+
+    it('sets dueDate to null when AI returns a past date', async () => {
+      vi.mocked(getConversationMeta).mockReturnValue(meta as any);
+      vi.mocked(getMessages).mockReturnValue(messages as any);
+      vi.mocked(summarize).mockResolvedValue(JSON.stringify([
+        { text: 'Do something', priority: 'now', dueDate: '2026-01-01', sourceMessageHint: 'H' }
+      ]));
+
+      const todos = await todoService.extractAndSave(CONV_ID);
+
+      expect(todos[0].dueDate).toBeNull();
+    });
+
+    it('sets dueDate to null when AI returns an invalid format', async () => {
+      vi.mocked(getConversationMeta).mockReturnValue(meta as any);
+      vi.mocked(getMessages).mockReturnValue(messages as any);
+      vi.mocked(summarize).mockResolvedValue(JSON.stringify([
+        { text: 'Do something', priority: 'now', dueDate: 'Friday', sourceMessageHint: 'H' }
+      ]));
+
+      const todos = await todoService.extractAndSave(CONV_ID);
+
+      expect(todos[0].dueDate).toBeNull();
+    });
+
+    it('saves mix of todos with and without dueDate correctly', async () => {
+      vi.mocked(getConversationMeta).mockReturnValue(meta as any);
+      vi.mocked(getMessages).mockReturnValue(messages as any);
+      vi.mocked(summarize).mockResolvedValue(JSON.stringify([
+        { text: 'Task with date', priority: 'now', dueDate: '2026-05-15', sourceMessageHint: 'H' },
+        { text: 'Task without date', priority: 'soon', dueDate: null, sourceMessageHint: 'H' }
+      ]));
+
+      const todos = await todoService.extractAndSave(CONV_ID);
+
+      expect(todos[0].dueDate).toBe('2026-05-15');
+      expect(todos[1].dueDate).toBeNull();
+    });
+  });
+
+  describe('parseTodoResponse()', () => {
+    const ANCHOR = '2026-05-08';
+
+    it('sets dueDate to the parsed value for a valid future date', () => {
+      const raw = JSON.stringify([
+        { text: 'Do it', priority: 'now', dueDate: '2026-05-15', sourceMessageHint: 'H' }
+      ]);
+      const result = todoService.parseTodoResponse(raw, ANCHOR);
+      expect(result[0].dueDate).toBe('2026-05-15');
+    });
+
+    it('accepts dueDate equal to the anchor date (same day is valid)', () => {
+      const raw = JSON.stringify([
+        { text: 'Do it today', priority: 'now', dueDate: '2026-05-08', sourceMessageHint: 'H' }
+      ]);
+      const result = todoService.parseTodoResponse(raw, ANCHOR);
+      expect(result[0].dueDate).toBe('2026-05-08');
+    });
+
+    it('sets dueDate to null when date is before anchor date', () => {
+      const raw = JSON.stringify([
+        { text: 'Old task', priority: 'now', dueDate: '2026-05-07', sourceMessageHint: 'H' }
+      ]);
+      const result = todoService.parseTodoResponse(raw, ANCHOR);
+      expect(result[0].dueDate).toBeNull();
+    });
+
+    it('sets dueDate to null for invalid format "Friday"', () => {
+      const raw = JSON.stringify([
+        { text: 'Task', priority: 'soon', dueDate: 'Friday', sourceMessageHint: 'H' }
+      ]);
+      const result = todoService.parseTodoResponse(raw, ANCHOR);
+      expect(result[0].dueDate).toBeNull();
+    });
+
+    it('sets dueDate to null for invalid format "next week"', () => {
+      const raw = JSON.stringify([
+        { text: 'Task', priority: 'soon', dueDate: 'next week', sourceMessageHint: 'H' }
+      ]);
+      const result = todoService.parseTodoResponse(raw, ANCHOR);
+      expect(result[0].dueDate).toBeNull();
+    });
+
+    it('sets dueDate to null for empty string', () => {
+      const raw = JSON.stringify([
+        { text: 'Task', priority: 'soon', dueDate: '', sourceMessageHint: 'H' }
+      ]);
+      const result = todoService.parseTodoResponse(raw, ANCHOR);
+      expect(result[0].dueDate).toBeNull();
+    });
+
+    it('sets dueDate to null when dueDate is omitted', () => {
+      const raw = JSON.stringify([
+        { text: 'Task', priority: 'soon', sourceMessageHint: 'H' }
+      ]);
+      const result = todoService.parseTodoResponse(raw, ANCHOR);
+      expect(result[0].dueDate).toBeNull();
+    });
+
+    it('sets dueDate to null when AI returns dueDate: null explicitly', () => {
+      const raw = JSON.stringify([
+        { text: 'Task', priority: 'soon', dueDate: null, sourceMessageHint: 'H' }
+      ]);
+      const result = todoService.parseTodoResponse(raw, ANCHOR);
+      expect(result[0].dueDate).toBeNull();
+    });
+
+    it('does not discard todo when dueDate is invalid — item kept with dueDate null', () => {
+      const raw = JSON.stringify([
+        { text: 'Task with bad date', priority: 'soon', dueDate: 'not-a-date', sourceMessageHint: 'H' }
+      ]);
+      const result = todoService.parseTodoResponse(raw, ANCHOR);
+      expect(result).toHaveLength(1);
+      expect(result[0].text).toBe('Task with bad date');
+      expect(result[0].dueDate).toBeNull();
+    });
+
+    it('accepts dueDate after the anchor date', () => {
+      const raw = JSON.stringify([
+        { text: 'Future task', priority: 'someday', dueDate: '2027-01-01', sourceMessageHint: 'H' }
+      ]);
+      const result = todoService.parseTodoResponse(raw, ANCHOR);
+      expect(result[0].dueDate).toBe('2027-01-01');
+    });
+  });
+
+  describe('buildTodoPrompt()', () => {
+    it('includes the anchor date in the prompt output', () => {
+      const prompt = todoService.buildTodoPrompt(
+        [{ role: 'user', content: 'Hello' }],
+        'Test Chat',
+        null,
+        '2026-05-08'
+      );
+      expect(prompt).toContain('2026-05-08');
+    });
+
+    it('includes anchor date in both the context line and date rules', () => {
+      const prompt = todoService.buildTodoPrompt(
+        [{ role: 'user', content: 'Hello' }],
+        'Test Chat',
+        null,
+        '2026-05-08'
+      );
+      const occurrences = (prompt.match(/2026-05-08/g) || []).length;
+      expect(occurrences).toBeGreaterThanOrEqual(2);
+    });
   });
 
   describe('getTodos()', () => {
