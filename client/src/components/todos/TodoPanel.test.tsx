@@ -2,14 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import TodoPanel from './TodoPanel';
 import { useTodos, useUpdateTodo, useDeleteTodo } from '../../hooks/useTodos';
-import { downloadIcs } from '../../api/todos';
+import { exportAllTodosIcs } from '../../api/todos';
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 
 vi.mock('../../hooks/useTodos');
 vi.mock('../../api/todos', () => ({
-  getTodosExportUrl: vi.fn().mockReturnValue('/api/todos/export.ics'),
-  downloadIcs: vi.fn().mockResolvedValue(undefined),
+  exportAllTodosIcs: vi.fn().mockResolvedValue(undefined),
   getCalendarToken: vi.fn().mockResolvedValue('test-token'),
 }));
 
@@ -98,7 +97,7 @@ describe('TodoPanel', () => {
     expect(screen.getByText('Done Task')).toBeInTheDocument();
   });
 
-  it('clicking export button calls downloadIcs', () => {
+  it('clicking export button calls exportAllTodosIcs', () => {
     vi.mocked(useTodos).mockReturnValue({ data: mockTodos, isLoading: false } as any);
 
     render(
@@ -110,7 +109,7 @@ describe('TodoPanel', () => {
     const exportBtn = screen.getByTitle('Export all open to-dos to Calendar');
     fireEvent.click(exportBtn);
 
-    expect(downloadIcs).toHaveBeenCalledWith('/api/todos/export.ics', 'shoyu-todos.ics');
+    expect(exportAllTodosIcs).toHaveBeenCalled();
   });
 
   it('export button is disabled when no open todos', () => {

@@ -4,7 +4,7 @@ import TodoItem from './TodoItem';
 import { Todo, TodoPriority } from '../../types';
 import { clsx } from 'clsx';
 import { Filter, CheckCircle2, Calendar, RefreshCw } from 'lucide-react';
-import { getTodosExportUrl, downloadIcs, getCalendarToken } from '../../api/todos';
+import { exportAllTodosIcs, getCalendarToken } from '../../api/todos';
 
 export default function TodoPanel() {
   const { data: todos = [], isLoading, isError } = useTodos();
@@ -53,7 +53,7 @@ export default function TodoPanel() {
 
   const handleExportAll = async () => {
     if (!hasAnyOpen) return;
-    await downloadIcs(getTodosExportUrl(), 'shoyu-todos.ics');
+    await exportAllTodosIcs();
   };
 
   const handleSubscribeCalendar = async () => {

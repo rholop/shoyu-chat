@@ -13,7 +13,7 @@ import filesRouter from './routes/files';
 import projectsRouter from './routes/projects';
 import searchRouter, { rebuildIndexInternal } from './routes/search';
 import insightsRouter from './routes/insights';
-import todosRouter, { calendarToken } from './routes/todos';
+import todosRouter, { calendarToken, verifyDownloadToken } from './routes/todos';
 import loopsRouter from './routes/loops';
 import { requireAuth } from './middleware/authMiddleware';
 import { errorHandler } from './middleware/errorHandler';
@@ -70,6 +70,54 @@ app.get('/api/calendar/:token/subscribe.ics', async (req, res) => {
   const icsContent = icsService.generateIcs(todosWithTitle);
   res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="shoyu-todos.ics"');
+  res.send(icsContent);
+});
+
+// Short-lived token download endpoints (no cookie auth needed — token proves identity)
+app.get('/api/download/:token/:expires/todos.ics', async (req, res) => {
+  if (!verifyDownloadToken(req.params.token, req.params.expires)) {
+    res.status(401).send('Unauthorized');
+    return;
+  }
+  const todos = await todoService.getAllTodos();
+  if (todos.length === 0) {
+    res.status(404).send('No open todos');
+    return;
+  }
+  const todosWithTitle: icsService.TodoWithTitle[] = await Promise.all(
+    todos.map(async todo => {
+      const convId = todo.conversationId.replace(/^conversation-/, '');
+      const meta = getConversationMeta(convId);
+      return { ...todo, conversationTitle: meta?.title ?? 'Untitled conversation' };
+    })
+  );
+  const icsContent = icsService.generateIcs(todosWithTitle);
+  res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="shoyu-todos.ics"');
+  res.send(icsContent);
+});
+
+app.get('/api/download/:token/:expires/todos/:conversationId/:todoId.ics', async (req, res) => {
+  if (!verifyDownloadToken(req.params.token, req.params.expires)) {
+    res.status(401).send('Unauthorized');
+    return;
+  }
+  const { conversationId, todoId } = req.params;
+  const todos = await todoService.getTodos(conversationId);
+  const todo = todos.find(t => t.id === todoId);
+  if (!todo) {
+    res.status(404).send('Todo not found');
+    return;
+  }
+  const meta = getConversationMeta(conversationId.replace(/^conversation-/, ''));
+  const todoWithTitle: icsService.TodoWithTitle = {
+    ...todo,
+    conversationTitle: meta?.title ?? 'Untitled conversation'
+  };
+  const icsContent = icsService.generateIcs([todoWithTitle]);
+  const safeName = todo.text.slice(0, 30).replace(/[^a-z0-9]/gi, '-').toLowerCase();
+  res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${safeName}.ics"`);
   res.send(icsContent);
 });
 
