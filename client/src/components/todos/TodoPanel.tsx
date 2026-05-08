@@ -89,49 +89,51 @@ export default function TodoPanel() {
             <CheckCircle2 size={14} />
             Show completed
           </button>
-          <div className="flex items-center gap-2">
+        </div>
+
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Filter size={14} className="text-[#93a1a1] dark:text-slate-500" />
+            {(['all', 'now', 'soon', 'someday'] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={clsx(
+                  "px-3 py-1 text-xs font-medium rounded-full border transition-all capitalize",
+                  filter === f
+                    ? "bg-indigo-600 border-indigo-600 text-white"
+                    : "bg-transparent border-[#ccc5af] dark:border-slate-800 text-[#586e75] dark:text-slate-400 hover:border-[#93a1a1] dark:hover:border-slate-600"
+                )}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={handleExportAll}
               disabled={!hasAnyOpen}
               className={clsx(
-                "flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors border",
+                "flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors border",
                 hasAnyOpen
                   ? "bg-[#eee8d5] dark:bg-slate-900 border-[#ccc5af] dark:border-slate-800 text-[#586e75] dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-600 dark:hover:border-indigo-400"
                   : "bg-transparent border-[#eee8d5] dark:border-slate-900 text-[#93a1a1] dark:text-slate-600 cursor-not-allowed"
               )}
               title={hasAnyOpen ? "Export all open to-dos to Calendar" : "No open to-dos to export"}
             >
-              <Calendar size={14} />
-              {hasAnyOpen ? "Export ↓" : "(none)"}
+              <Calendar size={13} />
+              Export
             </button>
             <button
               onClick={handleSubscribeCalendar}
               disabled={isSubscribing}
-              className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors border bg-[#eee8d5] dark:bg-slate-900 border-[#ccc5af] dark:border-slate-800 text-[#586e75] dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-600 dark:hover:border-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors border bg-[#eee8d5] dark:bg-slate-900 border-[#ccc5af] dark:border-slate-800 text-[#586e75] dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-600 dark:hover:border-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed"
               title="Subscribe in Apple Calendar (live updates)"
             >
-              <RefreshCw size={14} className={isSubscribing ? 'animate-spin' : ''} />
+              <RefreshCw size={13} className={isSubscribing ? 'animate-spin' : ''} />
               Subscribe
             </button>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Filter size={14} className="text-[#93a1a1] dark:text-slate-500 mr-1" />
-          {(['all', 'now', 'soon', 'someday'] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={clsx(
-                "px-3 py-1 text-xs font-medium rounded-full border transition-all capitalize",
-                filter === f
-                  ? "bg-indigo-600 border-indigo-600 text-white"
-                  : "bg-transparent border-[#ccc5af] dark:border-slate-800 text-[#586e75] dark:text-slate-400 hover:border-[#93a1a1] dark:hover:border-slate-600"
-              )}
-            >
-              {f}
-            </button>
-          ))}
         </div>
       </header>
 
