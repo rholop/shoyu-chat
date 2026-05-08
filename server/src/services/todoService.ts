@@ -34,10 +34,11 @@ function mostCommon(values: string[]): string {
   return best;
 }
 
-function buildTodoPrompt(
+export function buildTodoPrompt(
   messages: { role: string; content: string }[],
   conversationTitle: string,
-  projectName: string | null
+  projectName: string | null,
+  anchorDate: string
 ): string {
   const context = projectName ? `This conversation is part of the project: "${projectName}".` : '';
   const history = messages
@@ -47,6 +48,7 @@ function buildTodoPrompt(
   return `You are extracting actionable to-do items from an AI conversation.
 
 Conversation title: "${conversationTitle}"
+Conversation date: ${anchorDate}
 ${context}
 
 Conversation:
@@ -68,24 +70,46 @@ Rules:
 - For each to-do, write one sentence explaining why you suggested it (sourceMessageHint).
 - If there are no actionable to-dos, return an empty array.
 
+Date extraction rules:
+- If the conversation mentions a specific date or deadline for a to-do item, extract it as "dueDate" in YYYY-MM-DD format.
+- Use "${anchorDate}" as today's date when resolving relative references.
+- Relative date examples and how to resolve them (assuming anchorDate is 2026-05-08):
+  - "by Friday" → find the next Friday on or after ${anchorDate} → "2026-05-08" if today is Friday, else the coming Friday
+  - "next week" → the Monday of next week → "2026-05-11"
+  - "by end of month" → the last day of the current month → "2026-05-31"
+  - "May 15th" or "the 15th" → "2026-05-15"
+  - "tomorrow" → "2026-05-09"
+  - "in two weeks" → "2026-05-22"
+- If no specific date or deadline is mentioned for a to-do, set "dueDate" to null.
+- Do not invent a date. If unsure, set "dueDate" to null.
+- Do not set a date that has already passed relative to ${anchorDate}.
+- If a date would be in the past relative to ${anchorDate}, set "dueDate" to null instead.
+
 Respond ONLY with a JSON array. No explanation, no markdown fences, no preamble.
 
 Example output:
 [
   {
-    "text": "Set up rclone R2 sync script on the VPS",
-    "priority": "soon",
-    "sourceMessageHint": "You discussed the R2 backup approach but did not complete the setup steps"
+    "text": "Deploy the updated Nginx config to production",
+    "priority": "now",
+    "dueDate": "2026-05-10",
+    "sourceMessageHint": "You said you needed to deploy before the client demo on Sunday"
   },
   {
-    "text": "Add NVIDIA_API_KEY to the production .env file",
-    "priority": "now",
-    "sourceMessageHint": "You noted the NVIDIA provider would fail without this key in production"
+    "text": "Set up rclone R2 sync script on the VPS",
+    "priority": "soon",
+    "dueDate": null,
+    "sourceMessageHint": "You discussed the R2 backup approach but did not complete the setup steps"
   }
 ]`;
 }
 
-function parseTodoResponse(raw: string): Pick<Todo, 'text' | 'priority' | 'sourceMessageHint'>[] {
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+export function parseTodoResponse(
+  raw: string,
+  anchorDate: string
+): Pick<Todo, 'text' | 'priority' | 'sourceMessageHint' | 'dueDate'>[] {
   try {
     // Strip markdown fences if the AI added them despite instructions
     const cleaned = raw
@@ -103,11 +127,22 @@ function parseTodoResponse(raw: string): Pick<Todo, 'text' | 'priority' | 'sourc
         typeof item.sourceMessageHint === 'string'
       )
       .slice(0, 3) // enforce max 3
-      .map(item => ({
-        text: item.text.slice(0, 120), // enforce max length
-        priority: item.priority as TodoPriority,
-        sourceMessageHint: item.sourceMessageHint
-      }));
+      .map(item => {
+        let dueDate: string | null = null;
+        if (
+          typeof item.dueDate === 'string' &&
+          DATE_REGEX.test(item.dueDate) &&
+          item.dueDate >= anchorDate
+        ) {
+          dueDate = item.dueDate;
+        }
+        return {
+          text: item.text.slice(0, 120), // enforce max length
+          priority: item.priority as TodoPriority,
+          sourceMessageHint: item.sourceMessageHint,
+          dueDate
+        };
+      });
   } catch {
     logger.warn('todoService: failed to parse AI todo response');
     return [];
@@ -123,13 +158,18 @@ export async function extractAndSave(conversationId: string): Promise<Todo[]> {
     }
 
     const messages = getMessages(conversationId);
-    const filteredMessages = messages.filter(m => m.role !== 'internal');
+    const nonInternalMessages = messages.filter(m => m.role !== 'internal');
 
-    if (filteredMessages.length === 0) {
+    if (nonInternalMessages.length === 0) {
       const empty: Todo[] = [];
       atomicWrite(todoPath(conversationId), JSON.stringify(empty, null, 2));
       return empty;
     }
+
+    const lastMessage = nonInternalMessages[nonInternalMessages.length - 1];
+    const anchorDate: string = (lastMessage as any)?.created_at
+      ? (lastMessage as any).created_at.slice(0, 10)
+      : new Date().toISOString().slice(0, 10);
 
     let projectId = meta.projectId ?? null;
     let projectName: string | null = null;
@@ -153,8 +193,8 @@ export async function extractAndSave(conversationId: string): Promise<Todo[]> {
       });
     const intent = mostCommon(intentValues) || 'GENERAL';
 
-    const aiResponse = await summarize(buildTodoPrompt(filteredMessages, meta.title, projectName));
-    const extracted = parseTodoResponse(aiResponse);
+    const aiResponse = await summarize(buildTodoPrompt(nonInternalMessages, meta.title, projectName, anchorDate));
+    const extracted = parseTodoResponse(aiResponse, anchorDate);
 
     const now = new Date().toISOString();
     const todos: Todo[] = extracted.map(item => ({
@@ -168,7 +208,7 @@ export async function extractAndSave(conversationId: string): Promise<Todo[]> {
       intent,
       createdAt: now,
       updatedAt: now,
-      dueDate: null,
+      dueDate: item.dueDate,
       snoozedUntil: null,
       sourceMessageHint: item.sourceMessageHint
     }));
