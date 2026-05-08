@@ -45,9 +45,28 @@ Updates a single to-do.
 **Patchable Fields:**
 - `status` ('open' | 'done' | 'snoozed')
 - `priority` ('now' | 'soon' | 'someday')
-- `dueDate` (ISO string or null)
-- `snoozedUntil` (ISO string or null)
-- `text` (string)
+- `dueDate` (YYYY-MM-DD or null) — setting auto-publishes, clearing auto-unpublishes
+- `snoozedUntil` (YYYY-MM-DD or null)
+- `text` (string, max 120 chars)
+- `startTime` (HH:MM or null)
+- `endTime` (HH:MM or null)
+- `location` (string or null)
+- `url` (valid URL string or null)
+- `notes` (string or null)
+- `alarms` (array of `TodoAlarm` objects)
+- `recurrence` (`TodoRecurrence` object or null)
+- `allDay` (boolean)
+
+**Not patchable directly:**
+- `calendarStatus` — derived from `dueDate`, ignored if sent
+
+**Validation rules for new fields:**
+- `startTime` / `endTime`: must match `HH:MM` or be null
+- `url`: must be a valid URL (passes `new URL()`) or null
+- `alarms[].trigger`: must be a negative integer
+- `alarms[].action`: must be `'DISPLAY'` or `'EMAIL'`
+- `recurrence.frequency`: must be `'DAILY'`, `'WEEKLY'`, `'MONTHLY'`, or `'YEARLY'`
+- `recurrence.interval`: must be a positive integer (≥ 1)
 
 **Request Body:**
 ```json

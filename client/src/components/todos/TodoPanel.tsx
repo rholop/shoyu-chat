@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useTodos, useUpdateTodo, useDeleteTodo } from '../../hooks/useTodos';
 import TodoItem from './TodoItem';
-import { Todo, TodoPriority } from '../../types';
+import TodoDetailEditor from './TodoDetailEditor';
+import { Todo, TodoPriority, TodoUpdateFields } from '../../types';
 import { clsx } from 'clsx';
 import { Filter, CheckCircle2, Calendar, RefreshCw } from 'lucide-react';
 import { exportAllTodosIcs, getCalendarToken } from '../../api/todos';
@@ -13,6 +14,17 @@ export default function TodoPanel() {
   const [filter, setFilter] = useState<TodoPriority | 'all'>('all');
   const [showCompleted, setShowCompleted] = useState(false);
   const [isSubscribing, setIsSubscribing] = useState(false);
+  const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
+
+  async function handleSave(updates: TodoUpdateFields) {
+    if (!editingTodo) return;
+    await updateTodo.mutateAsync({
+      conversationId: editingTodo.conversationId.replace('conversation-', ''),
+      todoId: editingTodo.id,
+      updates
+    });
+    setEditingTodo(null);
+  }
 
   if (isLoading) {
     return (
@@ -71,6 +83,13 @@ export default function TodoPanel() {
 
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-[#fdf6e3] dark:bg-slate-950 overflow-hidden">
+      {editingTodo && (
+        <TodoDetailEditor
+          todo={editingTodo}
+          onClose={() => setEditingTodo(null)}
+          onSave={handleSave}
+        />
+      )}
       <header className="px-6 py-4 border-b border-[#ccc5af] dark:border-slate-800">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -156,6 +175,7 @@ export default function TodoPanel() {
                   todo={todo}
                   onUpdate={(updates) => updateTodo.mutate({ conversationId: todo.conversationId.replace('conversation-', ''), todoId: todo.id, updates })}
                   onDelete={() => deleteTodo.mutate({ conversationId: todo.conversationId.replace('conversation-', ''), todoId: todo.id })}
+                  onOpenEditor={() => setEditingTodo(todo)}
                 />
               ))}
             </div>
@@ -176,6 +196,7 @@ export default function TodoPanel() {
                   todo={todo}
                   onUpdate={(updates) => updateTodo.mutate({ conversationId: todo.conversationId.replace('conversation-', ''), todoId: todo.id, updates })}
                   onDelete={() => deleteTodo.mutate({ conversationId: todo.conversationId.replace('conversation-', ''), todoId: todo.id })}
+                  onOpenEditor={() => setEditingTodo(todo)}
                 />
               ))}
             </div>

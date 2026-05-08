@@ -37,7 +37,9 @@ describe('todos routes', () => {
   describe('GET /api/todos/export.ics', () => {
     it('returns 200 with text/calendar content', async () => {
       const mockTodos = [
-        { id: 't1', status: 'open', text: 'Task 1', conversationId: 'conversation-1', priority: 'now' },
+        { id: 't1', status: 'open', text: 'Task 1', conversationId: 'conversation-1', priority: 'now',
+          calendarStatus: 'published', dueDate: '2026-05-08', allDay: true, alarms: [], recurrence: null,
+          startTime: null, endTime: null, location: null, url: null, notes: null, sourceMessageHint: '' },
       ];
       vi.mocked(todoService.getAllTodos).mockResolvedValue(mockTodos as any);
       vi.mocked(storage.getConversationMeta).mockReturnValue({ title: 'Conv 1' } as any);
@@ -73,7 +75,9 @@ describe('todos routes', () => {
   describe('GET /api/todos/:conversationId/:todoId/export.ics', () => {
     it('returns 200 for a single todo export', async () => {
       const mockTodos = [
-        { id: 't1', status: 'open', text: 'Task 1', conversationId: 'conversation-1', priority: 'now' },
+        { id: 't1', status: 'open', text: 'Task 1', conversationId: 'conversation-1', priority: 'now',
+          calendarStatus: 'published', dueDate: '2026-05-08', allDay: true, alarms: [], recurrence: null,
+          startTime: null, endTime: null, location: null, url: null, notes: null, sourceMessageHint: '' },
       ];
       vi.mocked(todoService.getTodos).mockResolvedValue(mockTodos as any);
       vi.mocked(storage.getConversationMeta).mockReturnValue({ title: 'Conv 1' } as any);
@@ -223,6 +227,114 @@ describe('todos routes', () => {
     it('requires auth', async () => {
       const res = await request(app).patch('/api/todos/conv-1/t1').send({ status: 'done' });
       expect(res.status).toBe(401);
+    });
+  });
+
+  describe('PATCH /api/todos/:convId/:todoId — new field validation', () => {
+    it('accepts valid startTime HH:MM', async () => {
+      vi.mocked(todoService.updateTodo).mockResolvedValue({ id: 't1' } as any);
+      const res = await request(app)
+        .patch('/api/todos/conv-1/t1')
+        .set('Cookie', [authCookie])
+        .send({ startTime: '14:00' });
+      expect(res.status).toBe(200);
+    });
+
+    it('rejects startTime with invalid format', async () => {
+      const res = await request(app)
+        .patch('/api/todos/conv-1/t1')
+        .set('Cookie', [authCookie])
+        .send({ startTime: '25:00' });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('startTime');
+    });
+
+    it('rejects endTime with invalid format', async () => {
+      const res = await request(app)
+        .patch('/api/todos/conv-1/t1')
+        .set('Cookie', [authCookie])
+        .send({ endTime: 'not-a-time' });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('endTime');
+    });
+
+    it('rejects invalid url', async () => {
+      const res = await request(app)
+        .patch('/api/todos/conv-1/t1')
+        .set('Cookie', [authCookie])
+        .send({ url: 'not-a-url' });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('url');
+    });
+
+    it('accepts null url', async () => {
+      vi.mocked(todoService.updateTodo).mockResolvedValue({ id: 't1' } as any);
+      const res = await request(app)
+        .patch('/api/todos/conv-1/t1')
+        .set('Cookie', [authCookie])
+        .send({ url: null });
+      expect(res.status).toBe(200);
+    });
+
+    it('accepts valid alarms array', async () => {
+      vi.mocked(todoService.updateTodo).mockResolvedValue({ id: 't1' } as any);
+      const res = await request(app)
+        .patch('/api/todos/conv-1/t1')
+        .set('Cookie', [authCookie])
+        .send({ alarms: [{ id: 'a1', trigger: -15, action: 'DISPLAY', description: 'Reminder' }] });
+      expect(res.status).toBe(200);
+    });
+
+    it('rejects alarm with positive trigger', async () => {
+      const res = await request(app)
+        .patch('/api/todos/conv-1/t1')
+        .set('Cookie', [authCookie])
+        .send({ alarms: [{ id: 'a1', trigger: 15, action: 'DISPLAY', description: 'Reminder' }] });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('trigger');
+    });
+
+    it('rejects alarm with invalid action', async () => {
+      const res = await request(app)
+        .patch('/api/todos/conv-1/t1')
+        .set('Cookie', [authCookie])
+        .send({ alarms: [{ id: 'a1', trigger: -15, action: 'SMS', description: 'Reminder' }] });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('action');
+    });
+
+    it('rejects invalid recurrence frequency', async () => {
+      const res = await request(app)
+        .patch('/api/todos/conv-1/t1')
+        .set('Cookie', [authCookie])
+        .send({ recurrence: { frequency: 'HOURLY', interval: 1, until: null, count: null } });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('frequency');
+    });
+
+    it('rejects recurrence interval of 0', async () => {
+      const res = await request(app)
+        .patch('/api/todos/conv-1/t1')
+        .set('Cookie', [authCookie])
+        .send({ recurrence: { frequency: 'DAILY', interval: 0, until: null, count: null } });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('interval');
+    });
+
+    it('does not allow calendarStatus to be set directly', async () => {
+      const updatedTodo = { id: 't1', calendarStatus: 'pending' };
+      vi.mocked(todoService.updateTodo).mockResolvedValue(updatedTodo as any);
+
+      // calendarStatus is not in the allowed fields list, so it should be stripped
+      // The call to updateTodo should not include calendarStatus
+      const res = await request(app)
+        .patch('/api/todos/conv-1/t1')
+        .set('Cookie', [authCookie])
+        .send({ calendarStatus: 'published', text: 'New text' });
+
+      expect(res.status).toBe(200);
+      const callArgs = vi.mocked(todoService.updateTodo).mock.calls[0][2] as any;
+      expect(callArgs.calendarStatus).toBeUndefined();
     });
   });
 });

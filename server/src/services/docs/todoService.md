@@ -2,6 +2,64 @@
 
 Extracts actionable to-do items from conversations using an AI summarization call and persists them to `todos.json` per conversation.
 
+## New Fields on `Todo`
+
+In addition to the original fields, each `Todo` now carries:
+
+| Field | Type | Description |
+|---|---|---|
+| `calendarStatus` | `'pending' \| 'published'` | Derived from `dueDate`. Never set directly by client. |
+| `startTime` | `string \| null` | HH:MM (24hr). If null, event is all-day. |
+| `endTime` | `string \| null` | HH:MM (24hr). Defaults to startTime + 1 hour in ICS generation. |
+| `location` | `string \| null` | Free text location (e.g. "Zoom" or "123 Main St"). |
+| `url` | `string \| null` | URL associated with the event. |
+| `notes` | `string \| null` | Longer description / notes. |
+| `alarms` | `TodoAlarm[]` | Array of reminders. Empty by default. |
+| `recurrence` | `TodoRecurrence \| null` | Recurrence rule. null = no recurrence. |
+| `allDay` | `boolean` | True = all-day event. False = timed event. Default: true. |
+
+## Default Values on Creation
+
+In `extractAndSave()`, new todos are created with:
+
+```typescript
+calendarStatus: item.dueDate ? 'published' : 'pending',
+startTime: null,
+endTime: null,
+location: null,
+url: null,
+notes: null,
+alarms: [],
+recurrence: null,
+allDay: true,
+```
+
+If the AI extracted a `dueDate`, `calendarStatus` is `'published'` immediately. Otherwise `'pending'`.
+
+## Auto-Publish Logic in `updateTodo()`
+
+`calendarStatus` is always derived — never directly set by the client:
+
+- When `dueDate` is set to a non-null value AND `calendarStatus === 'pending'` → auto-set to `'published'`
+- When `dueDate` is cleared to null AND `calendarStatus === 'published'` → auto-set to `'pending'`
+- If client sends `calendarStatus` in updates, it is ignored (not in `TodoUpdateFields`)
+
+## `TodoUpdateFields`
+
+The type of the `updates` argument to `updateTodo()`. Includes:
+
+```typescript
+export type TodoUpdateFields = Partial<Pick<Todo,
+  | 'status' | 'priority' | 'text' | 'dueDate'
+  | 'startTime' | 'endTime' | 'location' | 'url' | 'notes'
+  | 'alarms' | 'recurrence' | 'allDay'
+>>;
+```
+
+**Excluded** (not directly patchable via this type):
+- `calendarStatus` — derived from `dueDate`
+- `snoozedUntil` — managed by the snooze route, passed separately
+
 ## Date Extraction
 
 When extracting to-dos, the service resolves date references in the conversation to absolute `YYYY-MM-DD` values stored in the `dueDate` field.

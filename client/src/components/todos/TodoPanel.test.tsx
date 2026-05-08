@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import TodoPanel from './TodoPanel';
 import { useTodos, useUpdateTodo, useDeleteTodo } from '../../hooks/useTodos';
 import { exportAllTodosIcs } from '../../api/todos';
@@ -12,10 +12,16 @@ vi.mock('../../api/todos', () => ({
   getCalendarToken: vi.fn().mockResolvedValue('test-token'),
 }));
 
+const newFields = {
+  calendarStatus: 'pending' as const,
+  startTime: null, endTime: null, location: null, url: null, notes: null,
+  alarms: [], recurrence: null, allDay: true,
+};
+
 const mockTodos = [
-  { id: 't1', conversationId: 'c1', text: 'Now Task', priority: 'now', status: 'open', createdAt: '2026-05-01', sourceMessageHint: 'H1' },
-  { id: 't2', conversationId: 'c1', text: 'Soon Task', priority: 'soon', status: 'open', createdAt: '2026-05-01', sourceMessageHint: 'H2' },
-  { id: 't3', conversationId: 'c1', text: 'Done Task', priority: 'now', status: 'done', createdAt: '2026-05-01', sourceMessageHint: 'H3', updatedAt: '2026-05-02' },
+  { id: 't1', conversationId: 'c1', text: 'Now Task', priority: 'now', status: 'open', createdAt: '2026-05-01', sourceMessageHint: 'H1', ...newFields },
+  { id: 't2', conversationId: 'c1', text: 'Soon Task', priority: 'soon', status: 'open', createdAt: '2026-05-01', sourceMessageHint: 'H2', ...newFields },
+  { id: 't3', conversationId: 'c1', text: 'Done Task', priority: 'now', status: 'done', createdAt: '2026-05-01', sourceMessageHint: 'H3', updatedAt: '2026-05-02', ...newFields },
 ];
 
 describe('TodoPanel', () => {
@@ -122,5 +128,58 @@ describe('TodoPanel', () => {
 
     const exportBtn = screen.getByTitle('No open to-dos to export');
     expect(exportBtn).toBeDisabled();
+  });
+
+  it('does not render TodoDetailEditor when no todo is being edited', () => {
+    vi.mocked(useTodos).mockReturnValue({ data: mockTodos, isLoading: false } as any);
+    render(
+      <BrowserRouter>
+        <TodoPanel />
+      </BrowserRouter>
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('renders TodoDetailEditor when a todo row is clicked', () => {
+    vi.mocked(useTodos).mockReturnValue({ data: mockTodos, isLoading: false } as any);
+    render(
+      <BrowserRouter>
+        <TodoPanel />
+      </BrowserRouter>
+    );
+    fireEvent.click(screen.getByText('Now Task'));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Edit To-Do')).toBeInTheDocument();
+  });
+
+  it('closes TodoDetailEditor when onClose is called', () => {
+    vi.mocked(useTodos).mockReturnValue({ data: mockTodos, isLoading: false } as any);
+    render(
+      <BrowserRouter>
+        <TodoPanel />
+      </BrowserRouter>
+    );
+    fireEvent.click(screen.getByText('Now Task'));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('calls updateTodo mutation and closes editor on save', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({});
+    vi.mocked(useUpdateTodo).mockReturnValue({ mutateAsync, mutate: vi.fn() } as any);
+    vi.mocked(useTodos).mockReturnValue({ data: mockTodos, isLoading: false } as any);
+    render(
+      <BrowserRouter>
+        <TodoPanel />
+      </BrowserRouter>
+    );
+    fireEvent.click(screen.getByText('Now Task'));
+    // Change title to have something to save
+    const titleInput = screen.getByLabelText(/title/i);
+    fireEvent.change(titleInput, { target: { value: 'New title' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 });

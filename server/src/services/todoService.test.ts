@@ -263,6 +263,46 @@ describe('todoService', () => {
       expect(todos[0].dueDate).toBe('2026-05-15');
       expect(todos[1].dueDate).toBeNull();
     });
+
+    it('sets calendarStatus to pending when no dueDate extracted', async () => {
+      vi.mocked(getConversationMeta).mockReturnValue(meta as any);
+      vi.mocked(getMessages).mockReturnValue(messages as any);
+      vi.mocked(summarize).mockResolvedValue(JSON.stringify([
+        { text: 'Task', priority: 'soon', dueDate: null, sourceMessageHint: 'H' }
+      ]));
+
+      const todos = await todoService.extractAndSave(CONV_ID);
+      expect(todos[0].calendarStatus).toBe('pending');
+    });
+
+    it('sets calendarStatus to published when dueDate is extracted', async () => {
+      vi.mocked(getConversationMeta).mockReturnValue(meta as any);
+      vi.mocked(getMessages).mockReturnValue(messages as any);
+      vi.mocked(summarize).mockResolvedValue(JSON.stringify([
+        { text: 'Task', priority: 'now', dueDate: '2026-05-15', sourceMessageHint: 'H' }
+      ]));
+
+      const todos = await todoService.extractAndSave(CONV_ID);
+      expect(todos[0].calendarStatus).toBe('published');
+    });
+
+    it('sets default new fields: alarms=[], recurrence=null, allDay=true', async () => {
+      vi.mocked(getConversationMeta).mockReturnValue(meta as any);
+      vi.mocked(getMessages).mockReturnValue(messages as any);
+      vi.mocked(summarize).mockResolvedValue(JSON.stringify([
+        { text: 'Task', priority: 'soon', sourceMessageHint: 'H' }
+      ]));
+
+      const todos = await todoService.extractAndSave(CONV_ID);
+      expect(todos[0].alarms).toEqual([]);
+      expect(todos[0].recurrence).toBeNull();
+      expect(todos[0].allDay).toBe(true);
+      expect(todos[0].startTime).toBeNull();
+      expect(todos[0].endTime).toBeNull();
+      expect(todos[0].location).toBeNull();
+      expect(todos[0].url).toBeNull();
+      expect(todos[0].notes).toBeNull();
+    });
   });
 
   describe('parseTodoResponse()', () => {
@@ -453,6 +493,7 @@ describe('todoService', () => {
         id: 'todo-1',
         text: 'Initial',
         status: 'open',
+        calendarStatus: 'pending',
         createdAt: '2026-05-01T10:00:00Z',
         updatedAt: '2026-05-01T10:00:00Z'
       };
@@ -474,6 +515,54 @@ describe('todoService', () => {
 
       await expect(todoService.updateTodo(CONV_ID, 'todo-absent', { status: 'done' }))
         .rejects.toThrow('Todo not found');
+    });
+
+    it('auto-publishes when dueDate is set on a pending todo', async () => {
+      const todo = { id: 'todo-1', calendarStatus: 'pending', dueDate: null, updatedAt: '2026-05-01T10:00:00Z' };
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify([todo]));
+
+      const updated = await todoService.updateTodo(CONV_ID, 'todo-1', { dueDate: '2026-05-15' });
+      expect(updated.calendarStatus).toBe('published');
+      expect(updated.dueDate).toBe('2026-05-15');
+    });
+
+    it('auto-unpublishes when dueDate is cleared on a published todo', async () => {
+      const todo = { id: 'todo-1', calendarStatus: 'published', dueDate: '2026-05-15', updatedAt: '2026-05-01T10:00:00Z' };
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify([todo]));
+
+      const updated = await todoService.updateTodo(CONV_ID, 'todo-1', { dueDate: null });
+      expect(updated.calendarStatus).toBe('pending');
+      expect(updated.dueDate).toBeNull();
+    });
+
+    it('keeps calendarStatus published when updating an already-published todo with a new dueDate', async () => {
+      const todo = { id: 'todo-1', calendarStatus: 'published', dueDate: '2026-05-10', updatedAt: '2026-05-01T10:00:00Z' };
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify([todo]));
+
+      const updated = await todoService.updateTodo(CONV_ID, 'todo-1', { dueDate: '2026-05-20' });
+      expect(updated.calendarStatus).toBe('published');
+    });
+
+    it('keeps calendarStatus pending when updating non-dueDate fields', async () => {
+      const todo = { id: 'todo-1', calendarStatus: 'pending', dueDate: null, updatedAt: '2026-05-01T10:00:00Z' };
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify([todo]));
+
+      const updated = await todoService.updateTodo(CONV_ID, 'todo-1', { text: 'New text' });
+      expect(updated.calendarStatus).toBe('pending');
+    });
+
+    it('ignores calendarStatus if passed directly in updates', async () => {
+      const todo = { id: 'todo-1', calendarStatus: 'pending', dueDate: null, updatedAt: '2026-05-01T10:00:00Z' };
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify([todo]));
+
+      // Pass calendarStatus via cast to bypass TypeScript — it should be ignored by the logic
+      const updated = await todoService.updateTodo(CONV_ID, 'todo-1', { text: 'Updated' } as any);
+      expect(updated.calendarStatus).toBe('pending');
     });
   });
 

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as todosApi from '../api/todos';
-import type { Todo } from '../types';
+import type { TodoUpdateFields } from '../types';
 
 export function useTodos() {
   return useQuery({
@@ -19,7 +19,7 @@ export function useUpdateTodo() {
     }: {
       conversationId: string;
       todoId: string;
-      updates: Partial<Pick<Todo, 'status' | 'priority' | 'dueDate' | 'snoozedUntil' | 'text'>>;
+      updates: TodoUpdateFields & { snoozedUntil?: string | null };
     }) => todosApi.updateTodo(conversationId, todoId, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['todos'] });

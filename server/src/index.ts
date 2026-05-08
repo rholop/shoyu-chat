@@ -54,13 +54,14 @@ app.get('/api/calendar/:token/subscribe.ics', async (req, res) => {
   }
 
   const todos = await todoService.getAllTodos();
-  if (todos.length === 0) {
-    res.status(404).send('No open todos');
+  const publishedTodos = todos.filter(t => t.calendarStatus === 'published' && t.dueDate);
+  if (publishedTodos.length === 0) {
+    res.status(404).send('No published todos');
     return;
   }
 
   const todosWithTitle: icsService.TodoWithTitle[] = await Promise.all(
-    todos.map(async todo => {
+    publishedTodos.map(async todo => {
       const convId = todo.conversationId.replace(/^conversation-/, '');
       const meta = getConversationMeta(convId);
       return { ...todo, conversationTitle: meta?.title ?? 'Untitled conversation' };

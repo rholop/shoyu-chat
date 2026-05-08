@@ -155,6 +155,22 @@ export type SSEEvent =
 
 export type TodoPriority = 'now' | 'soon' | 'someday';
 export type TodoStatus = 'open' | 'done' | 'snoozed';
+export type CalendarStatus = 'pending' | 'published';
+export type RecurrenceFrequency = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+
+export interface TodoAlarm {
+  id: string;
+  trigger: number;
+  action: 'DISPLAY' | 'EMAIL';
+  description: string;
+}
+
+export interface TodoRecurrence {
+  frequency: RecurrenceFrequency;
+  interval: number;
+  until: string | null;
+  count: number | null;
+}
 
 export interface Todo {
   id: string;
@@ -170,7 +186,31 @@ export interface Todo {
   dueDate: string | null;
   snoozedUntil: string | null;
   sourceMessageHint: string;
+  calendarStatus: CalendarStatus;
+  startTime: string | null;
+  endTime: string | null;
+  location: string | null;
+  url: string | null;
+  notes: string | null;
+  alarms: TodoAlarm[];
+  recurrence: TodoRecurrence | null;
+  allDay: boolean;
 }
+
+export type TodoUpdateFields = Partial<Pick<Todo,
+  | 'status'
+  | 'priority'
+  | 'text'
+  | 'dueDate'
+  | 'startTime'
+  | 'endTime'
+  | 'location'
+  | 'url'
+  | 'notes'
+  | 'alarms'
+  | 'recurrence'
+  | 'allDay'
+>>;
 
 export interface ProjectSuggestion {
   topic: string;

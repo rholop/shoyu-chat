@@ -24,6 +24,15 @@ const mockTodo: Todo = {
   dueDate: null,
   snoozedUntil: null,
   sourceMessageHint: 'Source hint',
+  calendarStatus: 'pending',
+  startTime: null,
+  endTime: null,
+  location: null,
+  url: null,
+  notes: null,
+  alarms: [],
+  recurrence: null,
+  allDay: true,
 };
 
 describe('TodoItem', () => {
@@ -111,5 +120,51 @@ describe('TodoItem', () => {
     fireEvent.click(exportBtn);
 
     expect(exportSingleTodoIcs).toHaveBeenCalledWith('c1', 't1');
+  });
+
+  it('renders pending badge when calendarStatus is pending', () => {
+    render(
+      <BrowserRouter>
+        <TodoItem todo={mockTodo} onUpdate={vi.fn()} onDelete={vi.fn()} />
+      </BrowserRouter>
+    );
+    expect(screen.getByTitle('Not yet in calendar — set a date to publish')).toBeInTheDocument();
+    expect(screen.getByText('Pending')).toBeInTheDocument();
+  });
+
+  it('does not render pending badge when calendarStatus is published', () => {
+    const published = { ...mockTodo, calendarStatus: 'published' as const, dueDate: '2026-05-10' };
+    render(
+      <BrowserRouter>
+        <TodoItem todo={published} onUpdate={vi.fn()} onDelete={vi.fn()} />
+      </BrowserRouter>
+    );
+    expect(screen.queryByText('Pending')).not.toBeInTheDocument();
+  });
+
+  it('clicking the todo content area calls onOpenEditor', () => {
+    const onOpenEditor = vi.fn();
+    render(
+      <BrowserRouter>
+        <TodoItem todo={mockTodo} onUpdate={vi.fn()} onDelete={vi.fn()} onOpenEditor={onOpenEditor} />
+      </BrowserRouter>
+    );
+    // Click on the main content area (flex-1 div containing text)
+    fireEvent.click(screen.getByText('Test Todo'));
+    expect(onOpenEditor).toHaveBeenCalledTimes(1);
+  });
+
+  it('clicking the checkbox does not call onOpenEditor', () => {
+    const onOpenEditor = vi.fn();
+    const onUpdate = vi.fn();
+    render(
+      <BrowserRouter>
+        <TodoItem todo={mockTodo} onUpdate={onUpdate} onDelete={vi.fn()} onOpenEditor={onOpenEditor} />
+      </BrowserRouter>
+    );
+    const checkbox = screen.getByRole('button', { name: '' });
+    fireEvent.click(checkbox);
+    expect(onOpenEditor).not.toHaveBeenCalled();
+    expect(onUpdate).toHaveBeenCalled();
   });
 });
