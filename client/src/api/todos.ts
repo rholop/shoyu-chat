@@ -48,18 +48,20 @@ export function getSingleTodoExportUrl(conversationId: string, todoId: string): 
   return `${BASE}/${conversationId}/${todoId}/export.ics`;
 }
 
-export async function downloadIcs(url: string, filename: string): Promise<void> {
-  const res = await fetch(url, { credentials: 'include' });
-  if (!res.ok) throw new Error('Failed to download calendar file');
-  const blob = await res.blob();
-  const objectUrl = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = objectUrl;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(objectUrl);
+async function getDownloadToken(): Promise<{ token: string; expires: number }> {
+  const res = await fetch(`${BASE}/download-token`, { credentials: 'include' });
+  if (!res.ok) throw new Error('Failed to get download token');
+  return res.json();
+}
+
+export async function exportAllTodosIcs(): Promise<void> {
+  const { token, expires } = await getDownloadToken();
+  window.location.href = `/api/download/${token}/${expires}/todos.ics`;
+}
+
+export async function exportSingleTodoIcs(conversationId: string, todoId: string): Promise<void> {
+  const { token, expires } = await getDownloadToken();
+  window.location.href = `/api/download/${token}/${expires}/todos/${conversationId}/${todoId}.ics`;
 }
 
 export async function getCalendarToken(): Promise<string> {

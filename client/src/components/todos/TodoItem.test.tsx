@@ -4,12 +4,10 @@ import TodoItem from './TodoItem';
 import { Todo } from '../../types';
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
-import { downloadIcs } from '../../api/todos';
+import { exportSingleTodoIcs } from '../../api/todos';
 
 vi.mock('../../api/todos', () => ({
-  getSingleTodoExportUrl: (convId: string, todoId: string) =>
-    `/api/todos/${convId}/${todoId}/export.ics`,
-  downloadIcs: vi.fn().mockResolvedValue(undefined),
+  exportSingleTodoIcs: vi.fn().mockResolvedValue(undefined),
 }));
 
 const mockTodo: Todo = {
@@ -102,7 +100,7 @@ describe('TodoItem', () => {
     expect(screen.getByText('Test Todo')).toHaveClass('line-through');
   });
 
-  it('clicking export icon calls downloadIcs with the correct URL', () => {
+  it('clicking export icon calls exportSingleTodoIcs with the correct ids', () => {
     render(
       <BrowserRouter>
         <TodoItem todo={mockTodo} onUpdate={vi.fn()} onDelete={vi.fn()} />
@@ -112,9 +110,6 @@ describe('TodoItem', () => {
     const exportBtn = screen.getByTitle('Export to Calendar');
     fireEvent.click(exportBtn);
 
-    expect(downloadIcs).toHaveBeenCalledWith(
-      '/api/todos/c1/t1/export.ics',
-      expect.any(String)
-    );
+    expect(exportSingleTodoIcs).toHaveBeenCalledWith('c1', 't1');
   });
 });

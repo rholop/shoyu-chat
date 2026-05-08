@@ -11,6 +11,27 @@ export function calendarToken(userId: number): string {
     .digest('hex');
 }
 
+export function generateDownloadToken(): { token: string; expires: number } {
+  const expires = Math.floor(Date.now() / 1000) + 300; // 5 minutes
+  const token = crypto.createHmac('sha256', process.env.JWT_SECRET!)
+    .update(`dl|${expires}`)
+    .digest('hex');
+  return { token, expires };
+}
+
+export function verifyDownloadToken(token: string, expires: string | number): boolean {
+  const exp = typeof expires === 'string' ? parseInt(expires, 10) : expires;
+  if (!Number.isFinite(exp) || exp < Math.floor(Date.now() / 1000)) return false;
+  const expected = crypto.createHmac('sha256', process.env.JWT_SECRET!)
+    .update(`dl|${exp}`)
+    .digest('hex');
+  try {
+    return crypto.timingSafeEqual(Buffer.from(token, 'hex'), Buffer.from(expected, 'hex'));
+  } catch {
+    return false;
+  }
+}
+
 const router = Router();
 
 const SAFE_ID_RE = /^[a-zA-Z0-9_-]+$/;
@@ -88,6 +109,11 @@ router.get('/', async (req, res) => {
 router.get('/calendar-token', (req, res) => {
   const token = calendarToken(req.user!.userId);
   res.json({ token });
+});
+
+router.get('/download-token', (_req, res) => {
+  const { token, expires } = generateDownloadToken();
+  res.json({ token, expires });
 });
 
 router.get('/conversation/:conversationId', async (req, res) => {
