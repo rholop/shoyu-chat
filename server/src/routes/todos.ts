@@ -1,8 +1,15 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import * as todoService from '../services/todoService';
 import * as icsService from '../services/icsService';
 import { getConversationMeta } from '../storage';
 import { TodoPriority, TodoStatus } from '../types';
+
+export function calendarToken(userId: number): string {
+  return crypto.createHmac('sha256', process.env.JWT_SECRET!)
+    .update(`calendar|${userId}`)
+    .digest('hex');
+}
 
 const router = Router();
 
@@ -67,7 +74,7 @@ router.get('/:conversationId/:todoId/export.ics', async (req, res) => {
 });
 
 router.get('/', async (req, res) => {
-  const todos = await todoService.getAllTodos();
+  const todos = await todoService.getAllTodosWithStatus();
   // Sort: now → soon → someday, then createdAt desc within each group
   const order: Record<string, number> = { now: 0, soon: 1, someday: 2 };
   todos.sort((a, b) => {
@@ -76,6 +83,11 @@ router.get('/', async (req, res) => {
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
   res.json({ todos });
+});
+
+router.get('/calendar-token', (req, res) => {
+  const token = calendarToken(req.user!.userId);
+  res.json({ token });
 });
 
 router.get('/conversation/:conversationId', async (req, res) => {

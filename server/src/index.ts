@@ -13,7 +13,7 @@ import filesRouter from './routes/files';
 import projectsRouter from './routes/projects';
 import searchRouter, { rebuildIndexInternal } from './routes/search';
 import insightsRouter from './routes/insights';
-import todosRouter from './routes/todos';
+import todosRouter, { calendarToken } from './routes/todos';
 import loopsRouter from './routes/loops';
 import { requireAuth } from './middleware/authMiddleware';
 import { errorHandler } from './middleware/errorHandler';
@@ -23,7 +23,9 @@ import { recoverSummaryTimers } from './services/summaryService';
 import { SearchIndexService } from './services/searchIndexService';
 import path from 'path';
 import fs from 'fs';
-import { dataDir } from './storage';
+import { dataDir, getConversationMeta } from './storage';
+import * as todoService from './services/todoService';
+import * as icsService from './services/icsService';
 
 const REQUIRED_ENV = ['JWT_SECRET'] as const;
 for (const key of REQUIRED_ENV) {
@@ -43,6 +45,34 @@ app.use(cookieParser());
 app.use(cors({ origin: false }));
 
 app.use('/api/auth', authRouter);
+
+app.get('/api/calendar/:token/subscribe.ics', async (req, res) => {
+  const expectedToken = calendarToken(1);
+  if (req.params.token !== expectedToken) {
+    res.status(401).send('Unauthorized');
+    return;
+  }
+
+  const todos = await todoService.getAllTodos();
+  if (todos.length === 0) {
+    res.status(404).send('No open todos');
+    return;
+  }
+
+  const todosWithTitle: icsService.TodoWithTitle[] = await Promise.all(
+    todos.map(async todo => {
+      const convId = todo.conversationId.replace(/^conversation-/, '');
+      const meta = getConversationMeta(convId);
+      return { ...todo, conversationTitle: meta?.title ?? 'Untitled conversation' };
+    })
+  );
+
+  const icsContent = icsService.generateIcs(todosWithTitle);
+  res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="shoyu-todos.ics"');
+  res.send(icsContent);
+});
+
 app.use('/api/conversations', requireAuth, conversationsRouter);
 app.use('/api/chat', requireAuth, chatRouter);
 app.use('/api/suggestions', requireAuth, suggestionsRouter);

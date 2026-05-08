@@ -3,7 +3,7 @@ import { Check, Square, Trash2, Link as LinkIcon, Clock, Calendar } from 'lucide
 import { Todo, TodoPriority } from '../../types';
 import { clsx } from 'clsx';
 import { Link } from 'react-router-dom';
-import { getSingleTodoExportUrl } from '../../api/todos';
+import { getSingleTodoExportUrl, downloadIcs } from '../../api/todos';
 
 interface TodoItemProps {
   todo: Todo;
@@ -53,10 +53,12 @@ export default function TodoItem({ todo, onUpdate, onDelete }: TodoItemProps) {
 
   const handleExport = (e: React.MouseEvent) => {
     e.stopPropagation();
-    window.location.href = getSingleTodoExportUrl(
+    const url = getSingleTodoExportUrl(
       todo.conversationId.replace(/^conversation-/, ''),
       todo.id
     );
+    const safeName = todo.text.slice(0, 30).replace(/[^a-z0-9]/gi, '-').toLowerCase();
+    downloadIcs(url, `${safeName}.ics`);
   };
 
   const handleEditSubmit = () => {

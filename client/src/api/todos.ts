@@ -47,3 +47,24 @@ export function getTodosExportUrl(): string {
 export function getSingleTodoExportUrl(conversationId: string, todoId: string): string {
   return `${BASE}/${conversationId}/${todoId}/export.ics`;
 }
+
+export async function downloadIcs(url: string, filename: string): Promise<void> {
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) throw new Error('Failed to download calendar file');
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(objectUrl);
+}
+
+export async function getCalendarToken(): Promise<string> {
+  const res = await fetch(`${BASE}/calendar-token`, { credentials: 'include' });
+  if (!res.ok) throw new Error('Failed to get calendar token');
+  const data = await res.json();
+  return data.token;
+}
