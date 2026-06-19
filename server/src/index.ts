@@ -19,6 +19,7 @@ import { requireAuth } from './middleware/authMiddleware';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
 import { scheduleWeeklyDigest, sendWeeklyDigest } from './jobs/weeklyDigest';
+import { scheduleTodoMaintenance, runTodoMaintenance } from './jobs/todoMaintenance';
 import { recoverSummaryTimers } from './services/summaryService';
 import { SearchIndexService } from './services/searchIndexService';
 import path from 'path';
@@ -143,6 +144,8 @@ app.listen(PORT, () => {
   logger.info(`Server listening on port ${PORT}`);
   recoverSummaryTimers();
   scheduleWeeklyDigest();
+  scheduleTodoMaintenance();
+  runTodoMaintenance().catch((err) => logger.error('Initial todo maintenance run failed:', err));
 
   // Auto-seed search index from existing data if missing
   const indexPath = path.join(dataDir(), 'search-index.jsonl');

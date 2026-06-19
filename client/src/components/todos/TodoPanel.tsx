@@ -4,8 +4,21 @@ import TodoItem from './TodoItem';
 import TodoDetailEditor from './TodoDetailEditor';
 import { Todo, TodoPriority, TodoUpdateFields } from '../../types';
 import { clsx } from 'clsx';
-import { Filter, CheckCircle2, Calendar, RefreshCw } from 'lucide-react';
+import { Filter, CheckCircle2, Calendar, RefreshCw, Clock, AlertCircle } from 'lucide-react';
 import { exportAllTodosIcs, getCalendarToken } from '../../api/todos';
+
+const STALE_SOON_DAYS = 30;
+const STALE_SOMEDAY_DAYS = 60;
+
+// Mirrors the server's staleness rule in todoDigestService.ts: open, no due date, never edited
+// since creation, and old for its priority. Surfaced for the user to review — never auto-removed.
+function isStale(todo: Todo): boolean {
+  if (todo.status !== 'open' || todo.dueDate || todo.updatedAt !== todo.createdAt) return false;
+  const ageDays = (Date.now() - new Date(todo.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+  if (todo.priority === 'soon') return ageDays > STALE_SOON_DAYS;
+  if (todo.priority === 'someday') return ageDays > STALE_SOMEDAY_DAYS;
+  return false;
+}
 
 export default function TodoPanel() {
   const { data: todos = [], isLoading, isError } = useTodos();
@@ -13,6 +26,8 @@ export default function TodoPanel() {
   const deleteTodo = useDeleteTodo();
   const [filter, setFilter] = useState<TodoPriority | 'all'>('all');
   const [showCompleted, setShowCompleted] = useState(false);
+  const [showSnoozed, setShowSnoozed] = useState(false);
+  const [reviewOnly, setReviewOnly] = useState(false);
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
 
@@ -50,10 +65,17 @@ export default function TodoPanel() {
     );
   }
 
-  const openTodos = todos.filter(t => t.status === 'open' || t.status === 'snoozed');
+  // Snoozed todos are hidden from the active groups until the backend wakes them back up to
+  // 'open' on their snoozedUntil date — surfaced separately so snoozing actually hides them.
+  const openTodos = todos.filter(t => t.status === 'open');
+  const snoozedTodos = todos.filter(t => t.status === 'snoozed');
   const doneTodos = todos.filter(t => t.status === 'done');
 
-  const filteredOpen = openTodos.filter(t => filter === 'all' || t.priority === filter);
+  const staleCount = openTodos.filter(isStale).length;
+
+  const filteredOpen = openTodos.filter(t =>
+    (filter === 'all' || t.priority === filter) && (!reviewOnly || isStale(t))
+  );
 
   const groups: { label: string; priority: TodoPriority; items: Todo[] }[] = [
     { label: 'Now', priority: 'now', items: filteredOpen.filter(t => t.priority === 'now') },
@@ -96,18 +118,34 @@ export default function TodoPanel() {
             <h1 className="text-xl font-bold text-[#073642] dark:text-white">To-Dos</h1>
             <span className="text-sm text-[#93a1a1] dark:text-slate-500">({openTodos.length} open)</span>
           </div>
-          <button
-            onClick={() => setShowCompleted(!showCompleted)}
-            className={clsx(
-              "flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors",
-              showCompleted
-                ? "bg-indigo-600 text-white"
-                : "bg-[#eee8d5] dark:bg-slate-900 text-[#586e75] dark:text-slate-400 hover:text-[#073642] dark:hover:text-white"
+          <div className="flex items-center gap-2">
+            {snoozedTodos.length > 0 && (
+              <button
+                onClick={() => setShowSnoozed(!showSnoozed)}
+                className={clsx(
+                  "flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors",
+                  showSnoozed
+                    ? "bg-indigo-600 text-white"
+                    : "bg-[#eee8d5] dark:bg-slate-900 text-[#586e75] dark:text-slate-400 hover:text-[#073642] dark:hover:text-white"
+                )}
+              >
+                <Clock size={14} />
+                Snoozed ({snoozedTodos.length})
+              </button>
             )}
-          >
-            <CheckCircle2 size={14} />
-            Show completed
-          </button>
+            <button
+              onClick={() => setShowCompleted(!showCompleted)}
+              className={clsx(
+                "flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors",
+                showCompleted
+                  ? "bg-indigo-600 text-white"
+                  : "bg-[#eee8d5] dark:bg-slate-900 text-[#586e75] dark:text-slate-400 hover:text-[#073642] dark:hover:text-white"
+              )}
+            >
+              <CheckCircle2 size={14} />
+              Show completed
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center justify-between gap-2">
@@ -127,6 +165,21 @@ export default function TodoPanel() {
                 {f}
               </button>
             ))}
+            {staleCount > 0 && (
+              <button
+                onClick={() => setReviewOnly(!reviewOnly)}
+                title="Open to-dos with no due date that haven't been touched in a while"
+                className={clsx(
+                  "flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full border transition-all",
+                  reviewOnly
+                    ? "bg-amber-600 border-amber-600 text-white"
+                    : "bg-transparent border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-500 hover:border-amber-500"
+                )}
+              >
+                <AlertCircle size={12} />
+                Needs review ({staleCount})
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
@@ -181,6 +234,27 @@ export default function TodoPanel() {
             </div>
           </section>
         ))}
+
+        {showSnoozed && snoozedTodos.length > 0 && (
+          <section>
+            <h2 className="text-xs font-bold uppercase tracking-widest text-[#93a1a1] dark:text-slate-500 mb-3 ml-1">
+              Snoozed
+            </h2>
+            <div className="space-y-1">
+              {snoozedTodos
+                .sort((a, b) => (a.snoozedUntil ?? '').localeCompare(b.snoozedUntil ?? ''))
+                .map(todo => (
+                <TodoItem
+                  key={todo.id}
+                  todo={todo}
+                  onUpdate={(updates) => updateTodo.mutate({ conversationId: todo.conversationId.replace('conversation-', ''), todoId: todo.id, updates })}
+                  onDelete={() => deleteTodo.mutate({ conversationId: todo.conversationId.replace('conversation-', ''), todoId: todo.id })}
+                  onOpenEditor={() => setEditingTodo(todo)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
 
         {showCompleted && doneTodos.length > 0 && (
           <section>

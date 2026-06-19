@@ -132,6 +132,20 @@ export function buildDigestEmailHtml(params: DigestEmailParams): string {
         </li>`).join('')}
     </ul>` : ''}
 
+    ${todoDigest.stale.length > 0 ? `
+    <h3 style="font-size: 14px; margin-bottom: 8px; color: #b45309;">Needs Review — Stale (${todoDigest.stale.length})</h3>
+    <p style="font-size: 12px; color: #64748b; margin: 0 0 8px 0;">No due date, untouched since they were created. Keep, reprioritize, or delete them.</p>
+    <ul style="list-style: none; padding: 0; margin: 0 0 16px 0; font-size: 14px; line-height: 1.6;">
+      ${todoDigest.stale.map(t => `
+        <li style="margin-bottom: 8px;">
+          ${renderPriorityBadge(t.priority)}
+          ${escapeHtml(t.text)}
+          <div style="font-size: 12px; color: #64748b; margin-top: 2px;">
+            created ${t.createdAt.slice(0, 10)}
+          </div>
+        </li>`).join('')}
+    </ul>` : ''}
+
     <p style="font-size: 12px; color: #64748b; border-top: 1px dashed #e2e8f0; padding-top: 8px; margin-top: 12px;">
       ${todoDigest.totalOpen} open · ${todoDigest.totalDone} completed all time
     </p>

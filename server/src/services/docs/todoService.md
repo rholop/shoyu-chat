@@ -2,6 +2,20 @@
 
 Extracts actionable to-do items from conversations using an AI summarization call and persists them to `todos.json` per conversation.
 
+## Merge, never overwrite
+
+`extractAndSave()` is called every time a conversation goes idle (see `summaryService`), which can happen more than once for the same conversation (multi-day/multi-session conversations). Each run:
+
+1. Loads the conversation's existing todos first and never mutates or removes them — any user edits (status, text, due date, etc.) survive re-extraction.
+2. Builds a dedup context from existing todos in the same conversation, plus (if the conversation belongs to a project) existing todos anywhere in that project, of any status. This list is both passed to the AI prompt (asking it not to repeat them) and used as a programmatic backstop (`isDuplicateTodoText`, a normalized text-overlap check) to drop near-duplicate candidates the model returns anyway.
+3. Appends only genuinely new candidates to the existing array and writes the merged result.
+
+On AI failure or when a conversation has no non-internal messages, the function returns the existing todos untouched and does **not** write an empty array over the file.
+
+## Snooze lifecycle
+
+`wakeSnoozedTodos()` scans all todos and flips any `status: 'snoozed'` todo whose `snoozedUntil` has passed back to `status: 'open'` (clearing `snoozedUntil`). It's run on a daily cron and once at server startup (see `jobs/todoMaintenance.ts`) so snoozing actually hides an item until its wake date instead of being purely cosmetic.
+
 ## New Fields on `Todo`
 
 In addition to the original fields, each `Todo` now carries:

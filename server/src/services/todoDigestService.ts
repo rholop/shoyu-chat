@@ -14,10 +14,13 @@ export async function buildTodoDigestReport(): Promise<TodoDigestReport> {
   const allTodos = await todoService.getAllTodosWithStatus();
   const today = new Date().toISOString().slice(0, 10);
   const sevenDaysAgo = getDateDaysAgo(7);
+  const thirtyDaysAgo = getDateDaysAgo(30);
+  const sixtyDaysAgo = getDateDaysAgo(60);
 
   const createdThisWeek: TodoDigestItem[] = [];
   const completedThisWeek: TodoDigestItem[] = [];
   const overdue: TodoDigestItem[] = [];
+  const stale: TodoDigestItem[] = [];
 
   for (const todo of allTodos) {
     const conversationTitle = await getConversationTitle(todo.conversationId.replace(/^conversation-/, ''));
@@ -49,6 +52,17 @@ export async function buildTodoDigestReport(): Promise<TodoDigestReport> {
         overdue.push(item);
       }
     }
+
+    // Stale: open, no due date, never touched since creation, and old for its priority.
+    // Surfaced for the user to explicitly review/keep/drop — never auto-deleted.
+    if (todo.status === 'open' && !todo.dueDate && todo.updatedAt === todo.createdAt) {
+      const createdDate = todo.createdAt.slice(0, 10);
+      const isStaleSoon = todo.priority === 'soon' && createdDate < thirtyDaysAgo;
+      const isStaleSomeday = todo.priority === 'someday' && createdDate < sixtyDaysAgo;
+      if (isStaleSoon || isStaleSomeday) {
+        stale.push(item);
+      }
+    }
   }
 
   const totalOpen = allTodos.filter(t => t.status === 'open').length;
@@ -58,6 +72,7 @@ export async function buildTodoDigestReport(): Promise<TodoDigestReport> {
     createdThisWeek: createdThisWeek.sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     completedThisWeek: completedThisWeek.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
     overdue: overdue.sort((a, b) => a.createdAt.localeCompare(b.createdAt)), // oldest overdue first
+    stale: stale.sort((a, b) => a.createdAt.localeCompare(b.createdAt)), // oldest stale first
     totalOpen,
     totalDone
   };

@@ -17,6 +17,35 @@ function todoPath(conversationId: string) {
   return path.join(dataDir(), `conversation-${conversationId}`, 'todos.json');
 }
 
+function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function jaccardSimilarity(a: string, b: string): number {
+  const setA = new Set(a.split(' ').filter(Boolean));
+  const setB = new Set(b.split(' ').filter(Boolean));
+  if (setA.size === 0 || setB.size === 0) return 0;
+  let intersection = 0;
+  for (const word of setA) {
+    if (setB.has(word)) intersection++;
+  }
+  const union = setA.size + setB.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+}
+
+export function isDuplicateTodoText(candidate: string, existing: string): boolean {
+  const normCandidate = normalizeText(candidate);
+  const normExisting = normalizeText(existing);
+  if (!normCandidate || !normExisting) return false;
+  if (normCandidate === normExisting) return true;
+  if (normCandidate.includes(normExisting) || normExisting.includes(normCandidate)) return true;
+  return jaccardSimilarity(normCandidate, normExisting) >= 0.7;
+}
+
 function mostCommon(values: string[]): string {
   if (values.length === 0) return '';
   const counts = new Map<string, number>();
@@ -38,30 +67,36 @@ export function buildTodoPrompt(
   messages: { role: string; content: string }[],
   conversationTitle: string,
   projectName: string | null,
-  anchorDate: string
+  anchorDate: string,
+  existingTodos: string[] = []
 ): string {
   const context = projectName ? `This conversation is part of the project: "${projectName}".` : '';
   const history = messages
     .map(m => `${m.role === 'user' ? 'User' : 'AI'}: ${m.content}`)
     .join('\n\n');
+  const existingSection = existingTodos.length > 0
+    ? `\nThese to-dos are already tracked for this conversation/project. Do not extract anything that restates, rephrases, or makes incremental progress on one of these:\n${existingTodos.map(t => `- ${t}`).join('\n')}\n`
+    : '';
 
   return `You are extracting actionable to-do items from an AI conversation.
 
 Conversation title: "${conversationTitle}"
 Conversation date: ${anchorDate}
 ${context}
-
+${existingSection}
 Conversation:
 ${history}
 
 ---
 
-Extract 0 to 3 concrete, specific to-do items from this conversation.
+Extract at most 3 concrete, specific to-do items from this conversation. Most conversations are purely informational and contain zero real to-dos — returning an empty array is the expected, common outcome. Only extract an item if you are confident the user would genuinely want to be reminded of it.
 
 Rules:
-- Only extract items that are clearly actionable — something the user could actually do.
+- Only extract items the user explicitly committed to or unambiguously asked for (e.g. "remind me to...", "I need to...", "I'll do..."). Do not extract something only the assistant proposed or suggested unless the user clearly agreed to act on it.
 - Do not extract vague intentions like "think about X" or "explore Y someday."
 - Do not extract things the user already completed during the conversation.
+- Do not extract hypothetical examples, sample code/config shown for illustration, or anything not tied to a real action the user intends to take.
+- Do not extract anything already covered by the existing to-dos listed above.
 - Write each to-do as a short imperative sentence starting with a verb. Max 120 characters.
 - For each to-do, assign a priority:
   - "now" = urgent or explicitly time-sensitive
@@ -150,20 +185,21 @@ export function parseTodoResponse(
 }
 
 export async function extractAndSave(conversationId: string): Promise<Todo[]> {
+  const existingOwn = await getTodos(conversationId);
+
   try {
     const meta = getConversationMeta(conversationId);
     if (!meta) {
       logger.warn(`todoService.extractAndSave: conversation ${conversationId} not found`);
-      return [];
+      return existingOwn;
     }
 
     const messages = getMessages(conversationId);
     const nonInternalMessages = messages.filter(m => m.role !== 'internal');
 
     if (nonInternalMessages.length === 0) {
-      const empty: Todo[] = [];
-      atomicWrite(todoPath(conversationId), JSON.stringify(empty, null, 2));
-      return empty;
+      // Nothing to extract from; leave any existing todos for this conversation untouched.
+      return existingOwn;
     }
 
     const lastMessage = nonInternalMessages[nonInternalMessages.length - 1];
@@ -180,6 +216,16 @@ export async function extractAndSave(conversationId: string): Promise<Todo[]> {
       }
     }
 
+    // Gather existing to-dos for dedup/context: same conversation, plus same project (any status,
+    // so a completed/deleted item isn't silently regenerated under different wording).
+    let existingForDedup: Todo[] = existingOwn;
+    if (projectId) {
+      const allWithStatus = await getAllTodosWithStatus();
+      const projectKey = `project-${projectId}`;
+      const fromProject = allWithStatus.filter(t => t.projectId === projectKey);
+      existingForDedup = fromProject.length > 0 ? fromProject : existingOwn;
+    }
+
     // Follow ledgerService logic for intent
     const intentValues = messages
       .filter((m) => m.role === 'internal')
@@ -193,11 +239,22 @@ export async function extractAndSave(conversationId: string): Promise<Todo[]> {
       });
     const intent = mostCommon(intentValues) || 'GENERAL';
 
-    const aiResponse = await summarize(buildTodoPrompt(nonInternalMessages, meta.title, projectName, anchorDate));
+    const aiResponse = await summarize(buildTodoPrompt(
+      nonInternalMessages,
+      meta.title,
+      projectName,
+      anchorDate,
+      existingForDedup.map(t => t.text)
+    ));
     const extracted = parseTodoResponse(aiResponse, anchorDate);
 
+    // Programmatic dedup as a backstop in case the model repeats an existing item anyway.
+    const newCandidates = extracted.filter(item =>
+      !existingForDedup.some(existing => isDuplicateTodoText(item.text, existing.text))
+    );
+
     const now = new Date().toISOString();
-    const todos: Todo[] = extracted.map(item => ({
+    const newTodos: Todo[] = newCandidates.map(item => ({
       id: `todo-${crypto.randomUUID()}`,
       conversationId: `conversation-${conversationId}`,
       text: item.text,
@@ -222,18 +279,13 @@ export async function extractAndSave(conversationId: string): Promise<Todo[]> {
       allDay: true,
     }));
 
-    atomicWrite(todoPath(conversationId), JSON.stringify(todos, null, 2));
-    return todos;
+    const merged = [...existingOwn, ...newTodos];
+    atomicWrite(todoPath(conversationId), JSON.stringify(merged, null, 2));
+    return merged;
   } catch (err) {
     logger.warn(`todoService.extractAndSave failed for ${conversationId}:`, err);
-    // Write empty array on failure to ensure file exists as per requirements
-    try {
-      const empty: Todo[] = [];
-      atomicWrite(todoPath(conversationId), JSON.stringify(empty, null, 2));
-    } catch (writeErr) {
-      logger.error(`todoService: failed to write empty todos.json for ${conversationId}`, writeErr);
-    }
-    return [];
+    // Leave existing todos for this conversation untouched on failure — never wipe on error.
+    return existingOwn;
   }
 }
 
@@ -277,6 +329,38 @@ export async function getAllTodosWithStatus(): Promise<Todo[]> {
   }
 
   return results.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/**
+ * Flips any `snoozed` todo whose `snoozedUntil` date has passed back to `open`.
+ * Returns the number of todos woken up.
+ */
+export async function wakeSnoozedTodos(): Promise<number> {
+  const today = new Date().toISOString().slice(0, 10);
+  const all = await getAllTodosWithStatus();
+  const isDue = (t: Todo) => t.status === 'snoozed' && !!t.snoozedUntil && t.snoozedUntil <= today;
+
+  const conversationIds = new Set(
+    all.filter(isDue).map(t => t.conversationId.replace(/^conversation-/, ''))
+  );
+
+  let wokenCount = 0;
+  for (const conversationId of conversationIds) {
+    const todos = await getTodos(conversationId);
+    let changed = false;
+    const updated = todos.map(t => {
+      if (isDue(t)) {
+        changed = true;
+        wokenCount++;
+        return { ...t, status: 'open' as const, snoozedUntil: null, updatedAt: new Date().toISOString() };
+      }
+      return t;
+    });
+    if (changed) {
+      atomicWrite(todoPath(conversationId), JSON.stringify(updated, null, 2));
+    }
+  }
+  return wokenCount;
 }
 
 export async function updateTodo(
