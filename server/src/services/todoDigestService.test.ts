@@ -192,5 +192,73 @@ describe('todoDigestService', () => {
       expect(report.createdThisWeek.find(i => i.text === 'T1')?.conversationTitle).toBe('Known Title');
       expect(report.createdThisWeek.find(i => i.text === 'T2')?.conversationTitle).toBe('Untitled conversation');
     });
+
+    it('flags untouched soon/someday todos older than their staleness threshold', async () => {
+      const todos: any[] = [
+        {
+          id: 't1',
+          conversationId: 'conversation-c1',
+          text: 'Stale soon todo',
+          status: 'open',
+          priority: 'soon',
+          createdAt: '2026-03-01T10:00:00Z', // > 30 days before 2026-05-10
+          updatedAt: '2026-03-01T10:00:00Z',
+          dueDate: null
+        },
+        {
+          id: 't2',
+          conversationId: 'conversation-c1',
+          text: 'Stale someday todo',
+          status: 'open',
+          priority: 'someday',
+          createdAt: '2026-02-01T10:00:00Z', // > 60 days before 2026-05-10
+          updatedAt: '2026-02-01T10:00:00Z',
+          dueDate: null
+        },
+        {
+          id: 't3',
+          conversationId: 'conversation-c1',
+          text: 'Old but edited, not stale',
+          status: 'open',
+          priority: 'soon',
+          createdAt: '2026-03-01T10:00:00Z',
+          updatedAt: '2026-04-01T10:00:00Z',
+          dueDate: null
+        },
+        {
+          id: 't4',
+          conversationId: 'conversation-c1',
+          text: 'Old but has due date, not stale',
+          status: 'open',
+          priority: 'someday',
+          createdAt: '2026-02-01T10:00:00Z',
+          updatedAt: '2026-02-01T10:00:00Z',
+          dueDate: '2026-12-01'
+        },
+        {
+          id: 't5',
+          conversationId: 'conversation-c1',
+          text: 'Recent someday, not stale',
+          status: 'open',
+          priority: 'someday',
+          createdAt: '2026-05-01T10:00:00Z',
+          updatedAt: '2026-05-01T10:00:00Z',
+          dueDate: null
+        }
+      ];
+
+      vi.mocked(todoService.getAllTodosWithStatus).mockResolvedValue(todos);
+      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify({ title: 'Test Title' }));
+
+      const report = await todoDigestService.buildTodoDigestReport();
+
+      expect(report.stale.map(t => t.text)).toEqual(
+        expect.arrayContaining(['Stale soon todo', 'Stale someday todo'])
+      );
+      expect(report.stale).toHaveLength(2);
+      expect(report.stale.map(t => t.text)).not.toContain('Old but edited, not stale');
+      expect(report.stale.map(t => t.text)).not.toContain('Old but has due date, not stale');
+      expect(report.stale.map(t => t.text)).not.toContain('Recent someday, not stale');
+    });
   });
 });

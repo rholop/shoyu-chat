@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
@@ -286,6 +286,84 @@ describe('todoService', () => {
       expect(todos[0].calendarStatus).toBe('published');
     });
 
+    it('preserves an existing done todo and skips a duplicate candidate on re-extraction', async () => {
+      const existingTodos = [
+        {
+          id: 'todo-existing', conversationId: 'conversation-conv-123', text: 'Fix the bug',
+          priority: 'now', status: 'done', projectId: null, projectName: null, intent: 'CODING',
+          createdAt: '2026-05-01T09:00:00Z', updatedAt: '2026-05-01T09:30:00Z', dueDate: null,
+          snoozedUntil: null, sourceMessageHint: 'h', calendarStatus: 'pending', startTime: null,
+          endTime: null, location: null, url: null, notes: null, alarms: [], recurrence: null, allDay: true
+        }
+      ];
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(existingTodos));
+      vi.mocked(getConversationMeta).mockReturnValue(meta as any);
+      vi.mocked(getMessages).mockReturnValue(messages as any);
+      vi.mocked(summarize).mockResolvedValue(JSON.stringify([
+        { text: 'Fix the bug', priority: 'now', sourceMessageHint: 'dup' },
+        { text: 'Deploy the new release to production', priority: 'soon', sourceMessageHint: 'new' }
+      ]));
+
+      const todos = await todoService.extractAndSave(CONV_ID);
+
+      expect(todos).toHaveLength(2);
+      expect(todos.find(t => t.id === 'todo-existing')?.status).toBe('done');
+      expect(todos.filter(t => t.text === 'Fix the bug')).toHaveLength(1);
+      expect(todos.some(t => t.text === 'Deploy the new release to production')).toBe(true);
+    });
+
+    it('returns existing todos unchanged when the AI call throws, without wiping the file', async () => {
+      const existingTodos = [
+        {
+          id: 'todo-existing', conversationId: 'conversation-conv-123', text: 'Existing task',
+          status: 'open', priority: 'soon', createdAt: '2026-05-01T09:00:00Z', updatedAt: '2026-05-01T09:00:00Z'
+        }
+      ];
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(existingTodos));
+      vi.mocked(getConversationMeta).mockReturnValue(meta as any);
+      vi.mocked(getMessages).mockReturnValue(messages as any);
+      vi.mocked(summarize).mockRejectedValue(new Error('AI call failed'));
+
+      const todos = await todoService.extractAndSave(CONV_ID);
+
+      expect(todos).toHaveLength(1);
+      expect(todos[0].text).toBe('Existing task');
+      expect(vi.mocked(atomicWrite)).not.toHaveBeenCalled();
+    });
+
+    it('skips a cross-conversation duplicate within the same project', async () => {
+      const metaWithProject = { ...meta, projectId: 'proj-1' };
+      const otherProjectTodo = {
+        id: 'todo-other', conversationId: 'conversation-other-conv', text: 'Set up CI pipeline for the project',
+        status: 'open', priority: 'soon', projectId: 'project-proj-1', projectName: 'Cool Project',
+        createdAt: '2026-04-20T10:00:00Z', updatedAt: '2026-04-20T10:00:00Z'
+      };
+
+      vi.mocked(getConversationMeta).mockReturnValue(metaWithProject as any);
+      vi.mocked(getMessages).mockReturnValue(messages as any);
+      vi.mocked(getProjectMeta).mockReturnValue({ id: 'proj-1', name: 'Cool Project' } as any);
+      vi.mocked(summarize).mockResolvedValue(JSON.stringify([
+        { text: 'Set up the CI pipeline for this project', priority: 'soon', sourceMessageHint: 'dup' }
+      ]));
+
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readdirSync).mockReturnValue(['conversation-other-conv'] as any);
+      vi.mocked(fs.statSync).mockReturnValue({ isDirectory: () => true } as any);
+      vi.mocked(fs.readFileSync).mockImplementation((p: any) => {
+        if (String(p).includes('conv-123')) return JSON.stringify([]);
+        if (String(p).includes('other-conv')) return JSON.stringify([otherProjectTodo]);
+        return '[]';
+      });
+
+      const todos = await todoService.extractAndSave(CONV_ID);
+
+      expect(todos).toHaveLength(0);
+      const promptCall = vi.mocked(summarize).mock.calls[0][0];
+      expect(promptCall).toContain('Set up CI pipeline for the project');
+    });
+
     it('sets default new fields: alarms=[], recurrence=null, allDay=true', async () => {
       vi.mocked(getConversationMeta).mockReturnValue(meta as any);
       vi.mocked(getMessages).mockReturnValue(messages as any);
@@ -484,6 +562,50 @@ describe('todoService', () => {
       vi.mocked(fs.existsSync).mockReturnValue(false);
       const todos = await todoService.getAllTodosWithStatus();
       expect(todos).toEqual([]);
+    });
+  });
+
+  describe('wakeSnoozedTodos()', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('flips snoozed todos whose snoozedUntil has passed back to open, leaves others alone', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-05-10T12:00:00Z'));
+
+      const due = { id: 't1', conversationId: 'conversation-c1', status: 'snoozed', snoozedUntil: '2026-05-09', text: 'Wake me', createdAt: '2026-05-01T10:00:00Z', updatedAt: '2026-05-01T10:00:00Z' };
+      const future = { id: 't2', conversationId: 'conversation-c1', status: 'snoozed', snoozedUntil: '2026-06-01', text: 'Not yet', createdAt: '2026-05-01T10:00:00Z', updatedAt: '2026-05-01T10:00:00Z' };
+      const open = { id: 't3', conversationId: 'conversation-c2', status: 'open', snoozedUntil: null, text: 'Already open', createdAt: '2026-05-01T10:00:00Z', updatedAt: '2026-05-01T10:00:00Z' };
+
+      vi.mocked(fs.readdirSync).mockReturnValue(['conversation-c1', 'conversation-c2'] as any);
+      vi.mocked(fs.statSync).mockReturnValue({ isDirectory: () => true } as any);
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockImplementation((p: any) => {
+        if (String(p).includes('conversation-c1')) return JSON.stringify([due, future]);
+        if (String(p).includes('conversation-c2')) return JSON.stringify([open]);
+        return '[]';
+      });
+
+      const woken = await todoService.wakeSnoozedTodos();
+
+      expect(woken).toBe(1);
+      const c1Write = vi.mocked(atomicWrite).mock.calls.find(c => (c[0] as string).includes('conversation-c1'));
+      expect(c1Write).toBeDefined();
+      const saved = JSON.parse(c1Write![1] as string);
+      expect(saved.find((t: any) => t.id === 't1').status).toBe('open');
+      expect(saved.find((t: any) => t.id === 't1').snoozedUntil).toBeNull();
+      expect(saved.find((t: any) => t.id === 't2').status).toBe('snoozed');
+
+      const c2Write = vi.mocked(atomicWrite).mock.calls.find(c => (c[0] as string).includes('conversation-c2'));
+      expect(c2Write).toBeUndefined();
+    });
+
+    it('returns 0 when there are no snoozed todos', async () => {
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      const woken = await todoService.wakeSnoozedTodos();
+      expect(woken).toBe(0);
+      expect(vi.mocked(atomicWrite)).not.toHaveBeenCalled();
     });
   });
 

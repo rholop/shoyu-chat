@@ -65,13 +65,17 @@ ${todoDigest.completedThisWeek.map(t => `- ${t.text}`).join('\n') || '(none)'}
 Overdue (${todoDigest.overdue.length}):
 ${todoDigest.overdue.map(t => `- [${t.priority.toUpperCase()}] ${t.text} — created ${t.createdAt.slice(0, 10)}`).join('\n') || '(none)'}
 
+Stale — untouched since creation, no due date (${todoDigest.stale.length}):
+${todoDigest.stale.map(t => `- [${t.priority.toUpperCase()}] ${t.text} — created ${t.createdAt.slice(0, 10)}`).join('\n') || '(none)'}
+
 Total open: ${todoDigest.totalOpen}
 Total completed all time: ${todoDigest.totalDone}
 
 When writing insights, note:
 - Whether the user is creating more todos than completing (accumulating debt)
 - Whether overdue todos have a pattern (same project, same intent)
-- Whether any completed todos represent meaningful progress`;
+- Whether any completed todos represent meaningful progress
+- If there are stale todos, gently prompt the user to review and explicitly keep, reprioritize, or delete them — never imply they were removed automatically`;
 
   return `You are generating a personal weekly digest for a solo developer.
 
@@ -170,9 +174,11 @@ function buildInsightPrompt(
 Created this week: ${todoDigest.createdThisWeek.length}
 Completed this week: ${todoDigest.completedThisWeek.length}
 Currently overdue: ${todoDigest.overdue.length}
+Stale (untouched, no due date): ${todoDigest.stale.length}
 Total open: ${todoDigest.totalOpen}
 
 ${todoDigest.overdue.length > 0 ? `Overdue items: ${todoDigest.overdue.map(t => t.text).join('; ')}` : ''}
+${todoDigest.stale.length > 0 ? `Stale items: ${todoDigest.stale.map(t => t.text).join('; ')}` : ''}
 
 In the "Patterns Worth Naming" section, include one observation about the user's follow-through
 on action items if the data is meaningful. For example: if many todos are created but few completed,

@@ -186,6 +186,7 @@ export interface TodoDigestReport {
   createdThisWeek: TodoDigestItem[];
   completedThisWeek: TodoDigestItem[];
   overdue: TodoDigestItem[];
+  stale: TodoDigestItem[];
   totalOpen: number;
   totalDone: number;
 }

@@ -63,6 +63,7 @@ const params: DigestEmailParams = {
     createdThisWeek: [],
     completedThisWeek: [],
     overdue: [],
+    stale: [],
     totalOpen: 3,
     totalDone: 1,
   },

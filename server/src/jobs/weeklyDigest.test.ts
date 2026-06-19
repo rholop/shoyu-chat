@@ -88,6 +88,7 @@ vi.mock('../services/todoDigestService', () => ({
     createdThisWeek: [{ text: 'New Todo', priority: 'now', conversationTitle: 'C1', projectName: null, createdAt: '2026-05-01', updatedAt: '2026-05-01', dueDate: null }],
     completedThisWeek: [{ text: 'Done Todo', priority: 'soon', conversationTitle: 'C1', projectName: null, createdAt: '2026-04-20', updatedAt: '2026-05-01', dueDate: null }],
     overdue: [{ text: 'Late Todo', priority: 'now', conversationTitle: 'C1', projectName: null, createdAt: '2026-04-01', updatedAt: '2026-04-01', dueDate: '2026-04-15' }],
+    stale: [{ text: 'Stale Todo', priority: 'someday', conversationTitle: 'C1', projectName: null, createdAt: '2026-03-01', updatedAt: '2026-03-01', dueDate: null }],
     totalOpen: 10,
     totalDone: 5
   }),
